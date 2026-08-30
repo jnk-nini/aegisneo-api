@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisNEO — Near-Earth Object Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="stars" aria-hidden="true"></div>
+
+    <header class="masthead">
+        <div class="masthead-inner">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <div>
+                    <p class="brand-name">AegisNEO</p>
+                    <p class="brand-sub">Near-Earth Object Watch</p>
+                </div>
+            </div>
+            <dl class="masthead-stats">
+                <div>
+                    <dt>Tracked objects</dt>
+                    <dd id="statTotal">—</dd>
+                </div>
+                <div>
+                    <dt>Showing</dt>
+                    <dd id="statShown">—</dd>
+                </div>
+            </dl>
+        </div>
+    </header>
+
+    <main>
+        <section class="search" role="search">
+            <label class="visually-hidden" for="searchInput">Search by name or reference ID</label>
+            <input type="text" id="searchInput" placeholder="Search by designation or reference ID…" autocomplete="off">
+            <button id="searchBtn" type="button">Search</button>
+            <button id="resetBtn" type="button" class="secondary">Show All</button>
+        </section>
+
+        <section class="console" aria-live="polite">
+            <div id="asteroidList" class="asteroid-grid">
+                <p class="status-line">Establishing telemetry link…</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Data: NASA-derived Near-Earth Object catalog · AegisNEO telemetry console</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
