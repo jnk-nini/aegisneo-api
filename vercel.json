@@ -8,7 +8,10 @@
     { "src": "assets/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/asteroids(.*)", "dest": "index.py" },
+    { "src": "/health", "dest": "index.py" },
+    { "src": "/docs(.*)", "dest": "index.py" },
+    { "src": "/redoc(.*)", "dest": "index.py" },
+    { "src": "/openapi.json", "dest": "index.py" },
     { "src": "/api(.*)", "dest": "index.py" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
