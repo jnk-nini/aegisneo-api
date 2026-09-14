@@ -2,6 +2,10 @@ const API_URL = (location.hostname === "localhost" || location.hostname === "127
     ? "http://127.0.0.1:8000"
     : "";
 
+// Matches the backend's API_KEY in index.py (student-project scale auth, not production-grade).
+const API_KEY = "student-api-key-123";
+const API_HEADERS = { "x-api-key": API_KEY };
+
 const LUNAR_DISTANCE_KM = 384400;
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -69,7 +73,7 @@ async function loadAsteroids() {
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/asteroids`);
+        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS });
         const data = await response.json();
         state.raw = data.asteroids || [];
         if (data.total !== undefined) statTotalEl.textContent = data.total.toLocaleString();
@@ -98,7 +102,7 @@ async function searchAsteroids() {
 
     try {
         const response =
-            await fetch(`${API_URL}/asteroids?search=${encodeURIComponent(query)}`);
+            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS });
         const data = await response.json();
         state.raw = data.asteroids || [];
         applyFiltersAndSort();
@@ -231,7 +235,7 @@ function asteroidCardHTML(asteroid) {
 // VIEW ONE ASTEROID (detail panel, replaces the starter's alert() popup)
 async function viewAsteroid(id) {
     try {
-        const response = await fetch(`${API_URL}/asteroids/${encodeURIComponent(id)}`);
+        const response = await fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: API_HEADERS });
         if (!response.ok) throw new Error("not found");
         const asteroid = await response.json();
         showDetailPanel(asteroid);
