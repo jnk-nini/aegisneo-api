@@ -201,6 +201,31 @@ canvas#map {
   cursor: crosshair;
 }
 
+@keyframes mapShake {
+  10%, 90% { transform: translate3d(-1px, -1px, 0); }
+  20%, 80% { transform: translate3d(2px, 1px, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 3px, 0); }
+  40%, 60% { transform: translate3d(4px, -2px, 0); }
+}
+.map-wrap.shake { animation: mapShake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+.reset-view-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(10,7,5,0.7);
+  border: 1px solid var(--border);
+  color: var(--paper-dim);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: color 0.15s, border-color 0.15s;
+}
+.reset-view-btn:hover { color: var(--primary-glow); border-color: var(--primary); }
+
 .map-hint {
   position: absolute;
   bottom: 14px;
@@ -243,4 +268,5 @@ canvas#map {
 
 @media (prefers-reduced-motion: reduce) {
   .sweep { animation: none; }
+  .map-wrap.shake { animation: none; }
 }

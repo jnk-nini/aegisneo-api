@@ -9,6 +9,7 @@
 <body>
 
 <div class="starfield" id="starfield"></div>
+<div class="starfield-far" id="starfieldFar"></div>
 
 <header class="topbar">
   <div class="wordmark">
@@ -20,10 +21,13 @@
     <input type="text" id="searchInput" placeholder="Chart a name, ID, hazard status, or date…">
     <button type="submit">Chart</button>
     <button type="button" id="loadDefaultBtn" title="Chart the default field">Chart default 100</button>
+    <button type="button" id="leaderboardBtn" title="Open leaderboard">☰ Leaderboard</button>
   </form>
 
   <div class="hud">
     <span id="chartedCount">0</span> / <span id="totalCount">—</span> objects charted
+    <span class="hud-sep">·</span>
+    <span id="clusterCount">0</span> constellations formed
   </div>
 </header>
 
@@ -41,10 +45,46 @@
   </div>
 </main>
 
+<div class="timeline-bar" id="timelineBar" hidden>
+  <button type="button" class="timeline-play" id="timelinePlay" title="Play/pause">▶</button>
+  <input type="range" id="timelineRange" class="timeline-range" min="0" max="1000" value="1000">
+  <span class="timeline-label" id="timelineLabel">—</span>
+  <button type="button" class="timeline-reset" id="timelineReset" title="Reveal all">reveal all</button>
+</div>
+
+<div class="compare-tray" id="compareTray" hidden>
+  <div class="compare-tray-chips" id="compareTrayChips"></div>
+  <div class="compare-tray-actions">
+    <button type="button" id="compareOpenBtn">Compare</button>
+    <button type="button" id="compareClearBtn" class="ghost">clear</button>
+  </div>
+</div>
+
 <aside class="detail-panel" id="detailPanel" hidden>
   <button class="detail-close" id="detailClose" aria-label="Close">&times;</button>
   <div id="detailBody"></div>
+  <button type="button" class="detail-compare-btn" id="detailCompareBtn">+ Add to compare</button>
 </aside>
+
+<aside class="leaderboard-panel" id="leaderboardPanel" hidden>
+  <button class="detail-close" id="leaderboardClose" aria-label="Close">&times;</button>
+  <h2>Leaderboard</h2>
+  <div class="lb-tabs">
+    <button type="button" class="lb-tab active" data-cat="biggest">Biggest</button>
+    <button type="button" class="lb-tab" data-cat="fastest">Fastest</button>
+    <button type="button" class="lb-tab" data-cat="closest">Closest</button>
+    <button type="button" class="lb-tab" data-cat="hazard">Hazardous</button>
+  </div>
+  <ol class="lb-list" id="lbList"></ol>
+</aside>
+
+<div class="compare-modal" id="compareModal" hidden>
+  <div class="compare-modal-inner">
+    <button class="detail-close" id="compareModalClose" aria-label="Close">&times;</button>
+    <h2>Side-by-side comparison</h2>
+    <div class="compare-table" id="compareTable"></div>
+  </div>
+</div>
 
 <div class="empty-state" id="emptyState" hidden>
   No objects matched that query. Try a name, reference ID, "hazardous", or a year.
