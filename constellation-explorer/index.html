@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constellation Explorer — AegisNEO</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="starfield" id="starfield"></div>
+
+<header class="topbar">
+  <div class="wordmark">
+    <span class="wordmark-main">CONSTELLATION EXPLORER</span>
+    <span class="wordmark-sub">a NEO field chart · powered by AegisNEO</span>
+  </div>
+
+  <form class="searchbar" id="searchForm" autocomplete="off">
+    <input type="text" id="searchInput" placeholder="Chart a name, ID, hazard status, or date…">
+    <button type="submit">Chart</button>
+    <button type="button" id="loadDefaultBtn" title="Chart the default field">Chart default 100</button>
+  </form>
+
+  <div class="hud">
+    <span id="chartedCount">0</span> / <span id="totalCount">—</span> objects charted
+  </div>
+</header>
+
+<main class="viewport-wrap">
+  <canvas id="field"></canvas>
+
+  <div class="viewport-hint" id="viewportHint">
+    Drag to pan · scroll to zoom · click a star to inspect it
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="swatch nominal"></span> nominal</div>
+    <div class="legend-item"><span class="swatch hazardous"></span> hazardous</div>
+    <div class="legend-item"><span class="swatch-size"></span> size ≈ point size</div>
+  </div>
+</main>
+
+<aside class="detail-panel" id="detailPanel" hidden>
+  <button class="detail-close" id="detailClose" aria-label="Close">&times;</button>
+  <div id="detailBody"></div>
+</aside>
+
+<div class="empty-state" id="emptyState" hidden>
+  No objects matched that query. Try a name, reference ID, "hazardous", or a year.
+</div>
+
+<div class="loading-state" id="loadingState" hidden>
+  <div class="sweep"></div>
+  <span>scanning field…</span>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

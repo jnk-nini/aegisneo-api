@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impact Simulator — AegisNEO</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark">
+    <span class="wordmark-main">IMPACT SIMULATOR</span>
+    <span class="wordmark-sub">strike modeling console · powered by AegisNEO</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="controls">
+    <form class="search-row" id="searchForm" autocomplete="off">
+      <input type="text" id="searchInput" placeholder="Search a real object by name or ID…">
+      <button type="submit">Search</button>
+    </form>
+    <button type="button" class="ghost-btn" id="surpriseBtn">🎲 Surprise me</button>
+
+    <div id="resultsList" class="results-list" hidden></div>
+
+    <div class="target-card" id="targetCard" hidden>
+      <div class="target-card-head">
+        <span id="targetName">—</span>
+        <span class="badge" id="targetBadge"></span>
+      </div>
+      <div class="target-stats">
+        <div><span>Diameter</span><strong id="statDiameter">—</strong></div>
+        <div><span>Velocity</span><strong id="statVelocity">—</strong></div>
+        <div><span>Abs. magnitude</span><strong id="statMagnitude">—</strong></div>
+      </div>
+    </div>
+
+    <div class="readout" id="readout" hidden>
+      <h2>Simulated Strike</h2>
+      <div class="readout-row"><span>Impact energy</span><strong id="outEnergy">—</strong></div>
+      <div class="readout-row"><span>TNT equivalent</span><strong id="outTnt">—</strong></div>
+      <div class="readout-row severe"><span>Severe-damage radius</span><strong id="outSevere">—</strong></div>
+      <div class="readout-row moderate"><span>Widespread-damage radius</span><strong id="outModerate">—</strong></div>
+      <p class="readout-note" id="outCompare"></p>
+    </div>
+
+    <p class="disclaimer">
+      Educational approximation only. Energy and radii use simplified physics
+      (density-estimated mass, cube-root blast scaling) on real diameter/velocity
+      data — not a scientific or geological hazard model.
+    </p>
+  </section>
+
+  <section class="map-wrap">
+    <canvas id="map"></canvas>
+    <div class="map-hint" id="mapHint">Select an object, then click the grid to choose an impact point</div>
+    <div class="loading-state" id="loadingState" hidden>
+      <div class="sweep"></div><span>fetching object…</span>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
