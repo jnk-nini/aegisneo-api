@@ -489,32 +489,75 @@ function applyFlyTo(time) {
 }
 
 // ---------------------------------------------------------------
-// Pan / zoom / hover / click
+// Pan / zoom / hover / click — Pointer Events (mouse, touch, pen)
 // ---------------------------------------------------------------
-canvas.addEventListener("mousedown", (e) => {
-    state.dragging = true;
-    state.dragged = false;
-    state.lastMouse = { x: e.clientX, y: e.clientY };
-    canvas.classList.add("dragging");
+canvas.style.touchAction = "none";
+const activePointers = new Map(); // pointerId -> {x, y}
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+
+canvas.addEventListener("pointerdown", (e) => {
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore: pointer already inactive */ }
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.size === 1) {
+        state.dragging = true;
+        state.dragged = false;
+        state.lastMouse = { x: e.clientX, y: e.clientY };
+        canvas.classList.add("dragging");
+    } else if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        pinchStartZoom = state.camera.zoom;
+        state.dragged = true;
+    }
 });
 
-window.addEventListener("mousemove", (e) => {
-    if (state.dragging) {
+window.addEventListener("pointermove", (e) => {
+    if (!activePointers.has(e.pointerId)) {
+        if (e.pointerType !== "touch") hitTestHover(e);
+        return;
+    }
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const midX = (pts[0].x + pts[1].x) / 2;
+        const midY = (pts[0].y + pts[1].y) / 2;
+        if (pinchStartDist > 0) {
+            const rect = canvas.getBoundingClientRect();
+            const before = screenToWorld(midX - rect.left, midY - rect.top);
+            state.camera.zoom = clamp(pinchStartZoom * (dist / pinchStartDist), 0.08, 8);
+            const after = screenToWorld(midX - rect.left, midY - rect.top);
+            state.camera.x += before.wx - after.wx;
+            state.camera.y += before.wy - after.wy;
+        }
+    } else if (state.dragging) {
         const dx = e.clientX - state.lastMouse.x;
         const dy = e.clientY - state.lastMouse.y;
         if (Math.abs(dx) + Math.abs(dy) > 2) state.dragged = true;
-        state.camera.x -= (dx * dpr) / (state.camera.zoom * dpr);
-        state.camera.y -= (dy * dpr) / (state.camera.zoom * dpr);
+        state.camera.x -= dx / state.camera.zoom;
+        state.camera.y -= dy / state.camera.zoom;
         state.lastMouse = { x: e.clientX, y: e.clientY };
-    } else {
+    } else if (e.pointerType !== "touch") {
         hitTestHover(e);
     }
 });
 
-window.addEventListener("mouseup", () => {
-    state.dragging = false;
-    canvas.classList.remove("dragging");
-});
+function endPointer(e) {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size === 0) {
+        state.dragging = false;
+        canvas.classList.remove("dragging");
+    } else if (activePointers.size === 1) {
+        const [remaining] = activePointers.values();
+        state.dragging = true;
+        state.dragged = true;
+        state.lastMouse = { x: remaining.x, y: remaining.y };
+    }
+}
+window.addEventListener("pointerup", endPointer);
+window.addEventListener("pointercancel", endPointer);
 
 canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -849,16 +892,6 @@ function escapeAttr(str) {
 }
 
 async function init() {
-    try {
-        const response = await fetch(`${API_URL}/`);
-        const data = await response.json();
-        if (typeof data.total_tracked === "number") {
-            state.total = data.total_tracked;
-            totalCountEl.textContent = state.total.toLocaleString();
-        }
-    } catch (err) {
-        console.error("Could not fetch field total:", err);
-    }
     fetchAsteroids(`${API_URL}/api/v1/asteroids`);
 }
 
