@@ -137,6 +137,7 @@ canvas#field {
   width: 100%;
   height: 100%;
   cursor: grab;
+  touch-action: none;
 }
 canvas#field.dragging { cursor: grabbing; }
 

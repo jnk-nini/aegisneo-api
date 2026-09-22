@@ -398,24 +398,70 @@ function applyFlyTo(time) {
 }
 
 // ---------------------------------------------------------------
-// Pointer interaction: drag to pan, wheel to zoom, click to strike
+// Pointer interaction: drag to pan, wheel/pinch to zoom, click/tap to strike
 // ---------------------------------------------------------------
-canvas.addEventListener("mousedown", (e) => {
-    dragging = true;
-    dragged = false;
-    lastMouse = { x: e.clientX, y: e.clientY };
+canvas.style.touchAction = "none";
+const activePointers = new Map(); // pointerId -> {x, y}
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+
+canvas.addEventListener("pointerdown", (e) => {
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore: pointer already inactive */ }
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (activePointers.size === 1) {
+        dragging = true;
+        dragged = false;
+        lastMouse = { x: e.clientX, y: e.clientY };
+    } else if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        pinchStartZoom = camera.zoom;
+        dragged = true;
+    }
 });
-window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - lastMouse.x;
-    const dy = e.clientY - lastMouse.y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
-    camera.x -= (dx * dpr) / camera.zoom;
-    camera.y -= (dy * dpr) / camera.zoom;
-    camera._touched = true;
-    lastMouse = { x: e.clientX, y: e.clientY };
+
+window.addEventListener("pointermove", (e) => {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const midX = (pts[0].x + pts[1].x) / 2;
+        const midY = (pts[0].y + pts[1].y) / 2;
+        if (pinchStartDist > 0) {
+            const rect = canvas.getBoundingClientRect();
+            const before = screenToWorld(midX - rect.left, midY - rect.top);
+            camera.zoom = clamp(pinchStartZoom * (dist / pinchStartDist), fitZoom * 0.8, fitZoom * MAX_ZOOM_MULT);
+            camera._touched = true;
+            const after = screenToWorld(midX - rect.left, midY - rect.top);
+            camera.x += before.wx - after.wx;
+            camera.y += before.wy - after.wy;
+        }
+    } else if (dragging) {
+        const dx = e.clientX - lastMouse.x;
+        const dy = e.clientY - lastMouse.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
+        camera.x -= (dx * dpr) / camera.zoom;
+        camera.y -= (dy * dpr) / camera.zoom;
+        camera._touched = true;
+        lastMouse = { x: e.clientX, y: e.clientY };
+    }
 });
-window.addEventListener("mouseup", () => { dragging = false; });
+
+function endPointer(e) {
+    activePointers.delete(e.pointerId);
+    if (activePointers.size === 0) {
+        dragging = false;
+    } else if (activePointers.size === 1) {
+        const [remaining] = activePointers.values();
+        dragging = true;
+        dragged = true;
+        lastMouse = { x: remaining.x, y: remaining.y };
+    }
+}
+window.addEventListener("pointerup", endPointer);
+window.addEventListener("pointercancel", endPointer);
 
 canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
