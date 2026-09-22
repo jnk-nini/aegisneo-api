@@ -5,7 +5,9 @@
     { "src": "*.html", "use": "@vercel/static" },
     { "src": "*.css", "use": "@vercel/static" },
     { "src": "*.js", "use": "@vercel/static" },
-    { "src": "assets/**", "use": "@vercel/static" }
+    { "src": "assets/**", "use": "@vercel/static" },
+    { "src": "impact-simulator/**", "use": "@vercel/static" },
+    { "src": "constellation-explorer/**", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/health", "dest": "index.py" },
