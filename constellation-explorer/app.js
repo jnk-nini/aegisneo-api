@@ -2,7 +2,10 @@
 // charted from the AegisNEO API. The API caps every response at 100 objects
 // (search or default), so instead of pretending to show the full 33.5k-object
 // field at once, each search "charts" its up to-100 results onto a shared,
-// deduplicated map that grows across the session.
+// deduplicated map that grows across the session. Nearby charted objects are
+// auto-linked into named constellations, a timeline lets you scrub through
+// real close-approach dates, and a leaderboard/compare tray lets you size
+// objects up against each other.
 
 const API_URL = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
     ? "http://127.0.0.1:8000"
@@ -20,24 +23,50 @@ const searchInput = document.getElementById("searchInput");
 const loadDefaultBtn = document.getElementById("loadDefaultBtn");
 const chartedCountEl = document.getElementById("chartedCount");
 const totalCountEl = document.getElementById("totalCount");
+const clusterCountEl = document.getElementById("clusterCount");
 const emptyState = document.getElementById("emptyState");
 const loadingState = document.getElementById("loadingState");
 const detailPanel = document.getElementById("detailPanel");
 const detailBody = document.getElementById("detailBody");
 const detailClose = document.getElementById("detailClose");
+const detailCompareBtn = document.getElementById("detailCompareBtn");
+
+const timelineBar = document.getElementById("timelineBar");
+const timelinePlay = document.getElementById("timelinePlay");
+const timelineRange = document.getElementById("timelineRange");
+const timelineLabel = document.getElementById("timelineLabel");
+const timelineReset = document.getElementById("timelineReset");
+
+const leaderboardBtn = document.getElementById("leaderboardBtn");
+const leaderboardPanel = document.getElementById("leaderboardPanel");
+const leaderboardClose = document.getElementById("leaderboardClose");
+const lbList = document.getElementById("lbList");
+const lbTabs = document.querySelectorAll(".lb-tab");
+
+const compareTray = document.getElementById("compareTray");
+const compareTrayChips = document.getElementById("compareTrayChips");
+const compareOpenBtn = document.getElementById("compareOpenBtn");
+const compareClearBtn = document.getElementById("compareClearBtn");
+const compareModal = document.getElementById("compareModal");
+const compareModalClose = document.getElementById("compareModalClose");
+const compareTable = document.getElementById("compareTable");
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const state = {
-    charted: new Map(),   // neo_reference_id -> { data, wx, wy, r, hazardous }
+    charted: new Map(),   // neo_reference_id -> { data, wx, wy, r, hazardous, dateMs }
     total: null,
     camera: { x: 0, y: 0, zoom: 1 },
-    flyTo: null,          // { fromX, fromY, fromZoom, toX, toY, toZoom, start, duration }
+    flyTo: null,
     dragging: false,
     lastMouse: { x: 0, y: 0 },
     dragged: false,
     hoveredId: null,
     selectedId: null,
+    clusters: [],
+    timeline: { minMs: null, maxMs: null, playheadMs: null, playing: false },
+    compareIds: new Set(),
+    lbCategory: "biggest",
 };
 
 let tooltipEl = null;
@@ -66,7 +95,7 @@ function layoutFor(asteroid) {
     const wy = Math.sin(angle) * ring;
 
     const diameterM = Math.max(asteroid.estimated_diameter_km, 0.0005) * 1000;
-    const r = clamp(2.5 + Math.log10(diameterM + 1) * 2.2, 2.5, 20);
+    const r = clamp(1.4 + Math.log10(diameterM + 1) * 1.15, 1.4, 9);
 
     return { wx, wy, r };
 }
@@ -110,18 +139,238 @@ function screenToWorld(sx, sy) {
 }
 
 // ---------------------------------------------------------------
+// Timeline: reveal state per point
+// ---------------------------------------------------------------
+function isRevealed(point) {
+    if (state.timeline.playheadMs == null) return true;
+    return point.dateMs <= state.timeline.playheadMs;
+}
+
+function updateTimelineRange() {
+    let min = Infinity, max = -Infinity;
+    for (const p of state.charted.values()) {
+        if (p.dateMs < min) min = p.dateMs;
+        if (p.dateMs > max) max = p.dateMs;
+    }
+    if (!isFinite(min)) return;
+
+    const wasAtMax = state.timeline.maxMs == null || state.timeline.playheadMs >= state.timeline.maxMs - 1;
+    state.timeline.minMs = min;
+    state.timeline.maxMs = max;
+    if (wasAtMax || state.timeline.playheadMs == null) {
+        state.timeline.playheadMs = max;
+    }
+    timelineBar.hidden = state.charted.size === 0;
+    syncTimelineUI();
+}
+
+function syncTimelineUI() {
+    const { minMs, maxMs, playheadMs } = state.timeline;
+    if (minMs == null) return;
+    const span = Math.max(maxMs - minMs, 1);
+    const pct = clamp(((playheadMs - minMs) / span) * 1000, 0, 1000);
+    timelineRange.value = String(Math.round(pct));
+    const d = new Date(playheadMs);
+    timelineLabel.textContent = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+timelineRange.addEventListener("input", () => {
+    state.timeline.playing = false;
+    timelinePlay.textContent = "▶";
+    const { minMs, maxMs } = state.timeline;
+    if (minMs == null) return;
+    const pct = Number(timelineRange.value) / 1000;
+    state.timeline.playheadMs = minMs + pct * (maxMs - minMs);
+    syncTimelineUI();
+});
+
+timelinePlay.addEventListener("click", () => {
+    if (state.timeline.minMs == null) return;
+    if (state.timeline.playheadMs >= state.timeline.maxMs - 1) {
+        state.timeline.playheadMs = state.timeline.minMs;
+    }
+    state.timeline.playing = !state.timeline.playing;
+    timelinePlay.textContent = state.timeline.playing ? "⏸" : "▶";
+});
+
+timelineReset.addEventListener("click", () => {
+    state.timeline.playing = false;
+    timelinePlay.textContent = "▶";
+    state.timeline.playheadMs = state.timeline.maxMs;
+    syncTimelineUI();
+});
+
+const PLAY_DURATION_SEC = 14;
+function updateTimelinePlayback(dt) {
+    if (!state.timeline.playing || state.timeline.minMs == null) return;
+    const span = state.timeline.maxMs - state.timeline.minMs;
+    state.timeline.playheadMs += (span / PLAY_DURATION_SEC) * dt;
+    if (state.timeline.playheadMs >= state.timeline.maxMs) {
+        state.timeline.playheadMs = state.timeline.maxMs;
+        state.timeline.playing = false;
+        timelinePlay.textContent = "▶";
+    }
+    syncTimelineUI();
+}
+
+// ---------------------------------------------------------------
+// Constellations: cluster nearby charted points, connect with an MST,
+// and give each cluster a generated name.
+// ---------------------------------------------------------------
+const CLUSTER_THRESHOLD = 16;
+const NAME_A = ["Vel", "Drac", "Lyr", "Corv", "Aurig", "Cassi", "Hydr", "Ori", "Cygn", "Pav", "Ind", "Phoen", "Scorp", "Andro", "Pers", "Taur", "Lep", "Coron", "Sagitt", "Del"];
+const NAME_B = ["is", "onis", "ae", "um", "ara", "ion", "eus", "andra", "ora", "ix"];
+const NAME_C = ["Minor", "Prime", "Nova", "Ultima", "Borealis", "Australis", "Reach", "Drift", "Span", "Cluster"];
+
+function clusterName(ids) {
+    const key = ids.slice().sort().join("|");
+    const h1 = hashString(key);
+    const h2 = hashString(key + "b");
+    const h3 = hashString(key + "c");
+    const a = NAME_A[Math.floor(h1 * NAME_A.length)];
+    const b = NAME_B[Math.floor(h2 * NAME_B.length)];
+    const c = NAME_C[Math.floor(h3 * NAME_C.length)];
+    return `${a}${b} ${c}`;
+}
+
+function computeClusters() {
+    const points = [...state.charted.values()];
+    const parent = new Map(points.map(p => [p.data.neo_reference_id, p.data.neo_reference_id]));
+    function find(id) {
+        while (parent.get(id) !== id) {
+            parent.set(id, parent.get(parent.get(id)));
+            id = parent.get(id);
+        }
+        return id;
+    }
+    function union(a, b) {
+        const ra = find(a), rb = find(b);
+        if (ra !== rb) parent.set(ra, rb);
+    }
+
+    for (let i = 0; i < points.length; i++) {
+        for (let j = i + 1; j < points.length; j++) {
+            const dx = points[i].wx - points[j].wx;
+            const dy = points[i].wy - points[j].wy;
+            if (dx * dx + dy * dy <= CLUSTER_THRESHOLD * CLUSTER_THRESHOLD) {
+                union(points[i].data.neo_reference_id, points[j].data.neo_reference_id);
+            }
+        }
+    }
+
+    const groups = new Map();
+    for (const p of points) {
+        const root = find(p.data.neo_reference_id);
+        if (!groups.has(root)) groups.set(root, []);
+        groups.get(root).push(p);
+    }
+
+    const clusters = [];
+    for (const members of groups.values()) {
+        if (members.length < 3) continue;
+        const ids = members.map(m => m.data.neo_reference_id);
+        const edges = mst(members);
+        const cx = members.reduce((s, m) => s + m.wx, 0) / members.length;
+        const cy = members.reduce((s, m) => s + m.wy, 0) / members.length;
+        clusters.push({ ids, members, edges, centroid: { wx: cx, wy: cy }, name: clusterName(ids) });
+    }
+    state.clusters = clusters;
+    clusterCountEl.textContent = String(clusters.length);
+}
+
+function mst(members) {
+    const n = members.length;
+    const inTree = new Array(n).fill(false);
+    const dist = new Array(n).fill(Infinity);
+    const parent = new Array(n).fill(-1);
+    dist[0] = 0;
+    const edges = [];
+    for (let iter = 0; iter < n; iter++) {
+        let u = -1, best = Infinity;
+        for (let i = 0; i < n; i++) {
+            if (!inTree[i] && dist[i] < best) { best = dist[i]; u = i; }
+        }
+        if (u === -1) break;
+        inTree[u] = true;
+        if (parent[u] !== -1) edges.push([parent[u], u]);
+        for (let v = 0; v < n; v++) {
+            if (inTree[v]) continue;
+            const dx = members[u].wx - members[v].wx;
+            const dy = members[u].wy - members[v].wy;
+            const d = dx * dx + dy * dy;
+            if (d < dist[v]) { dist[v] = d; parent[v] = u; }
+        }
+    }
+    return edges;
+}
+
+function drawConstellations(time) {
+    for (const cluster of state.clusters) {
+        const visibleIdx = new Set();
+        cluster.members.forEach((m, i) => { if (isRevealed(m)) visibleIdx.add(i); });
+        if (visibleIdx.size < 2) continue;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(179,167,255,0.65)";
+        ctx.lineWidth = Math.max(1.4, 1.4 * dpr);
+        ctx.shadowColor = "rgba(139,124,246,0.9)";
+        ctx.shadowBlur = 4 * dpr;
+        ctx.lineCap = "round";
+        for (const [a, b] of cluster.edges) {
+            if (!visibleIdx.has(a) || !visibleIdx.has(b)) continue;
+            const ma = cluster.members[a], mb = cluster.members[b];
+            // Only draw where the two stars have real daylight between them in
+            // world space (overlap is zoom-invariant, so this must be checked
+            // in world units, not screen pixels) — otherwise the line would be
+            // fully hidden under the point markers at every zoom level anyway.
+            const worldDist = Math.hypot(ma.wx - mb.wx, ma.wy - mb.wy);
+            if (worldDist <= ma.r + mb.r + 1.5) continue;
+
+            const pa = worldToScreen(ma.wx, ma.wy);
+            const pb = worldToScreen(mb.wx, mb.wy);
+            const ra = Math.max(1.2, ma.r * state.camera.zoom * dpr);
+            const rb = Math.max(1.2, mb.r * state.camera.zoom * dpr);
+            const dx = pb.x - pa.x, dy = pb.y - pa.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const ux = dx / dist, uy = dy / dist;
+            ctx.beginPath();
+            ctx.moveTo(pa.x + ux * ra, pa.y + uy * ra);
+            ctx.lineTo(pb.x - ux * rb, pb.y - uy * rb);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        if (visibleIdx.size < 3) continue;
+        const s = worldToScreen(cluster.centroid.wx, cluster.centroid.wy);
+        const twinkle = reduceMotion ? 0.5 : 0.4 + Math.sin(time / 1400 + cluster.centroid.wx) * 0.15;
+        ctx.font = `${Math.max(10, 11 * dpr)}px 'IBM Plex Mono', monospace`;
+        ctx.fillStyle = `rgba(179,167,255,${clamp(twinkle, 0.2, 0.6)})`;
+        ctx.textAlign = "center";
+        ctx.fillText(cluster.name.toUpperCase(), s.x, s.y);
+        ctx.textAlign = "left";
+    }
+}
+
+// ---------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------
+let lastFrame = performance.now();
+
 function render(time) {
+    const dt = Math.min((time - lastFrame) / 1000, 0.05);
+    lastFrame = time;
+    updateTimelinePlayback(dt);
     if (state.flyTo) applyFlyTo(time);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     drawOriginRings();
     drawEarthMarker();
+    drawConstellations(time);
 
     const margin = 40 * dpr;
     for (const point of state.charted.values()) {
+        if (!isRevealed(point)) continue;
         const s = worldToScreen(point.wx, point.wy);
         if (s.x < -margin || s.x > canvas.width + margin ||
             s.y < -margin || s.y > canvas.height + margin) continue;
@@ -160,18 +409,23 @@ function drawEarthMarker() {
 }
 
 function drawPoint(x, y, r, point, time) {
-    const isHovered = point.data.neo_reference_id === state.hoveredId;
-    const isSelected = point.data.neo_reference_id === state.selectedId;
+    const id = point.data.neo_reference_id;
+    const isHovered = id === state.hoveredId;
+    const isSelected = id === state.selectedId;
+    const isComparing = state.compareIds.has(id);
     const baseColor = point.hazardous ? "#f5426c" : "#8b7cf6";
     const glowColor = point.hazardous ? "#ff7d9b" : "#b3a7ff";
 
+    const bornAgo = state.timeline.playheadMs - point.dateMs;
+    const isNewborn = !reduceMotion && bornAgo >= 0 && bornAgo < 900;
     const twinkle = reduceMotion ? 1 : 0.85 + Math.sin(time / 900 + point.wx) * 0.15;
+    const bornScale = isNewborn ? 1 + (1 - bornAgo / 900) * 1.8 : 1;
 
     ctx.beginPath();
-    ctx.arc(x, y, r * (isHovered || isSelected ? 1.5 : 1), 0, Math.PI * 2);
+    ctx.arc(x, y, r * (isHovered || isSelected ? 1.5 : 1) * bornScale, 0, Math.PI * 2);
     ctx.fillStyle = baseColor;
     ctx.shadowColor = glowColor;
-    ctx.shadowBlur = (isHovered || isSelected ? 16 : 8) * twinkle * dpr;
+    ctx.shadowBlur = (isHovered || isSelected ? 16 : (isNewborn ? 22 : 8)) * twinkle * dpr;
     ctx.globalAlpha = twinkle;
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -183,6 +437,15 @@ function drawPoint(x, y, r, point, time) {
         ctx.strokeStyle = glowColor;
         ctx.lineWidth = 1.5;
         ctx.stroke();
+    }
+    if (isComparing) {
+        ctx.beginPath();
+        ctx.arc(x, y, r * 2, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ffd27d";
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.setLineDash([3 * dpr, 3 * dpr]);
+        ctx.stroke();
+        ctx.setLineDash([]);
     }
 }
 
@@ -288,6 +551,7 @@ function pointAtScreen(e) {
     let closest = null;
     let closestDist = Infinity;
     for (const point of state.charted.values()) {
+        if (!isRevealed(point)) continue;
         const s = worldToScreen(point.wx, point.wy);
         const screenX = s.x / dpr, screenY = s.y / dpr;
         const screenR = Math.max(4, point.r * state.camera.zoom) + 3;
@@ -365,11 +629,150 @@ function openDetail(d) {
             </div>
         </div>
     `;
+    syncDetailCompareBtn();
 }
+
+function syncDetailCompareBtn() {
+    if (!state.selectedId) return;
+    const inCompare = state.compareIds.has(state.selectedId);
+    detailCompareBtn.textContent = inCompare ? "✓ In compare — remove" : "+ Add to compare";
+    detailCompareBtn.classList.toggle("active", inCompare);
+}
+
+detailCompareBtn.addEventListener("click", () => {
+    if (!state.selectedId) return;
+    toggleCompare(state.selectedId);
+    syncDetailCompareBtn();
+});
 
 detailClose.addEventListener("click", () => {
     detailPanel.hidden = true;
     state.selectedId = null;
+});
+
+// ---------------------------------------------------------------
+// Compare tray + modal
+// ---------------------------------------------------------------
+const MAX_COMPARE = 4;
+
+function toggleCompare(id) {
+    if (state.compareIds.has(id)) {
+        state.compareIds.delete(id);
+    } else {
+        if (state.compareIds.size >= MAX_COMPARE) return;
+        state.compareIds.add(id);
+    }
+    renderCompareTray();
+}
+
+function renderCompareTray() {
+    compareTray.hidden = state.compareIds.size === 0;
+    compareTrayChips.innerHTML = [...state.compareIds].map(id => {
+        const p = state.charted.get(id);
+        if (!p) return "";
+        return `<span class="compare-chip" data-id="${escapeAttr(id)}">${escapeHtml(p.data.name)} <b>&times;</b></span>`;
+    }).join("");
+    compareTrayChips.querySelectorAll(".compare-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            toggleCompare(chip.getAttribute("data-id"));
+            syncDetailCompareBtn();
+        });
+    });
+    compareOpenBtn.textContent = `Compare (${state.compareIds.size})`;
+}
+
+compareClearBtn.addEventListener("click", () => {
+    state.compareIds.clear();
+    renderCompareTray();
+    syncDetailCompareBtn();
+});
+
+compareOpenBtn.addEventListener("click", () => {
+    if (state.compareIds.size === 0) return;
+    const items = [...state.compareIds].map(id => state.charted.get(id)).filter(Boolean);
+    const rows = [
+        ["Name", p => p.data.name],
+        ["Status", p => p.data.is_potentially_hazardous ? "hazardous" : "nominal"],
+        ["Diameter", p => `${p.data.estimated_diameter_km.toFixed(3)} km`],
+        ["Velocity", p => `${Math.round(p.data.relative_velocity_km_h).toLocaleString()} km/h`],
+        ["Miss distance", p => `${Math.round(p.data.miss_distance_km).toLocaleString()} km`],
+        ["Close approach", p => p.data.close_approach_date],
+        ["Abs. magnitude", p => String(p.data.absolute_magnitude)],
+    ];
+    let html = `<table><thead><tr><th></th>${items.map(p => `<th>${escapeHtml(p.data.name)}<button class="compare-remove" data-id="${escapeAttr(p.data.neo_reference_id)}">&times;</button></th>`).join("")}</tr></thead><tbody>`;
+    for (const [label, fn] of rows) {
+        html += `<tr><td>${label}</td>${items.map(p => `<td class="${p.hazardous && label === "Status" ? "hz" : ""}">${escapeHtml(fn(p))}</td>`).join("")}</tr>`;
+    }
+    html += `</tbody></table>`;
+    compareTable.innerHTML = html;
+    compareTable.querySelectorAll(".compare-remove").forEach(btn => {
+        btn.addEventListener("click", () => {
+            toggleCompare(btn.getAttribute("data-id"));
+            syncDetailCompareBtn();
+            if (state.compareIds.size === 0) { compareModal.hidden = true; return; }
+            compareOpenBtn.click();
+        });
+    });
+    compareModal.hidden = false;
+});
+
+compareModalClose.addEventListener("click", () => { compareModal.hidden = true; });
+compareModal.addEventListener("click", (e) => { if (e.target === compareModal) compareModal.hidden = true; });
+
+// ---------------------------------------------------------------
+// Leaderboard
+// ---------------------------------------------------------------
+function renderLeaderboard() {
+    const points = [...state.charted.values()];
+    let sorted;
+    if (state.lbCategory === "biggest") {
+        sorted = points.slice().sort((a, b) => b.data.estimated_diameter_km - a.data.estimated_diameter_km);
+    } else if (state.lbCategory === "fastest") {
+        sorted = points.slice().sort((a, b) => b.data.relative_velocity_km_h - a.data.relative_velocity_km_h);
+    } else if (state.lbCategory === "closest") {
+        sorted = points.slice().sort((a, b) => a.data.miss_distance_km - b.data.miss_distance_km);
+    } else {
+        sorted = points.filter(p => p.hazardous).sort((a, b) => b.data.estimated_diameter_km - a.data.estimated_diameter_km);
+    }
+    sorted = sorted.slice(0, 15);
+
+    const valueFor = (p) => {
+        if (state.lbCategory === "biggest" || state.lbCategory === "hazard") return `${p.data.estimated_diameter_km.toFixed(3)} km`;
+        if (state.lbCategory === "fastest") return `${Math.round(p.data.relative_velocity_km_h).toLocaleString()} km/h`;
+        return `${Math.round(p.data.miss_distance_km).toLocaleString()} km`;
+    };
+
+    lbList.innerHTML = sorted.map((p, i) => `
+        <li data-id="${escapeAttr(p.data.neo_reference_id)}">
+            <span class="lb-rank">${i + 1}</span>
+            <span class="lb-name">${escapeHtml(p.data.name)}${p.hazardous ? ` <span class="lb-hz">hazardous</span>` : ""}</span>
+            <span class="lb-value">${valueFor(p)}</span>
+        </li>
+    `).join("") || `<li class="lb-empty">Nothing charted yet.</li>`;
+
+    lbList.querySelectorAll("li[data-id]").forEach(li => {
+        li.addEventListener("click", () => {
+            const p = state.charted.get(li.getAttribute("data-id"));
+            if (!p) return;
+            flyToBounds([{ wx: p.wx, wy: p.wy }]);
+            openDetail(p.data);
+            leaderboardPanel.hidden = true;
+        });
+    });
+}
+
+leaderboardBtn.addEventListener("click", () => {
+    renderLeaderboard();
+    leaderboardPanel.hidden = false;
+});
+leaderboardClose.addEventListener("click", () => { leaderboardPanel.hidden = true; });
+lbTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+        lbTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        state.lbCategory = tab.getAttribute("data-cat");
+        renderLeaderboard();
+    });
 });
 
 // ---------------------------------------------------------------
@@ -380,11 +783,14 @@ function chart(asteroids) {
     for (const a of asteroids) {
         if (state.charted.has(a.neo_reference_id)) continue;
         const { wx, wy, r } = layoutFor(a);
-        const point = { data: a, wx, wy, r, hazardous: a.is_potentially_hazardous };
+        const dateMs = Date.parse(a.close_approach_date);
+        const point = { data: a, wx, wy, r, hazardous: a.is_potentially_hazardous, dateMs: isFinite(dateMs) ? dateMs : Date.now() };
         state.charted.set(a.neo_reference_id, point);
         fresh.push(point);
     }
     chartedCountEl.textContent = state.charted.size.toLocaleString();
+    computeClusters();
+    updateTimelineRange();
     return fresh;
 }
 
@@ -437,6 +843,9 @@ function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = String(str);
     return div.innerHTML;
+}
+function escapeAttr(str) {
+    return String(str).replace(/"/g, "&quot;");
 }
 
 async function init() {

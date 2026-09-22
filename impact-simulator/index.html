@@ -40,6 +40,7 @@
 
     <div class="readout" id="readout" hidden>
       <h2>Simulated Strike</h2>
+      <div class="readout-row"><span>Impact site</span><strong id="outCoords">—</strong></div>
       <div class="readout-row"><span>Impact energy</span><strong id="outEnergy">—</strong></div>
       <div class="readout-row"><span>TNT equivalent</span><strong id="outTnt">—</strong></div>
       <div class="readout-row severe"><span>Severe-damage radius</span><strong id="outSevere">—</strong></div>
@@ -50,15 +51,17 @@
     <p class="disclaimer">
       Educational approximation only. Energy and radii use simplified physics
       (density-estimated mass, cube-root blast scaling) on real diameter/velocity
-      data — not a scientific or geological hazard model.
+      data, plotted on a real equirectangular world map — not a scientific or
+      geological hazard model.
     </p>
   </section>
 
-  <section class="map-wrap">
+  <section class="map-wrap" id="mapWrap">
     <canvas id="map"></canvas>
-    <div class="map-hint" id="mapHint">Select an object, then click the grid to choose an impact point</div>
+    <div class="map-hint" id="mapHint">Select an object, then click anywhere on the map to strike</div>
+    <button type="button" class="reset-view-btn" id="resetViewBtn" title="Reset to world view">⤢ world view</button>
     <div class="loading-state" id="loadingState" hidden>
-      <div class="sweep"></div><span>fetching object…</span>
+      <div class="sweep"></div><span id="loadingText">fetching object…</span>
     </div>
   </section>
 
