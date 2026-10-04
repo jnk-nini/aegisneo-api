@@ -17,6 +17,10 @@ export function nearestCity(lat, lon, maxKm = 400) {
 let requestId = 0;
 
 export async function pickTarget(lat, lon, { label = null } = {}) {
+  // The running impact is tied to the old target; changing it now would leave
+  // the results describing one place and the marker sitting on another.
+  const { phase } = useSim.getState();
+  if (phase === "approach" || phase === "impact") return;
   const id = ++requestId;
   const surface = surfaceAt(lat, lon);
   const nearest = nearestCity(lat, lon);

@@ -1,5 +1,6 @@
 // A whole scenario fits in the URL, so links can be shared without storing
 // anything on a server.
+import { DIAMETER_MAX_M, DIAMETER_MIN_M, VELOCITY_MAX_KMS } from "./limits.js";
 
 const clampNum = (value, lo, hi) => {
   const n = Number(value);
@@ -32,8 +33,8 @@ export function scenarioToQuery({
 export function queryToScenario(search, compositions) {
   const q = new URLSearchParams(search);
   if (!q.has("d") || !q.has("v")) return null;
-  const diameterM = clampNum(q.get("d"), 0.5, 100000);
-  const velocityKms = clampNum(q.get("v"), 11, 75);
+  const diameterM = clampNum(q.get("d"), DIAMETER_MIN_M, DIAMETER_MAX_M);
+  const velocityKms = clampNum(q.get("v"), 11, VELOCITY_MAX_KMS);
   if (diameterM == null || velocityKms == null) return null;
   const lat = clampNum(q.get("lat"), -90, 90);
   const lon = clampNum(q.get("lon"), -180, 180);

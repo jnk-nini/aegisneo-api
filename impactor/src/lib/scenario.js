@@ -8,6 +8,8 @@ import { COMPOSITIONS } from "../physics/impact.js";
 export async function applyScenarioQuery(query, { launch = false } = {}) {
   const scenario = queryToScenario(query, COMPOSITIONS);
   if (!scenario) return false;
+  // Loading a saved scenario mid-animation replaces the run, target included.
+  useSim.getState().clearRun();
   if (scenario.asteroidId) {
     try {
       const asteroid = await api.get(scenario.asteroidId);

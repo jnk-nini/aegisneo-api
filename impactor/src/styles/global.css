@@ -553,6 +553,9 @@ input::placeholder {
   gap: 8px;
   margin-top: 10px;
   align-items: end;
+  min-width: 0;
+  border: 0;
+  padding: 0;
 }
 .coord-row label span {
   display: block;

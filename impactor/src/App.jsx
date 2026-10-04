@@ -75,7 +75,7 @@ export default function App() {
               fallback={
                 <FallbackMap reason="The 3D view hit a problem, so you're seeing the 2D map instead." />
               }
-              onError={() => useSim.setState({ webglFailed: true })}
+              onError={() => failTo2d("The 3D view hit a problem, so you're seeing the 2D map instead.")}
             >
               <Suspense fallback={<Loading text="Loading 3D engine…" />}>
                 <Scene

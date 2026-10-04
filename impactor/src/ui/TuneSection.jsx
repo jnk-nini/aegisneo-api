@@ -1,10 +1,11 @@
 import { useSim } from "../store.js";
 import { COMPOSITIONS, EARTH_ESCAPE_VELOCITY_KMS } from "../physics/impact.js";
 import { formatDiameter } from "../lib/format.js";
+import { DIAMETER_MAX_M, DIAMETER_MIN_M, VELOCITY_MAX_KMS } from "../lib/limits.js";
 
-// Diameter uses a log slider: 1 m to 20 km.
-const D_MIN = Math.log10(1);
-const D_MAX = Math.log10(20000);
+// Diameter uses a log slider: 0.5 m to 100 km.
+const D_MIN = Math.log10(DIAMETER_MIN_M);
+const D_MAX = Math.log10(DIAMETER_MAX_M);
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 function Slider({ id, label, value, display, min, max, step, onChange, help }) {
@@ -92,7 +93,7 @@ export default function TuneSection() {
         value={velocityKms}
         display={`${velocityKms.toFixed(1)} km/s`}
         min={EARTH_ESCAPE_VELOCITY_KMS}
-        max={72}
+        max={VELOCITY_MAX_KMS}
         step={0.1}
         onChange={(v) => setParam("velocityKms", v)}
         help="Speed at the top of the atmosphere. Earth's gravity adds to the catalog's flyby speed, so nothing arrives slower than 11.2 km/s."

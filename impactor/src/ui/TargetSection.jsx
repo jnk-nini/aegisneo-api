@@ -11,6 +11,8 @@ function normalize(text) {
 export default function TargetSection() {
   const target = useSim((s) => s.target);
   const view3d = useSim((s) => s.view3d);
+  const phase = useSim((s) => s.phase);
+  const locked = phase === "approach" || phase === "impact";
   const [query, setQuery] = useState("");
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
@@ -65,7 +67,11 @@ export default function TargetSection() {
       <h2 id="target-heading">
         <span className="step">2</span>Pick a target
       </h2>
-      <p className="hint">{view3d ? "Tap the globe" : "Tap the map"}, search a city, or enter coordinates.</p>
+      <p className="hint">
+        {locked
+          ? "The target is locked while the impact plays."
+          : `${view3d ? "Tap the globe" : "Tap the map"}, search a city, or enter coordinates.`}
+      </p>
 
       <div className="combo">
         <label htmlFor="city-search" className="sr-only">
@@ -84,9 +90,10 @@ export default function TargetSection() {
             }
           }}
           autoComplete="off"
+          disabled={locked}
           aria-controls="city-results"
         />
-        {matches.length > 0 && (
+        {matches.length > 0 && !locked && (
           <ul id="city-results" className="result-list result-list--floating">
             {matches.map((c) => (
               <li key={`${c[0]}-${c[1]}`}>
@@ -100,39 +107,41 @@ export default function TargetSection() {
         )}
       </div>
 
-      <form className="coord-row" onSubmit={onCoords}>
-        <label>
-          <span>Lat</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            step="any"
-            min="-90"
-            max="90"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            placeholder="14.6"
-          />
-        </label>
-        <label>
-          <span>Lon</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            step="any"
-            min="-180"
-            max="180"
-            value={lon}
-            onChange={(e) => setLon(e.target.value)}
-            placeholder="121.0"
-          />
-        </label>
-        <button type="submit" className="btn">
-          Set
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={randomSpot}>
-          Random
-        </button>
+      <form onSubmit={onCoords}>
+        <fieldset className="coord-row" disabled={locked}>
+          <label>
+            <span>Lat</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="any"
+              min="-90"
+              max="90"
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+              placeholder="14.6"
+            />
+          </label>
+          <label>
+            <span>Lon</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="any"
+              min="-180"
+              max="180"
+              value={lon}
+              onChange={(e) => setLon(e.target.value)}
+              placeholder="121.0"
+            />
+          </label>
+          <button type="submit" className="btn">
+            Set
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={randomSpot}>
+            Random
+          </button>
+        </fieldset>
       </form>
       {coordError && (
         <p className="error-text" role="alert">

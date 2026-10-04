@@ -90,6 +90,15 @@ describe("share links", () => {
     expect(back.target.lat).toBe(90);
   });
 
+  it("keeps the extremes of the catalog without clamping them", () => {
+    const fastest = { ...scenario, diameterM: 60750, velocityKms: 76.85 };
+    const back = queryToScenario(`?${scenarioToQuery(fastest)}`, COMPOSITIONS);
+    expect(back.diameterM).toBe(60750);
+    expect(back.velocityKms).toBe(76.85);
+    const smallest = queryToScenario(`?${scenarioToQuery({ ...scenario, diameterM: 0.8 })}`, COMPOSITIONS);
+    expect(smallest.diameterM).toBe(0.8);
+  });
+
   it("ignores links without a scenario", () => {
     expect(queryToScenario("?utm_source=x", COMPOSITIONS)).toBeNull();
   });
