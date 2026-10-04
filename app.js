@@ -84,8 +84,15 @@ const METRIC_TIPS = {
 };
 
 function infoDot(tipKey) {
-    const tip = METRIC_TIPS[tipKey].replace(/"/g, "&quot;");
+    const tip = escapeHtml(METRIC_TIPS[tipKey]);
     return `<span class="info-dot" tabindex="0" data-tip="${tip}">ⓘ</span>`;
+}
+
+// ESCAPING — API strings (names, IDs) go into template-literal HTML, so escape them first
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
 }
 
 let facts = ["Scanning near-Earth space…"];
@@ -229,22 +236,23 @@ function asteroidCardHTML(asteroid) {
     const statusLabel = hazardous ? "Hazardous" : "Nominal";
     const tier = getSizeTier(asteroid.estimated_diameter_km);
     const isFav = favorites.has(asteroid.neo_reference_id);
+    const id = escapeHtml(asteroid.neo_reference_id);
 
     return `
         <article class="asteroid-card ${statusClass}">
-            <button class="fav-btn ${isFav ? "active" : ""}" type="button" data-neo="${asteroid.neo_reference_id}" aria-label="${isFav ? "Remove from" : "Add to"} My List" aria-pressed="${isFav}">★</button>
+            <button class="fav-btn ${isFav ? "active" : ""}" type="button" data-neo="${id}" aria-label="${isFav ? "Remove from" : "Add to"} My List" aria-pressed="${isFav}">★</button>
             <div class="card-visual">
-                <canvas class="portrait" data-neo="${asteroid.neo_reference_id}" width="96" height="96" aria-hidden="true"></canvas>
+                <canvas class="portrait" data-neo="${id}" width="96" height="96" aria-hidden="true"></canvas>
                 <span class="size-badge size-${tier}">${tier}</span>
             </div>
             <header class="card-head">
-                <h3 class="card-name">${asteroid.name}</h3>
+                <h3 class="card-name">${escapeHtml(asteroid.name)}</h3>
                 <span class="status-chip">
                     <img class="status-icon" src="${statusIcon}" alt="" width="14" height="14">
                     <span class="status-label">${statusLabel}</span>
                 </span>
             </header>
-            <p class="card-id">${asteroid.neo_reference_id}</p>
+            <p class="card-id">${id}</p>
             <p class="card-compare">${compareSize(asteroid.estimated_diameter_km)}</p>
             <dl class="card-metrics">
                 <div>
@@ -264,7 +272,7 @@ function asteroidCardHTML(asteroid) {
                     <dd>${formatDate(asteroid.close_approach_date)}</dd>
                 </div>
             </dl>
-            <button class="detail-btn" type="button" onclick="viewAsteroid('${asteroid.neo_reference_id}')">
+            <button class="detail-btn" type="button" data-neo="${id}">
                 Full telemetry
             </button>
         </article>
@@ -299,12 +307,12 @@ function showDetailPanel(asteroid) {
     overlay.innerHTML = `
         <div class="detail-panel ${hazardous ? "status-hazard" : "status-safe"}">
             <button class="detail-close" type="button" aria-label="Close">&times;</button>
-            <button class="fav-btn detail-fav ${isFav ? "active" : ""}" type="button" data-neo="${asteroid.neo_reference_id}" aria-label="${isFav ? "Remove from" : "Add to"} My List" aria-pressed="${isFav}">★</button>
+            <button class="fav-btn detail-fav ${isFav ? "active" : ""}" type="button" data-neo="${escapeHtml(asteroid.neo_reference_id)}" aria-label="${isFav ? "Remove from" : "Add to"} My List" aria-pressed="${isFav}">★</button>
             <div class="detail-top">
                 <canvas class="portrait portrait-lg" width="140" height="140" aria-hidden="true"></canvas>
                 <div>
-                    <p class="detail-eyebrow">${asteroid.neo_reference_id}</p>
-                    <h2 class="detail-name">${asteroid.name}</h2>
+                    <p class="detail-eyebrow">${escapeHtml(asteroid.neo_reference_id)}</p>
+                    <h2 class="detail-name">${escapeHtml(asteroid.name)}</h2>
                     <span class="status-chip detail-status-chip">
                         <img class="status-icon" src="${hazardous ? "assets/icon-warning.svg" : "assets/icon-safe.svg"}" alt="" width="14" height="14">
                         <span class="status-label">${hazardous ? "Potentially hazardous" : "Nominal / non-hazardous"}</span>
@@ -607,7 +615,7 @@ function renderOrbitHighlights() {
     ];
 
     orbitHighlightsEl.innerHTML = items.map(it => `
-        <button class="orbit-highlight ${it.pos}" type="button" data-neo="${it.a.neo_reference_id}" title="${it.a.name}">
+        <button class="orbit-highlight ${it.pos}" type="button" data-neo="${escapeHtml(it.a.neo_reference_id)}" title="${escapeHtml(it.a.name)}">
             <canvas class="portrait" width="34" height="34" aria-hidden="true"></canvas>
             <span class="orbit-highlight-label">${it.label}</span>
         </button>
@@ -665,13 +673,13 @@ function renderGameArena() {
     gameArenaEl.innerHTML = `
         <button class="game-pick" type="button" data-side="0">
             <canvas class="portrait" width="72" height="72" aria-hidden="true"></canvas>
-            <span class="game-pick-name">${a.name}</span>
+            <span class="game-pick-name">${escapeHtml(a.name)}</span>
             <span class="game-pick-value" data-value></span>
         </button>
         <span class="game-vs">VS</span>
         <button class="game-pick" type="button" data-side="1">
             <canvas class="portrait" width="72" height="72" aria-hidden="true"></canvas>
-            <span class="game-pick-name">${b.name}</span>
+            <span class="game-pick-name">${escapeHtml(b.name)}</span>
             <span class="game-pick-value" data-value></span>
         </button>
     `;
@@ -836,6 +844,11 @@ watchlistToggle.addEventListener("click", async () => {
 });
 
 listEl.addEventListener("click", (e) => {
+    const detailBtn = e.target.closest(".detail-btn");
+    if (detailBtn) {
+        viewAsteroid(detailBtn.dataset.neo);
+        return;
+    }
     const favBtn = e.target.closest(".fav-btn");
     if (!favBtn) return;
     toggleFavorite(favBtn.dataset.neo);
