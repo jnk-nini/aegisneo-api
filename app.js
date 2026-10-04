@@ -74,6 +74,7 @@ async function loadAsteroids() {
 
     try {
         const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
         if (data.total !== undefined) statTotalEl.textContent = data.total.toLocaleString();
@@ -103,6 +104,7 @@ async function searchAsteroids() {
     try {
         const response =
             await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
         applyFiltersAndSort();
@@ -478,9 +480,9 @@ function compareSize(diameterKm) {
         { v: 450, label: "the Empire State Building" },
         { v: 830, label: "the Burj Khalifa" },
         { v: 1000, label: "a small mountain" },
-        { v: 3000, label: "Central Park's length" },
+        { v: 4000, label: "Central Park's length" },
+        { v: 8849, label: "Mount Everest's height" },
         { v: 10000, label: "the dinosaur-extinction impactor" },
-        { v: 40000, label: "Mount Everest's height" },
     ];
     return phraseComparison(meters, ladder, "as wide as");
 }
@@ -492,7 +494,7 @@ function compareSpeed(kmh) {
         { v: 900, label: "a commercial jet" },
         { v: 1235, label: "the speed of sound" },
         { v: 2200, label: "the Concorde" },
-        { v: 7700, label: "the SR-71 Blackbird" },
+        { v: 3540, label: "the SR-71 Blackbird" },
         { v: 28000, label: "the ISS in orbit" },
         { v: 40000, label: "Earth's escape velocity" },
     ];

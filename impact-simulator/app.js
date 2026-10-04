@@ -317,7 +317,9 @@ function drawCrater(crater) {
     const rad = kmToWorldRadius(crater.severeKm * 0.16, crater.lat);
     const rx = Math.max(rad.rx * camera.zoom, 2);
     const ry = Math.max(rad.ry * camera.zoom, 2);
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, Math.max(rx, ry));
+    // Gradient coords resolve in the transformed space at fill time, so center it
+    // at the translated origin rather than at the screen position.
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(rx, ry));
     g.addColorStop(0, "rgba(10,5,3,0.85)");
     g.addColorStop(0.6, "rgba(40,15,8,0.55)");
     g.addColorStop(1, "rgba(40,15,8,0)");
