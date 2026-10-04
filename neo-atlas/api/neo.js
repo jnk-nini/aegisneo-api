@@ -23,7 +23,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ detail: "Method not allowed." });
   }
 
-  const apiKey = process.env.AEGISNEO_API_KEY;
+  // Trimmed because a key pasted into the Vercel dashboard often picks up a stray space or newline.
+  const apiKey = (process.env.AEGISNEO_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(500).json({ detail: "Server is missing the AEGISNEO_API_KEY environment variable." });
   }

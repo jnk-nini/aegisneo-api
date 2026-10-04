@@ -1,8 +1,5 @@
-import { formatMonthDay, toLunarDistances } from "../lib/format.js";
-
-export function skyTitle(sky) {
-  return sky.mode === "date" ? `${formatMonthDay(sky.date)}, 1910–2024` : String(sky.year);
-}
+import { toLunarDistances } from "../lib/format.js";
+import { skyTitle } from "../lib/sky.js";
 
 /** One-line summary of the charted sky, with loading progress and a retry on failure. */
 export default function SkySummary({ sky, result, catalogTotal }) {

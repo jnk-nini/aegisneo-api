@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSky } from "./hooks/useSky.js";
 import { api } from "./lib/api.js";
-import AtlasFrame from "./ui/AtlasFrame.jsx";
-import CatalogStatus from "./ui/CatalogStatus.jsx";
+import { placeStar } from "./lib/chart.js";
+import { completeSky, skyFromQuery, skyTitle, skyToQuery } from "./lib/sky.js";
+import DetailSheet from "./ui/DetailSheet.jsx";
+import Legend from "./ui/Legend.jsx";
+import SkyControls from "./ui/SkyControls.jsx";
+import SkySummary from "./ui/SkySummary.jsx";
+import StarChart from "./ui/StarChart.jsx";
 import TabBar from "./ui/TabBar.jsx";
 
 const TABS = [
@@ -10,32 +16,48 @@ const TABS = [
   { id: "mine", label: "Mine" },
 ];
 
-function useCatalogStats() {
-  const [state, setState] = useState({ status: "loading", stats: null, error: null });
-  const [attempt, setAttempt] = useState(0);
+/** The catalog total, for "312 asteroids of 33,511". Optional: the chart works without it. */
+function useCatalogTotal() {
+  const [total, setTotal] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
     api
       .stats({ signal: controller.signal })
-      .then((stats) => setState({ status: "ready", stats, error: null }))
-      .catch((err) => {
-        if (!controller.signal.aborted) setState({ status: "error", stats: null, error: err.message });
-      });
+      .then((stats) => setTotal(stats.total))
+      .catch(() => {});
     return () => controller.abort();
-  }, [attempt]);
-
-  const retry = useCallback(() => {
-    setState({ status: "loading", stats: null, error: null });
-    setAttempt((n) => n + 1);
   }, []);
 
-  return { ...state, retry };
+  return total;
+}
+
+/** The charted sky and selected asteroid, kept in the URL so a refresh or shared link opens the same view. */
+function useSkyState() {
+  const [state, setState] = useState(() => {
+    const { sky, selected } = skyFromQuery(window.location.search);
+    return { sky: completeSky(sky), selected };
+  });
+
+  useEffect(() => {
+    const url = `${window.location.pathname}${skyToQuery(state.sky, state.selected)}${window.location.hash}`;
+    window.history.replaceState(null, "", url);
+  }, [state]);
+
+  const setSky = useCallback((sky) => setState({ sky, selected: null }), []);
+  const setSelected = useCallback((selected) => setState((prev) => ({ ...prev, selected })), []);
+  return { ...state, setSky, setSelected };
 }
 
 export default function App() {
   const [tab, setTab] = useState("chart");
-  const catalog = useCatalogStats();
+  const { sky, selected, setSky, setSelected } = useSkyState();
+  const result = useSky(sky);
+  const catalogTotal = useCatalogTotal();
+
+  const stars = useMemo(() => result.asteroids.map((a) => placeStar(a, sky.mode)), [result.asteroids, sky.mode]);
+  const selectedAsteroid = result.asteroids.find((a) => a.neo_reference_id === selected) ?? null;
+  const description = `Star chart of ${result.asteroids.length} asteroids that passed Earth in ${skyTitle(sky)}. Use the arrow keys to step through them.`;
 
   return (
     <div className="app">
@@ -61,10 +83,21 @@ export default function App() {
           className="panel panel-chart"
           hidden={tab !== "chart"}
         >
-          <div className="chart-area">
-            <AtlasFrame />
+          <div className="chart-toolbar">
+            <SkyControls sky={sky} onChange={setSky} />
+            <Legend mode={sky.mode} />
           </div>
-          <CatalogStatus {...catalog} onRetry={catalog.retry} />
+          <div className="chart-area">
+            <StarChart
+              stars={stars}
+              mode={sky.mode}
+              selectedId={selected}
+              onSelect={setSelected}
+              description={description}
+            />
+          </div>
+          <SkySummary sky={sky} result={result} catalogTotal={catalogTotal} />
+          <DetailSheet asteroid={selectedAsteroid} onClose={() => setSelected(null)} />
         </section>
 
         <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" className="panel" hidden={tab !== "list"}>

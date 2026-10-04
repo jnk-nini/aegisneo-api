@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { angleFraction, DISTANCE_RINGS, placeStar, radiusForKm, starSize } from "./chart.js";
 import { formatDate, formatDiameter, formatLD, formatMonthDay, formatSpeed, KM_PER_LD } from "./format.js";
-import { DEFAULT_SKY, skyFromQuery, skySearch, skyToQuery, todayMonthDay } from "./sky.js";
+import {
+  completeSky,
+  DEFAULT_SKY,
+  skyFromQuery,
+  skySearch,
+  skyTitle,
+  skyToQuery,
+  todayMonthDay,
+} from "./sky.js";
 
 const asteroid = (over = {}) => ({
   neo_reference_id: "2162117",
@@ -84,5 +92,17 @@ describe("sky URL state", () => {
 
   it("formats today's date", () => {
     expect(todayMonthDay(new Date(2026, 9, 4))).toBe("10-04");
+  });
+
+  it("fills in the unused field and titles the sky", () => {
+    const now = new Date(2026, 9, 4);
+    expect(completeSky({ mode: "year", year: 1987, date: null }, now)).toEqual({
+      mode: "year",
+      year: 1987,
+      date: "10-04",
+    });
+    expect(completeSky({ mode: "date", year: null, date: "05-12" }, now).year).toBe(2024);
+    expect(skyTitle({ mode: "year", year: 1987 })).toBe("1987");
+    expect(skyTitle({ mode: "date", date: "05-12" })).toBe("12 May, 1910–2024");
   });
 });

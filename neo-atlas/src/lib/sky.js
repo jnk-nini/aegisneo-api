@@ -4,6 +4,7 @@
 
 import { dayIndex } from "./calendar.js";
 import { FIRST_YEAR, LAST_YEAR } from "./chart.js";
+import { formatMonthDay } from "./format.js";
 
 export const DEFAULT_SKY = { mode: "year", year: LAST_YEAR, date: null };
 
@@ -41,4 +42,17 @@ export function todayMonthDay(now = new Date()) {
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   return `${mm}-${dd}`;
+}
+
+/**
+ * Fills in the field the current mode doesn't use, so switching between
+ * "Year" and "Birthday" always lands on a sensible pick.
+ */
+export function completeSky(sky, now = new Date()) {
+  return { ...sky, year: sky.year ?? LAST_YEAR, date: sky.date ?? todayMonthDay(now) };
+}
+
+/** "1987", or "12 May, 1910–2024" for a date across every year. */
+export function skyTitle(sky) {
+  return sky.mode === "date" ? `${formatMonthDay(sky.date)}, ${FIRST_YEAR}–${LAST_YEAR}` : String(sky.year);
 }
