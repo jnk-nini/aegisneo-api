@@ -14,23 +14,26 @@ export default function Hud() {
   const view3d = useSim((s) => s.view3d);
   const mode = useSim((s) => s.mode);
   const clockRef = useRef();
+  const shown = Boolean(run) && view3d && phase !== "idle" && mode !== "flyby";
+  const running = phase === "approach" || phase === "impact";
 
+  // Tick every frame only while the animation plays; once it's over, one
+  // final update is enough, so phones aren't kept busy for nothing.
   useEffect(() => {
-    if (!run) return;
+    if (!shown) return;
     let frame;
     const tick = () => {
       if (clockRef.current) {
         const s = simulatedSeconds(Math.min(clock.t, TOTAL_SECONDS), run);
         clockRef.current.textContent = `T${s < 0 ? "−" : "+"}${formatClock(Math.abs(s))}`;
       }
-      frame = requestAnimationFrame(tick);
+      if (running) frame = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(frame);
-  }, [run]);
+  }, [run, shown, running]);
 
-  if (!run || !view3d || phase === "idle" || mode === "flyby") return null;
-  const running = phase === "approach" || phase === "impact";
+  if (!shown) return null;
 
   const replay = () => {
     clock.t = 0;

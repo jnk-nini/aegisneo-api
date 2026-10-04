@@ -1,5 +1,10 @@
 // Turns a simulation result into the rings drawn on the globe and listed in
 // the results legend. Colours are shared by both so they always match.
+import { EARTH_RADIUS_M } from "./impact.js";
+
+// The blast and heat fits assume a flat Earth, so past a quarter of the way
+// around the planet their numbers mean "everywhere" rather than a real range.
+export const GLOBAL_RANGE_M = (Math.PI / 2) * EARTH_RADIUS_M;
 
 export const ZONE_STYLES = {
   crater: { color: "#1b0f0a", line: "#ff9a52", label: "Crater" },
@@ -24,7 +29,7 @@ export function zonesFor(result) {
   if (trees) zones.push({ key: "trees90", radiusM: trees.radiusM });
   return zones
     .filter((z) => z.radiusM > 0)
-    .map((z) => ({ ...z, ...ZONE_STYLES[z.key] }))
+    .map((z) => ({ ...z, ...ZONE_STYLES[z.key], global: z.radiusM >= GLOBAL_RANGE_M }))
     .sort((a, b) => b.radiusM - a.radiusM);
 }
 

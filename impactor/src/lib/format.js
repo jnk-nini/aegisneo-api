@@ -26,7 +26,10 @@ export function formatBig(n) {
   return String(n);
 }
 
+const EARTH_AGE_YEARS = 4.5e9;
+
 export function formatYears(years) {
+  if (years > EARTH_AGE_YEARS) return "rarer than once in Earth's 4.5-billion-year history";
   if (years < 1) return "several times a year";
   if (years < 2) return "about once a year";
   return `about once every ${formatBig(years)} years`;

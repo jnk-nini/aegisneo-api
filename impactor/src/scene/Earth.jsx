@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { AdditiveBlending, BackSide, Vector3 } from "three";
+import { createZoneUniforms, zoneShader, zoneUniforms } from "./zoneOverlay.js";
 
 const earthVertex = /* glsl */ `
   #include <common>
@@ -28,6 +29,7 @@ const earthFragment = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vPosW;
+  ${zoneShader}
   void main() {
     #include <logdepthbuf_fragment>
     vec3 n = normalize(vNormalW);
@@ -51,6 +53,7 @@ const earthFragment = /* glsl */ `
 
     gl_FragColor = vec4(color, 1.0);
     #include <colorspace_fragment>
+    gl_FragColor.rgb = drawZones(gl_FragColor.rgb, n);
   }
 `;
 
@@ -106,21 +109,31 @@ const ATMOSPHERE_RADIUS = 1.03;
 
 /**
  * Unit-radius Earth. `scale` lets the flyby view shrink it without breaking the
- * cloud fade, which depends on the camera's altitude in Earth radii.
+ * cloud fade, which depends on the camera's altitude in Earth radii. With
+ * `showZones`, it paints the damage zones set through zoneOverlay.js.
  */
-export default function Earth({ textures, sunDir, segments = 160, scale = 1, onSurfaceClick }) {
+export default function Earth({
+  textures,
+  sunDir,
+  segments = 160,
+  scale = 1,
+  onSurfaceClick,
+  showZones = false,
+}) {
   const cloudsRef = useRef();
   const sun = useMemo(() => sunDir.clone().normalize(), [sunDir]);
   const tmp = useMemo(() => new Vector3(), []);
 
+  const zones = useMemo(() => (showZones ? zoneUniforms : createZoneUniforms()), [showZones]);
   const earthUniforms = useMemo(
     () => ({
+      ...zones,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
       maskMap: { value: textures.mask },
       sunDir: { value: sun },
     }),
-    [textures, sun],
+    [textures, sun, zones],
   );
   const cloudUniforms = useMemo(
     () => ({ cloudMap: { value: textures.clouds }, sunDir: { value: sun }, opacity: { value: 1 } }),
@@ -128,7 +141,8 @@ export default function Earth({ textures, sunDir, segments = 160, scale = 1, onS
   );
   const atmosphereUniforms = useMemo(() => ({ sunDir: { value: sun } }), [sun]);
 
-  useFrame(({ camera }, dt) => {
+  useFrame(({ camera, gl }, dt) => {
+    zones.zonePixelRatio.value = gl.getPixelRatio();
     const clouds = cloudsRef.current;
     if (!clouds) return;
     clouds.rotation.y += dt * 0.004;
@@ -142,14 +156,16 @@ export default function Earth({ textures, sunDir, segments = 160, scale = 1, onS
     <group scale={scale}>
       <mesh onClick={onSurfaceClick} name="earth">
         <sphereGeometry args={[1, segments, segments / 2]} />
-        <shaderMaterial vertexShader={earthVertex} fragmentShader={earthFragment} uniforms={earthUniforms} />
+        {/* Uniforms go through args: a `uniforms` prop is copied entry by entry, so
+            numbers updated in place later (zone count, cloud fade) would never arrive. */}
+        <shaderMaterial
+          args={[{ vertexShader: earthVertex, fragmentShader: earthFragment, uniforms: earthUniforms }]}
+        />
       </mesh>
       <mesh ref={cloudsRef} raycast={() => null}>
         <sphereGeometry args={[CLOUD_RADIUS, 96, 48]} />
         <shaderMaterial
-          vertexShader={earthVertex}
-          fragmentShader={cloudFragment}
-          uniforms={cloudUniforms}
+          args={[{ vertexShader: earthVertex, fragmentShader: cloudFragment, uniforms: cloudUniforms }]}
           transparent
           depthWrite={false}
         />

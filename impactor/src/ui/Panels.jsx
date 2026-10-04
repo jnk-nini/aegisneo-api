@@ -46,12 +46,18 @@ export function MobileSheet() {
   useEffect(() => {
     const el = sheetRef.current;
     if (!el) return;
-    const update = () =>
-      document.documentElement.style.setProperty("--sheet-h", `${el.getBoundingClientRect().height}px`);
+    const update = () => {
+      const height = el.getBoundingClientRect().height;
+      document.documentElement.style.setProperty("--sheet-h", `${height}px`);
+      useSim.setState({ sheetHeight: height });
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      useSim.setState({ sheetHeight: 0 });
+    };
   }, []);
 
   const setSheet = (value) => useSim.setState({ sheet: value });

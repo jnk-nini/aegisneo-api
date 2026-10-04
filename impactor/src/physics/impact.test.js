@@ -10,6 +10,8 @@ import {
   recurrenceYears,
   simulateImpact,
 } from "./impact.js";
+import { GLOBAL_RANGE_M, zonesFor } from "./zones.js";
+import { formatYears } from "../lib/format.js";
 
 const km = (m) => m / 1000;
 const radius = (list, key) => list.find((z) => z.key === key)?.radiusM ?? 0;
@@ -145,5 +147,20 @@ describe("scenario behaviour", () => {
     const r = simulateImpact({ diameterM: 300, density: 3000, velocityKms: 20, angleDeg: 45 });
     const radii = r.blast.map((z) => z.radiusM);
     expect([...radii].sort((a, b) => a - b)).toEqual(radii);
+  });
+  it("labels zones past a quarter of the globe as global instead of a range", () => {
+    // Roughly Ganymed, the largest catalog object.
+    const r = simulateImpact({ diameterM: 60750, density: 3000, velocityKms: 20, angleDeg: 45 });
+    const zones = zonesFor(r);
+    const windows = zones.find((z) => z.key === "windows");
+    expect(windows.radiusM).toBeGreaterThanOrEqual(GLOBAL_RANGE_M);
+    expect(windows.global).toBe(true);
+    const local = zonesFor(simulateImpact({ diameterM: 100, density: 3000, velocityKms: 20, angleDeg: 45 }));
+    expect(local.some((z) => z.global)).toBe(false);
+  });
+
+  it("describes recurrence longer than Earth's age without a number", () => {
+    expect(formatYears(11e9)).toBe("rarer than once in Earth's 4.5-billion-year history");
+    expect(formatYears(5000)).toBe("about once every 5,000 years");
   });
 });

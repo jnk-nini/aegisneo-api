@@ -27,6 +27,29 @@ function CaptureBridge() {
   return null;
 }
 
+/**
+ * On phones the bottom sheet covers the lower part of the full-height canvas.
+ * Shift the projection so the camera's centre (the globe, or the impact site)
+ * sits in the middle of the area left visible between the top bar and the sheet.
+ */
+function SheetViewOffset() {
+  const camera = useThree((s) => s.camera);
+  const { width, height } = useThree((s) => s.size);
+  const sheetHeight = useSim((s) => s.sheetHeight);
+  useEffect(() => {
+    if (!sheetHeight) {
+      camera.clearViewOffset();
+      return;
+    }
+    const topbar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--topbar-h")) || 0;
+    // Past half the screen the sheet is being read, not the globe; stop following it.
+    const covered = Math.min(sheetHeight, height * 0.55);
+    camera.setViewOffset(width, height, 0, (covered - topbar) / 2, width, height);
+  }, [camera, width, height, sheetHeight]);
+  useEffect(() => () => camera.clearViewOffset(), [camera]);
+  return null;
+}
+
 function ImpactWorld({ textures, sunDir }) {
   const phase = useSim((s) => s.phase);
   const onSurfaceClick = (event) => {
@@ -38,7 +61,7 @@ function ImpactWorld({ textures, sunDir }) {
   };
   return (
     <>
-      <Earth textures={textures} sunDir={sunDir} onSurfaceClick={onSurfaceClick} />
+      <Earth textures={textures} sunDir={sunDir} onSurfaceClick={onSurfaceClick} showZones />
       <TargetMarker />
       <PreviewZones />
       <ImpactSequence />
@@ -103,6 +126,7 @@ export default function Scene({ textures, onContextLost }) {
         <ImpactWorld textures={textures} sunDir={sunDir} />
       )}
       <CaptureBridge />
+      <SheetViewOffset />
     </Canvas>
   );
 }

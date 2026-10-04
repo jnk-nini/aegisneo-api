@@ -6,8 +6,7 @@ import { useSim } from "../store.js";
 import { simulateImpact } from "../physics/impact.js";
 import { zonesFor } from "../physics/zones.js";
 import { latLonToVector, localFrame } from "../lib/geo.js";
-import { Cap, Ring } from "./SphereShapes.jsx";
-import { metersToAngle } from "./sphereMath.js";
+import { clearZones, setShock, setZoneOpacity, setZones } from "./zoneOverlay.js";
 import { APPROACH_SECONDS, TOTAL_SECONDS, clock, phaseAt, shockRadiusM } from "./timeline.js";
 import { glowTexture, rockGeometry, runGeometry } from "./effects.js";
 
@@ -122,11 +121,19 @@ export function PreviewZones() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, asteroid, diameterM, velocityKms, composition, angleDeg]);
   const center = useMemo(() => (target ? latLonToVector(target.lat, target.lon) : null), [target]);
+  const show = Boolean(center) && !run && zones.length > 0;
 
-  if (!center || run || zones.length === 0) return null;
-  return zones.map((z) => (
-    <Ring key={z.key} center={center} radiusM={z.radiusM} color={z.line} width={1.5} opacity={0.7} dashed />
-  ));
+  useEffect(() => {
+    if (!show) return;
+    const owner = {};
+    setZones(
+      owner,
+      center,
+      zones.map((z) => ({ radiusM: z.radiusM, line: z.line, lineOpacity: 0.7, width: 1.5, dashed: true })),
+    );
+    return () => clearZones(owner);
+  }, [show, center, zones]);
+  return null;
 }
 
 /** The asteroid flying in, its entry glow and trail. */
@@ -203,24 +210,40 @@ function ImpactEffects({ geo, run }) {
     [run],
   );
   const crater = run.result.crater;
+  const craterIndex = crater?.finalDiameterM && !geo.airburst ? zones.length : -1;
   const outerM = zones[0]?.radiusM ?? 0;
   const burstPoint = geo.end;
   const flash = useRef();
   const fireball = useRef();
-  const shock = useRef();
-  const capRefs = useRef([]);
-  const craterRef = useRef();
-  const craterRim = useRef();
+  const fills = useRef([]);
   const debris = useRef();
-  const shockQuat = useMemo(() => new Quaternion().setFromUnitVectors(Y_AXIS, geo.center), [geo]);
-  const unitCircle = useMemo(
-    () =>
-      Array.from(
-        { length: 129 },
-        (_, i) => new Vector3(Math.cos((i / 128) * Math.PI * 2), 0, Math.sin((i / 128) * Math.PI * 2)),
-      ),
-    [],
-  );
+
+  // Zones and crater are painted by the Earth shader (see zoneOverlay.js); they
+  // start transparent and fade in as the blast front reaches them.
+  useEffect(() => {
+    const owner = {};
+    const layers = zones.map((z) => ({
+      radiusM: z.radiusM,
+      fill: z.color,
+      fillOpacity: 0,
+      line: z.line,
+      lineOpacity: 0.9,
+      width: 1.6,
+    }));
+    if (craterIndex >= 0) {
+      layers.push({
+        radiusM: crater.finalDiameterM / 2,
+        fill: "#140a06",
+        fillOpacity: 0,
+        line: "#ff9a52",
+        lineOpacity: 0,
+        width: 2.2,
+      });
+    }
+    fills.current = layers.map(() => 0);
+    setZones(owner, geo.center, layers);
+    return () => clearZones(owner);
+  }, [geo, zones, crater, craterIndex]);
 
   // Fireball size: Eq. 32 radius when the model reports one; otherwise a visual glow
   // scaled to the blast so airbursts still read clearly.
@@ -265,27 +288,18 @@ function ImpactEffects({ geo, run }) {
       fireball.current.material.opacity = fade;
     }
     const front = active ? (done ? outerM * 2 : shockRadiusM(clock.t, run)) : 0;
-    if (shock.current) {
-      const visible = active && !done && front > 0 && front < outerM * 1.08;
-      shock.current.visible = visible;
-      if (visible) {
-        const angle = metersToAngle(Math.min(front, outerM));
-        shock.current.position.copy(geo.center).multiplyScalar(Math.cos(angle) * (1 + 3e-6));
-        shock.current.scale.setScalar(Math.sin(angle) * (1 + 3e-6));
-      }
-    }
+    const shockVisible = active && !done && front > 0 && front < outerM * 1.08;
+    setShock(Math.min(front, outerM), shockVisible ? 0.95 : 0);
     zones.forEach((z, i) => {
-      const cap = capRefs.current[i];
-      if (!cap) return;
       const reached = front >= z.radiusM;
       const target = reached ? 0.12 + 0.1 * (i / Math.max(1, zones.length - 1)) : 0;
-      cap.material.opacity += (target - cap.material.opacity) * 0.12;
-      if (done) cap.material.opacity = target;
+      const current = fills.current[i] ?? 0;
+      fills.current[i] = done ? target : current + (target - current) * 0.12;
+      setZoneOpacity(i, fills.current[i]);
     });
-    if (craterRef.current) {
+    if (craterIndex >= 0) {
       const show = done ? 1 : smooth(0.15, 0.8, tau);
-      craterRef.current.material.opacity = 0.92 * show;
-      craterRim.current.visible = show > 0.05;
+      setZoneOpacity(craterIndex, 0.92 * show, show > 0.05 ? 1 : 0);
     }
     if (debris.current && showDebris) {
       const { dirs, params, up, g, positions } = debrisData;
@@ -318,47 +332,6 @@ function ImpactEffects({ geo, run }) {
 
   return (
     <group>
-      {zones.map((z, i) => (
-        <group key={z.key}>
-          <Cap
-            ref={(el) => (capRefs.current[i] = el)}
-            center={geo.center}
-            radiusM={z.radiusM}
-            color={z.color}
-            opacity={0}
-            renderOrder={1 + i}
-          />
-          <Ring center={geo.center} radiusM={z.radiusM} color={z.line} width={1.6} opacity={0.9} />
-        </group>
-      ))}
-      {crater && !geo.airburst && (
-        <>
-          <Cap
-            ref={craterRef}
-            center={geo.center}
-            radiusM={crater.finalDiameterM / 2}
-            color="#140a06"
-            opacity={0}
-            lift={1 + 4e-6}
-            renderOrder={20}
-          />
-          <group ref={craterRim}>
-            <Ring center={geo.center} radiusM={crater.finalDiameterM / 2} color="#ff9a52" width={2.2} />
-          </group>
-        </>
-      )}
-      <group ref={shock} quaternion={shockQuat} visible={false}>
-        <Line
-          points={unitCircle}
-          color="#ffffff"
-          lineWidth={3}
-          transparent
-          opacity={0.95}
-          depthWrite={false}
-          toneMapped={false}
-          raycast={() => null}
-        />
-      </group>
       <Billboard position={burstPoint}>
         <mesh ref={fireball} visible={false} raycast={() => null}>
           <planeGeometry args={[1, 1]} />

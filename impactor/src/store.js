@@ -63,6 +63,7 @@ export const useSim = create((set, get) => ({
   globeRequest: 0, // bump to fly back to the whole globe
   mobileTab: "object",
   sheet: "half", // peek | half | full (mobile only)
+  sheetHeight: 0, // px the mobile sheet covers at the bottom of the view; 0 on desktop
   capture: null, // function returning a PNG blob of the 3D view
 
   selectAsteroid(asteroid) {

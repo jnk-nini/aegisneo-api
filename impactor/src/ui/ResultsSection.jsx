@@ -243,8 +243,8 @@ export default function ResultsSection() {
               <li key={z.key}>
                 <span className="swatch" style={{ background: z.line }} aria-hidden="true" />
                 <span className="zone-label">{z.label}</span>
-                <span className="zone-radius">{formatDistance(z.radiusM)}</span>
-                {z.key !== "crater" && z.key !== "fireball" && (
+                <span className="zone-radius">{z.global ? "Global" : formatDistance(z.radiusM)}</span>
+                {z.key !== "crater" && z.key !== "fireball" && !z.global && (
                   <span className="zone-time" title="Time for the blast to arrive">
                     +{formatClock(blastArrivalSeconds(z.radiusM))}
                   </span>
