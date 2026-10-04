@@ -26,7 +26,16 @@ function AtlasFrame({ segments, ticks }) {
         const angle = fractionToAngle(i / ticks);
         const [x1, y1] = polar(isBoundary ? R_BAND_IN : R_BAND_OUT - 1.6, angle);
         const [x2, y2] = polar(R_BAND_OUT, angle);
-        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} className={isBoundary ? "frame-line" : "frame-tick"} />;
+        return (
+          <line
+            key={i}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            className={isBoundary ? "frame-line" : "frame-tick"}
+          />
+        );
       })}
 
       {segments.map((segment) => {

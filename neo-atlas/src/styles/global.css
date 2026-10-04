@@ -214,6 +214,13 @@ a {
   cursor: pointer;
 }
 
+@media (max-width: 399px) {
+  .tab {
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+  }
+}
+
 .tab-icon {
   width: 22px;
   height: 22px;
@@ -319,6 +326,45 @@ a {
 }
 .star.hazardous .star-core {
   fill: var(--hazard);
+}
+.star {
+  transition: opacity 0.2s;
+}
+.star.dim {
+  opacity: 0.14;
+}
+.star.linked .star-core {
+  fill: var(--gold-bright);
+}
+.star.linked.hazardous .star-core {
+  fill: var(--hazard);
+}
+
+.constellation line {
+  stroke: var(--gold-bright);
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+.constellation.drawing line {
+  stroke-dasharray: 2 1.2;
+  animation: march 1s linear infinite;
+}
+@keyframes march {
+  to {
+    stroke-dashoffset: -3.2;
+  }
+}
+.path-end {
+  fill: none;
+  stroke: var(--gold-bright);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.chart-make {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
 }
 
 .star-ring {
@@ -468,8 +514,10 @@ a {
 }
 
 .legend {
-  position: relative;
-  order: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
 }
 .legend-panel {
   position: absolute;
@@ -548,6 +596,509 @@ a {
 .sky-title {
   font-family: var(--font-display);
   font-size: 1.1rem;
+}
+.sky-line {
+  margin: 0 0 6px;
+}
+.sky-hint {
+  color: var(--paper-muted);
+  font-size: 0.8rem;
+}
+@media (max-width: 479px) {
+  .sky-hint {
+    display: none;
+  }
+}
+
+/* ---------- Highlight chips (the counts are toggles) ---------- */
+
+/* Centered while they fit; when they don't, they scroll from the first chip instead of clipping it. */
+.chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar {
+  display: none;
+}
+.sky-summary .chip:first-child {
+  margin-left: auto;
+}
+.sky-summary .chip:last-child {
+  margin-right: auto;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--gold-bright);
+  background: rgba(201, 164, 92, 0.2);
+  color: var(--gold-bright);
+}
+.chip-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+.chip-hazardous .chip-mark {
+  border-radius: 0;
+  background: var(--hazard);
+  transform: rotate(45deg);
+}
+.chip-inside .chip-mark {
+  background: none;
+  border: 1.5px solid var(--paper);
+}
+.chip-large .chip-mark {
+  width: 10px;
+  height: 10px;
+}
+
+/* ---------- First-visit tip ---------- */
+
+.chart-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: calc(100% - 32px);
+  max-width: 44rem;
+  margin: 10px auto 0;
+  padding: 8px 6px 8px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(201, 164, 92, 0.1);
+  font-size: 0.85rem;
+}
+.chart-tip p {
+  flex: 1;
+  margin: 4px 0;
+}
+.tip-close,
+.toast-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--paper-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* ---------- Drawing a constellation ---------- */
+
+.draw-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  width: calc(100% - 32px);
+  max-width: 44rem;
+  margin: 0 auto 10px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 34, 0.92);
+}
+.draw-label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+form.draw-bar .draw-label {
+  flex-basis: 100%;
+}
+form.draw-bar .text-input {
+  flex: 1 1 12rem;
+}
+.draw-star {
+  color: var(--gold-bright);
+}
+.draw-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.text-input {
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: rgba(7, 13, 34, 0.85);
+  font-size: 1rem; /* 16px or more stops iOS Safari zooming in on focus */
+}
+.text-input::placeholder {
+  color: var(--paper-muted);
+  opacity: 0.8;
+}
+
+/* ---------- Viewing a constellation ---------- */
+
+.viewing-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.viewing-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+.viewing-title strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.viewing-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- List tab ---------- */
+
+.panel-list,
+.panel-mine {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.list-view {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+.list-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: rgba(9, 16, 40, 0.97);
+}
+.list-head .sky-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.list-head .chips {
+  justify-content: flex-start;
+}
+.list-tools {
+  display: flex;
+  gap: 8px;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+}
+.list-count {
+  margin: 12px 16px 4px;
+  font-size: 0.8rem;
+  color: var(--paper-muted);
+}
+.list-note {
+  margin: 24px 16px;
+  text-align: center;
+  color: var(--paper-muted);
+}
+.list-note p {
+  margin: 0 0 10px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0 8px;
+  list-style: none;
+}
+.rows li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--rule-soft);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.row:hover {
+  background: rgba(201, 164, 92, 0.07);
+}
+.row[aria-current="true"] {
+  background: rgba(201, 164, 92, 0.16);
+}
+.row-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--paper);
+  justify-self: center;
+}
+.row-mark.hazard {
+  border-radius: 0;
+  background: var(--hazard);
+  transform: rotate(45deg);
+}
+.row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.row-name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-date {
+  font-size: 0.8rem;
+  color: var(--paper-muted);
+}
+.row-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.85rem;
+}
+.row-size {
+  color: var(--paper-muted);
+  font-size: 0.78rem;
+}
+
+/* ---------- Constellations tab ---------- */
+
+.constellations {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+.intro h2,
+.shelf h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.intro h2 {
+  font-size: 2rem;
+}
+.intro p {
+  max-width: 38rem;
+  margin: 6px 0 14px;
+  color: var(--paper-muted);
+}
+.shelf {
+  margin-top: 28px;
+}
+.shelf h3 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 1.4rem;
+}
+.shelf-note {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--paper-muted);
+}
+
+.how-to {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.how-to li {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  align-items: start;
+  color: var(--paper-muted);
+  counter-increment: step;
+}
+.how-to li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  color: var(--gold-bright);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.how-to strong {
+  color: var(--paper);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 34, 0.6);
+}
+.card-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.card-meta {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--gold);
+}
+.card-blurb {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--paper-muted);
+}
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.preview {
+  width: 96px;
+  height: 96px;
+}
+.preview-ring {
+  fill: rgba(7, 13, 34, 0.6);
+  stroke: var(--rule);
+  stroke-width: 2;
+}
+.preview-earth {
+  fill: var(--earth);
+}
+.preview-line {
+  stroke: var(--gold-bright);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.preview-star {
+  fill: var(--paper);
+}
+.preview-star.hazard {
+  fill: var(--hazard);
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.warn {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(239, 123, 95, 0.5);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+}
+
+/* ---------- Toast ---------- */
+
+.toast-region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(68px + var(--safe-bottom));
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 32rem;
+  padding: 6px 6px 6px 16px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  background: var(--ink-deep);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  font-size: 0.9rem;
+  pointer-events: auto;
+  animation: sheet-in 0.2s ease-out;
+}
+.toast-action {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--gold-bright);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ---------- Detail sheet: bottom sheet on phones, side card on wide screens ---------- */
@@ -662,6 +1213,12 @@ a {
   font-size: 0.9rem;
   font-weight: 600;
 }
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
 
 /* ---------- Status, notes, buttons ---------- */
 
@@ -714,6 +1271,33 @@ a {
   min-height: 36px;
   padding: 0 14px;
   font-size: 0.85rem;
+}
+.btn-solid {
+  background: var(--gold);
+  color: var(--ink-deep);
+}
+.btn-solid:hover {
+  background: var(--gold-bright);
+}
+.btn-quiet {
+  border-color: transparent;
+  color: var(--paper-muted);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.btn:disabled:hover {
+  background: transparent;
+}
+.btn-solid:disabled:hover {
+  background: var(--gold);
+}
+.btn-make {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 18px rgba(201, 164, 92, 0.25);
 }
 
 .empty-note {
@@ -787,6 +1371,10 @@ a {
   }
   .sheet-grip {
     display: none;
+  }
+
+  .toast-region {
+    bottom: 48px;
   }
 }
 

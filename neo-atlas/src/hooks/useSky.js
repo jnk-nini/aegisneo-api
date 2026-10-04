@@ -35,7 +35,12 @@ export function useSky(sky) {
       .catch((err) => {
         if (controller.signal.aborted) return;
         // Keep any pages that did arrive for this sky; never fall back to another sky's stars.
-        setState((prev) => ({ ...(prev.key === key ? prev : LOADING), key, status: "error", error: err.message }));
+        setState((prev) => ({
+          ...(prev.key === key ? prev : LOADING),
+          key,
+          status: "error",
+          error: err.message,
+        }));
       });
     return () => controller.abort();
   }, [search, key]);

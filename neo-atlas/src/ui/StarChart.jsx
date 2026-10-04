@@ -8,12 +8,16 @@ const VIEW = 110; // the dial spans -110…110 in SVG units
 const HIT_PX = 24; // how far (in screen pixels) a tap may land from a star and still pick it
 const TAP_MOVE_PX = 8;
 const TAP_MS = 500;
+const NO_PATH = [];
 
-function Star({ star, k }) {
+function Star({ star, k, dim, linked }) {
   const r = star.size / Math.sqrt(k); // stars grow a little when zoomed, but not in proportion
   const { x, y } = star;
+  const className = ["star", star.hazardous && "hazardous", dim && "dim", linked && "linked"]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <g className={star.hazardous ? "star hazardous" : "star"}>
+    <g className={className}>
       <circle cx={x} cy={y} r={r * 3.2} className="star-halo" />
       {star.hazardous ? (
         <path
@@ -40,20 +44,63 @@ function StarLabel({ star, k, variant }) {
   );
 }
 
+/** Constellation lines, drawn star to star in path order. */
+function ConstellationLines({ path, byId, k, drawing }) {
+  const segments = [];
+  for (let i = 1; i < path.length; i++) {
+    const a = byId.get(path[i - 1]);
+    const b = byId.get(path[i]);
+    if (a && b) segments.push([a, b, i]);
+  }
+  const last = byId.get(path[path.length - 1]);
+  return (
+    <g className={drawing ? "constellation drawing" : "constellation"} pointerEvents="none">
+      {segments.map(([a, b, i]) => (
+        <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ strokeWidth: 0.7 / k }} />
+      ))}
+      {drawing && last && (
+        <circle
+          cx={last.x}
+          cy={last.y}
+          r={(last.size * 2.6) / Math.sqrt(k) + 1.2 / k}
+          className="path-end"
+          style={{ strokeWidth: 0.7 / k }}
+        />
+      )}
+    </g>
+  );
+}
+
 /**
  * The interactive planisphere. Pan and zoom with drag, pinch, wheel or the
  * buttons; tap or click near a star to select it; with the chart focused, the
  * arrow keys step through the stars in date order.
+ *
+ * While `drawing`, a tap adds the star to the constellation instead, and the
+ * arrow keys move a cursor that Enter adds.
  */
-export default function StarChart({ stars, mode, selectedId, onSelect, description }) {
+export default function StarChart({
+  stars,
+  mode,
+  viewKey,
+  selectedId,
+  onSelect,
+  description,
+  path = NO_PATH,
+  highlight = null,
+  drawing = false,
+  children,
+}) {
   const svgRef = useRef(null);
   const zoomRef = useRef(null);
   const tapRef = useRef(null);
   const [transform, setTransform] = useState(zoomIdentity);
   const [hoverId, setHoverId] = useState(null);
+  const [cursorId, setCursorId] = useState(null);
   const dial = useMemo(() => dialSegments(mode), [mode]);
   const ordered = useMemo(() => [...stars].sort((a, b) => a.angle - b.angle), [stars]);
   const byId = useMemo(() => new Map(stars.map((s) => [s.id, s])), [stars]);
+  const linked = useMemo(() => new Set(path), [path]);
 
   useEffect(() => {
     const svg = select(svgRef.current);
@@ -85,10 +132,10 @@ export default function StarChart({ stars, mode, selectedId, onSelect, descripti
     };
   }, []);
 
-  // A different kind of sky has a different dial, so start it fully zoomed out.
+  // A different kind of sky (or a constellation) has a different dial, so start it fully zoomed out.
   useEffect(() => {
     if (zoomRef.current) select(svgRef.current).call(zoomRef.current.transform, zoomIdentity);
-  }, [mode]);
+  }, [viewKey]);
 
   const zoomBy = (factor) => select(svgRef.current).call(zoomRef.current.scaleBy, factor);
   const resetZoom = () => select(svgRef.current).call(zoomRef.current.transform, zoomIdentity);
@@ -134,16 +181,25 @@ export default function StarChart({ stars, mode, selectedId, onSelect, descripti
     if (e.key === "-" || e.key === "_") return zoomBy(1 / 1.5);
     if (e.key === "0") return resetZoom();
     if (e.key === "Escape") return onSelect(null);
+    if (drawing && (e.key === "Enter" || e.key === " ") && byId.has(cursorId)) {
+      e.preventDefault();
+      return onSelect(cursorId);
+    }
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
     if (!step || ordered.length === 0) return;
     e.preventDefault();
-    const index = ordered.findIndex((s) => s.id === selectedId);
-    const next = index === -1 ? (step > 0 ? 0 : ordered.length - 1) : (index + step + ordered.length) % ordered.length;
-    onSelect(ordered[next].id);
+    const current = drawing ? cursorId : selectedId;
+    const index = ordered.findIndex((s) => s.id === current);
+    const next =
+      index === -1 ? (step > 0 ? 0 : ordered.length - 1) : (index + step + ordered.length) % ordered.length;
+    if (drawing) setCursorId(ordered[next].id);
+    else onSelect(ordered[next].id);
   };
 
-  const selected = byId.get(selectedId);
-  const hovered = hoverId !== selectedId ? byId.get(hoverId) : null;
+  const selected = drawing ? null : byId.get(selectedId);
+  const pointedId = hoverId ?? (drawing ? cursorId : null);
+  const hovered = pointedId !== selectedId ? byId.get(pointedId) : null;
+  const isDim = (star) => highlight !== null && !highlight(star.data);
   const { x, y, k } = transform;
 
   return (
@@ -161,7 +217,7 @@ export default function StarChart({ stars, mode, selectedId, onSelect, descripti
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHoverId(null)}
         onKeyDown={onKeyDown}
-        style={{ cursor: hovered ? "pointer" : "grab" }}
+        style={{ cursor: hovered ? (drawing ? "crosshair" : "pointer") : "grab" }}
       >
         <defs>
           {/* Soft glows as shared gradients: far cheaper on phones than blur filters. */}
@@ -176,15 +232,18 @@ export default function StarChart({ stars, mode, selectedId, onSelect, descripti
         </defs>
         <g transform={`translate(${x},${y}) scale(${k})`}>
           <AtlasFrame segments={dial.segments} ticks={dial.ticks} />
+          {path.length > 0 && <ConstellationLines path={path} byId={byId} k={k} drawing={drawing} />}
           <g className="stars">
             {stars.map((star) => (
-              <Star key={star.id} star={star} k={k} />
+              <Star key={star.id} star={star} k={k} dim={isDim(star)} linked={linked.has(star.id)} />
             ))}
           </g>
           {hovered && <StarLabel star={hovered} k={k} variant="hover" />}
           {selected && <StarLabel star={selected} k={k} variant="selected" />}
         </g>
       </svg>
+
+      {children}
 
       <div className="zoom-controls">
         <button type="button" className="icon-btn" onClick={() => zoomBy(1.6)} aria-label="Zoom in">

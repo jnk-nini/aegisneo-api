@@ -27,7 +27,7 @@ export default function Legend({ mode }) {
             <span>
               <strong>Around the dial:</strong>{" "}
               {mode === "date"
-                ? "the year it passed Earth on this date, 1910 at the top."
+                ? "the year it passed Earth, 1910 at the top and running clockwise to 2024."
                 : "the day of the year it passed Earth, January at the top."}
             </span>
           </li>

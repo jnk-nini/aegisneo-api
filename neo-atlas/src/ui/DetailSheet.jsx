@@ -1,4 +1,12 @@
-import { formatDate, formatDiameter, formatKm, formatLD, formatSpeed, toLunarDistances } from "../lib/format.js";
+import { Children } from "react";
+import {
+  formatDate,
+  formatDiameter,
+  formatKm,
+  formatLD,
+  formatSpeed,
+  toLunarDistances,
+} from "../lib/format.js";
 
 function closenessNote(km) {
   const ld = toLunarDistances(km);
@@ -10,7 +18,7 @@ function closenessNote(km) {
  * Details for the selected asteroid. A sheet along the bottom on phones and a
  * card beside the chart on wide screens; it never covers the whole chart.
  */
-export default function DetailSheet({ asteroid, onClose }) {
+export default function DetailSheet({ asteroid, onClose, children }) {
   if (!asteroid) return null;
   const a = asteroid;
   const sbdbUrl = `https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=${encodeURIComponent(a.neo_reference_id)}`;
@@ -70,6 +78,8 @@ export default function DetailSheet({ asteroid, onClose }) {
         <span aria-hidden="true"> ↗</span>
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
+
+      {Children.toArray(children).length > 0 && <div className="detail-actions">{children}</div>}
     </aside>
   );
 }

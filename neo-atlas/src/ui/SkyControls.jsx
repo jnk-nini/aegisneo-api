@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { MONTHS } from "../lib/calendar.js";
 import { FIRST_YEAR, LAST_YEAR } from "../lib/chart.js";
 import { todayMonthDay } from "../lib/sky.js";
@@ -7,10 +8,12 @@ const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const pad = (n) => String(n).padStart(2, "0");
 
 /** Choose what to chart: a whole year, or one calendar date (such as a birthday) across every year. */
-export default function SkyControls({ sky, onChange }) {
+export default function SkyControls({ sky, onChange, disabled = false }) {
+  const name = useId();
   const [month, day] = sky.date.split("-").map(Number);
 
-  const setMonthDay = (m, d) => onChange({ ...sky, date: `${pad(m)}-${pad(Math.min(d, DAYS_IN_MONTH[m - 1]))}` });
+  const setMonthDay = (m, d) =>
+    onChange({ ...sky, date: `${pad(m)}-${pad(Math.min(d, DAYS_IN_MONTH[m - 1]))}` });
   const stepYear = (delta) => onChange({ ...sky, year: sky.year + delta });
 
   return (
@@ -20,9 +23,10 @@ export default function SkyControls({ sky, onChange }) {
         <label>
           <input
             type="radio"
-            name="mode"
+            name={name}
             value="year"
             checked={sky.mode === "year"}
+            disabled={disabled}
             onChange={() => onChange({ ...sky, mode: "year" })}
           />
           <span>Year</span>
@@ -30,9 +34,10 @@ export default function SkyControls({ sky, onChange }) {
         <label>
           <input
             type="radio"
-            name="mode"
+            name={name}
             value="date"
             checked={sky.mode === "date"}
+            disabled={disabled}
             onChange={() => onChange({ ...sky, mode: "date" })}
           />
           <span>Birthday</span>
@@ -45,14 +50,18 @@ export default function SkyControls({ sky, onChange }) {
             type="button"
             className="icon-btn"
             onClick={() => stepYear(-1)}
-            disabled={sky.year <= FIRST_YEAR}
+            disabled={disabled || sky.year <= FIRST_YEAR}
             aria-label="Previous year"
           >
             ‹
           </button>
           <label className="select-wrap">
             <span className="sr-only">Year</span>
-            <select value={sky.year} onChange={(e) => onChange({ ...sky, year: Number(e.target.value) })}>
+            <select
+              disabled={disabled}
+              value={sky.year}
+              onChange={(e) => onChange({ ...sky, year: Number(e.target.value) })}
+            >
               {YEARS.map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -64,7 +73,7 @@ export default function SkyControls({ sky, onChange }) {
             type="button"
             className="icon-btn"
             onClick={() => stepYear(1)}
-            disabled={sky.year >= LAST_YEAR}
+            disabled={disabled || sky.year >= LAST_YEAR}
             aria-label="Next year"
           >
             ›
@@ -74,7 +83,11 @@ export default function SkyControls({ sky, onChange }) {
         <div className="picker">
           <label className="select-wrap">
             <span className="sr-only">Day</span>
-            <select value={day} onChange={(e) => setMonthDay(month, Number(e.target.value))}>
+            <select
+              disabled={disabled}
+              value={day}
+              onChange={(e) => setMonthDay(month, Number(e.target.value))}
+            >
               {Array.from({ length: DAYS_IN_MONTH[month - 1] }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
                   {i + 1}
@@ -84,7 +97,11 @@ export default function SkyControls({ sky, onChange }) {
           </label>
           <label className="select-wrap">
             <span className="sr-only">Month</span>
-            <select value={month} onChange={(e) => setMonthDay(Number(e.target.value), day)}>
+            <select
+              disabled={disabled}
+              value={month}
+              onChange={(e) => setMonthDay(Number(e.target.value), day)}
+            >
               {MONTHS.map((name, i) => (
                 <option key={name} value={i + 1}>
                   {name}
@@ -92,7 +109,12 @@ export default function SkyControls({ sky, onChange }) {
               ))}
             </select>
           </label>
-          <button type="button" className="btn btn-small" onClick={() => onChange({ ...sky, date: todayMonthDay() })}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={disabled}
+            onClick={() => onChange({ ...sky, date: todayMonthDay() })}
+          >
             Today
           </button>
         </div>

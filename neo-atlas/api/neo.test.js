@@ -22,7 +22,10 @@ describe("api/neo proxy", () => {
 
   it("forwards allowed paths and params with the key attached", async () => {
     const res = mockRes();
-    await handler({ method: "GET", query: { path: "asteroids", search: "1987-", limit: "100", evil: "x" } }, res);
+    await handler(
+      { method: "GET", query: { path: "asteroids", search: "1987-", limit: "100", evil: "x" } },
+      res,
+    );
     expect(res.statusCode).toBe(200);
     const [url, init] = globalThis.fetch.mock.calls[0];
     expect(url.toString()).toBe("https://api.example.test/api/v1/asteroids?search=1987-&limit=100");
