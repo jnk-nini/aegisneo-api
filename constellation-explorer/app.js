@@ -837,9 +837,12 @@ function chart(asteroids) {
     return fresh;
 }
 
+const EMPTY_MESSAGE = emptyState.textContent.trim();
+
 async function fetchAsteroids(url) {
     setLoading(true);
     emptyState.hidden = true;
+    emptyState.textContent = EMPTY_MESSAGE;
     try {
         const response = await fetch(url, { headers: API_HEADERS });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

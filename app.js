@@ -38,10 +38,35 @@ const state = {
 // FAVORITES — persisted locally per browser, never sent anywhere
 const favorites = new Set(JSON.parse(localStorage.getItem("aegisneo_favorites") || "[]"));
 
+// starred objects already seen or fetched, so My List works outside the current 100-object batch
+const favoriteCache = new Map();
+
 function toggleFavorite(id) {
-    if (favorites.has(id)) favorites.delete(id); else favorites.add(id);
+    if (favorites.has(id)) {
+        favorites.delete(id);
+    } else {
+        favorites.add(id);
+        const asteroid = state.raw.find(a => a.neo_reference_id === id);
+        if (asteroid) favoriteCache.set(id, asteroid);
+    }
     localStorage.setItem("aegisneo_favorites", JSON.stringify([...favorites]));
     updateWatchlistButton();
+}
+
+async function loadMissingFavorites() {
+    state.raw.forEach(a => { if (favorites.has(a.neo_reference_id)) favoriteCache.set(a.neo_reference_id, a); });
+    const missing = [...favorites].filter(id => !favoriteCache.has(id));
+    const fetched = await Promise.all(missing.map(id =>
+        fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: API_HEADERS })
+            .then(r => (r.ok ? r.json() : null))
+            .catch(() => null)
+    ));
+    fetched.forEach(a => { if (a) favoriteCache.set(a.neo_reference_id, a); });
+}
+
+function watchlistItems() {
+    const byId = new Map(state.raw.map(a => [a.neo_reference_id, a]));
+    return [...favorites].map(id => byId.get(id) || favoriteCache.get(id)).filter(Boolean);
 }
 
 function updateWatchlistButton() {
@@ -68,12 +93,23 @@ let factIndex = 0;
 let factTimer = null;
 
 
+// LIST REQUESTS — only the latest load/search may render; starting a new one cancels the old
+let listController = null;
+
+function startListRequest() {
+    if (listController) listController.abort();
+    listController = new AbortController();
+    return listController.signal;
+}
+
+
 // LOAD ALL ASTEROIDS
 async function loadAsteroids() {
+    const signal = startListRequest();
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS });
+        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS, signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
@@ -85,6 +121,7 @@ async function loadAsteroids() {
     }
 
     catch (error) {
+        if (error.name === "AbortError") return;
         console.error(error);
         showError();
     }
@@ -99,11 +136,12 @@ async function searchAsteroids() {
         return;
     }
 
+    const signal = startListRequest();
     showLoading();
 
     try {
         const response =
-            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS });
+            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS, signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
@@ -114,6 +152,7 @@ async function searchAsteroids() {
     }
 
     catch (error) {
+        if (error.name === "AbortError") return;
         console.error(error);
         showError();
     }
@@ -128,12 +167,11 @@ function getSizeTier(diameterKm) {
 }
 
 function applyFiltersAndSort() {
-    let list = state.raw.slice();
+    let list = state.watchlistOnly ? watchlistItems() : state.raw.slice();
 
     if (state.hazardFilter === "safe") list = list.filter(a => !a.is_potentially_hazardous);
     if (state.hazardFilter === "hazard") list = list.filter(a => a.is_potentially_hazardous);
     if (state.sizeFilter !== "all") list = list.filter(a => getSizeTier(a.estimated_diameter_km) === state.sizeFilter);
-    if (state.watchlistOnly) list = list.filter(a => favorites.has(a.neo_reference_id));
 
     switch (state.sort) {
         case "name":
@@ -305,6 +343,7 @@ function showDetailPanel(asteroid) {
         if (favBtn) {
             toggleFavorite(favBtn.dataset.neo);
             const nowFav = favorites.has(favBtn.dataset.neo);
+            if (nowFav) favoriteCache.set(asteroid.neo_reference_id, asteroid);
             favBtn.classList.toggle("active", nowFav);
             favBtn.setAttribute("aria-pressed", String(nowFav));
             return;
@@ -785,10 +824,14 @@ sortSelect.addEventListener("change", () => {
     applyFiltersAndSort();
 });
 
-watchlistToggle.addEventListener("click", () => {
+watchlistToggle.addEventListener("click", async () => {
     state.watchlistOnly = !state.watchlistOnly;
     watchlistToggle.classList.toggle("active", state.watchlistOnly);
     watchlistToggle.setAttribute("aria-pressed", String(state.watchlistOnly));
+    if (state.watchlistOnly) {
+        showLoading();
+        await loadMissingFavorites();
+    }
     applyFiltersAndSort();
 });
 

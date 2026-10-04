@@ -597,11 +597,12 @@ async function searchAsteroids(query) {
     setLoading(true, "scanning catalog…");
     try {
         const response = await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         renderResults(data.asteroids || []);
     } catch (err) {
         console.error(err);
-        renderResults([]);
+        showApiError();
     } finally {
         setLoading(false);
     }
@@ -631,6 +632,11 @@ function renderResults(list) {
     });
 }
 
+function showApiError() {
+    resultsList.hidden = false;
+    resultsList.innerHTML = `<div class="result-item">Could not reach the AegisNEO API. Check your connection and try again.</div>`;
+}
+
 function selectAsteroid(a) {
     state.selected = a;
     state.sequence = null;
@@ -657,6 +663,7 @@ async function surpriseMe() {
     try {
         if (!state.defaultBatch) {
             const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             state.defaultBatch = data.asteroids || [];
         }
@@ -665,6 +672,7 @@ async function surpriseMe() {
         selectAsteroid(pick);
     } catch (err) {
         console.error(err);
+        showApiError();
     } finally {
         setLoading(false);
     }
