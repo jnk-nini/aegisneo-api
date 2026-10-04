@@ -1,0 +1,40 @@
+{
+  "name": "impactor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Impactor — a 3D asteroid impact simulator powered by the AegisNEO API.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
+    "d3-geo": "^3.1.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}
