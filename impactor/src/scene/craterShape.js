@@ -58,8 +58,31 @@ export function craterVisual(result) {
   const maxEdge = (MAX_PATCH_ANGLE * EARTH_RADIUS_M) / radiusM;
   const edgeFrac = Math.max(1.3, Math.min(Math.max(3, reach / radiusM), 4, maxEdge));
 
+  // Under water, the crater that lasts is the one in the seabed; the water
+  // cavity fills back in. It is drawn seen through the water, which is drawn
+  // much shallower than the real ocean so the crater stays visible.
+  let seafloor = null;
+  if (water && result.crater?.transientDiameterM) {
+    const bed = craterVisual({
+      crater: result.crater,
+      inputs: { surface: "land" },
+      entry: { regime: "intact" },
+    });
+    seafloor = {
+      radiusM: bed.radiusM,
+      depthM: bed.depthM,
+      rimM: bed.rimM,
+      floorFrac: bed.floorFrac,
+      peakM: bed.peakM,
+      peakRing: bed.peakRing,
+      complex: bed.kind === "complex" || bed.kind === "melt",
+      exaggeration: bed.exaggeration,
+    };
+  }
+
   return {
     kind,
+    seafloor,
     radiusM,
     depthM,
     rimM,

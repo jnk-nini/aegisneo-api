@@ -196,7 +196,8 @@ export const useSim = create((set, get) => ({
   },
   setPhase(phase) {
     if (get().phase !== phase) {
-      set(phase === "done" ? { phase, sheet: "half", mobileTab: "results" } : { phase });
+      // On phones the panel stays low, so the crater is in view; results are a drag away.
+      set(phase === "done" ? { phase, sheet: "peek", mobileTab: "results" } : { phase });
     }
   },
 }));

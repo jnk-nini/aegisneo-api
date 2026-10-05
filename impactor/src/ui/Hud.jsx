@@ -4,11 +4,13 @@ import { TOTAL_SECONDS, clock, isTimeLapse, simulatedSeconds } from "../scene/ti
 import { craterVisual } from "../scene/craterShape.js";
 import { fireballDrawn } from "../scene/framing.js";
 import { formatClock } from "../lib/format.js";
+import { useIsMobile } from "./hooks.js";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 /** Simulation clock and playback controls shown over the 3D view during a run. */
 export default function Hud() {
+  const isMobile = useIsMobile();
   const run = useSim((s) => s.run);
   const phase = useSim((s) => s.phase);
   const paused = useSim((s) => s.paused);
@@ -23,11 +25,17 @@ export default function Hud() {
     const crater = craterVisual(run.result);
     const list = [];
     if (crater && crater.kind !== "water" && crater.exaggeration > 1) {
-      list.push({ text: `Crater depth ×${crater.exaggeration}`, title: "Depth exaggerated so the crater is visible" });
+      list.push({
+        text: `Crater depth ×${crater.exaggeration}`,
+        title: "Depth exaggerated so the crater is visible",
+      });
     }
     const { boost } = fireballDrawn(run.result);
     if (boost === null) {
-      list.push({ text: "Fireball size illustrative", title: "The model gives no fireball size for an airburst" });
+      list.push({
+        text: "Fireball size illustrative",
+        title: "The model gives no fireball size for an airburst",
+      });
     } else if (boost >= 1.5) {
       list.push({
         text: `Fireball ×${boost < 10 ? boost.toFixed(1) : Math.round(boost)}`,
@@ -39,6 +47,14 @@ export default function Hud() {
     }
     if (crater?.kind === "water") {
       list.push({ text: "Tsunami ring illustrative", title: "The model doesn't calculate tsunami height" });
+    }
+    if (crater?.seafloor) {
+      const x = crater.seafloor.exaggeration;
+      list.push({
+        text: `Seabed crater seen through water${x > 1 ? ` (depth ×${x})` : ""}`,
+        title:
+          "The sea here is about 3.7 km deep and dark; it is drawn shallow and clear so the crater on the seabed shows",
+      });
     }
     return list;
   }, [run]);
@@ -98,20 +114,34 @@ export default function Hud() {
           >
             {paused ? "▶" : "❚❚"}
           </button>
-          <div className="speed-group" role="radiogroup" aria-label="Playback speed">
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                role="radio"
-                aria-checked={timeScale === s}
-                className={`speed ${timeScale === s ? "is-active" : ""}`}
-                onClick={() => useSim.setState({ timeScale: s })}
-              >
-                {s}×
-              </button>
-            ))}
-          </div>
+          {isMobile ? (
+            // One button that steps through the speeds keeps the bar on screen.
+            <button
+              type="button"
+              className="speed speed--cycle"
+              aria-label={`Playback speed ${timeScale}×, tap to change`}
+              onClick={() =>
+                useSim.setState({ timeScale: SPEEDS[(SPEEDS.indexOf(timeScale) + 1) % SPEEDS.length] })
+              }
+            >
+              {timeScale}×
+            </button>
+          ) : (
+            <div className="speed-group" role="radiogroup" aria-label="Playback speed">
+              {SPEEDS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={timeScale === s}
+                  className={`speed ${timeScale === s ? "is-active" : ""}`}
+                  onClick={() => useSim.setState({ timeScale: s })}
+                >
+                  {s}×
+                </button>
+              ))}
+            </div>
+          )}
           <button type="button" className="btn btn--small" onClick={skip}>
             Skip
           </button>

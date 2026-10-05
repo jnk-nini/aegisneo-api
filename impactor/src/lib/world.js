@@ -3,9 +3,9 @@
 // globe's textures are painted by earthPaint.js, in a Web Worker when the
 // browser supports OffscreenCanvas so the page never freezes while it works.
 
-import { geoContains } from "d3-geo";
+import { geoContains, geoPath } from "d3-geo";
 import countriesUrl from "world-atlas/countries-50m.json?url";
-import { isLandBit, paintEarth, paintLandMask, worldFromTopology } from "./earthPaint.js";
+import { isLandBit, paintEarth, paintLandMask, projectionFor, worldFromTopology } from "./earthPaint.js";
 
 let worldPromise = null;
 let landMask = null; // { bits: Uint8Array (1 bit per pixel), width, height }
@@ -145,4 +145,15 @@ export async function countryAt(lat, lon) {
     if (geoContains(f, point)) return f.properties?.name ?? null;
   }
   return null;
+}
+
+/** Draws faint country borders over a world map canvas (equirectangular). */
+export async function drawBorders(canvas) {
+  const world = await loadWorld();
+  const ctx = canvas.getContext("2d");
+  ctx.lineWidth = Math.max(0.6, canvas.width / 4096);
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.beginPath();
+  geoPath(projectionFor(canvas.width, canvas.height), ctx)(world.borders);
+  ctx.stroke();
 }

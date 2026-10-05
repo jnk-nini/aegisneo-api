@@ -19,7 +19,7 @@ AegisNEO through its public REST API, to show that the API can power other apps.
   forest and darkened cities. The largest impacts darken the whole planet. Play/pause
   and 0.25×–4× speed.
 - **Sandbox controls**: change size, speed, entry angle, direction and composition.
-  Changes are labelled *Hypothetical*.
+  Changes are labelled _Hypothetical_.
 - **Results**: energy, crater, earthquake magnitude, damage zones (outlines can be
   shown on the globe),
   blast arrival times, major cities in range, and how often such an impact happens.
@@ -31,12 +31,12 @@ AegisNEO through its public REST API, to show that the API can power other apps.
 
 ## How it uses the AegisNEO API
 
-| Feature | Endpoint |
-| --- | --- |
-| Search | `GET /api/v1/asteroids?search=…&limit=30` |
-| Largest / closest flybys | `GET /api/v1/asteroids?sort=diameter&order=desc` · `sort=miss_distance` |
-| Random / random hazardous | `GET /api/v1/asteroids/random?hazardous=true` |
-| Famous asteroids, share links | `GET /api/v1/asteroids/{neo_reference_id}` |
+| Feature                       | Endpoint                                                                |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| Search                        | `GET /api/v1/asteroids?search=…&limit=30`                               |
+| Largest / closest flybys      | `GET /api/v1/asteroids?sort=diameter&order=desc` · `sort=miss_distance` |
+| Random / random hazardous     | `GET /api/v1/asteroids/random?hazardous=true`                           |
+| Famous asteroids, share links | `GET /api/v1/asteroids/{neo_reference_id}`                              |
 
 The browser never calls the API directly with a key. It calls `/api/neo/*` on this
 site, and a small server function (`api/neo.js`) forwards the request with the key
@@ -55,7 +55,7 @@ without changing the UI.
 ## The science
 
 `src/physics/impact.js` implements Collins, Melosh & Marcus (2005),
-*Earth Impact Effects Program*, Meteoritics & Planetary Science 40(6), 817–840.
+_Earth Impact Effects Program_, Meteoritics & Planetary Science 40(6), 817–840.
 Equation numbers are noted in the code.
 
 - Atmospheric entry: breakup altitude, pancake spreading, airburst altitude (Eqs. 8–20)
@@ -100,18 +100,34 @@ numbers in the results panel:
   out where wood-frame houses collapse. Each appears when the blast or heat reaches it.
 - **Ocean impacts**: the water cavity opens and fills back in, and a ring crosses the
   ocean at deep-water wave speed √(g·h) ≈ 190 m/s. The model has no tsunami height, so
-  the ring is illustrative.
+  the ring is illustrative. Once the water settles, the crater the model gives for the
+  seabed shows through it, with stirred-up sediment and floating debris; the sea is
+  drawn shallow and clear so it can be seen (labelled).
+- **Debris**: hot debris flies out on ballistic arcs in rays, more of it downrange
+  after a slanting hit. Ranges follow a steep power law, so almost all of it lands
+  near the crater and only the largest impacts send a thin tail far round the planet.
+- **Plume**: the fireball follows Eq. 32; for impacts big enough to affect the whole
+  planet, the vapour plume that leaves the atmosphere is drawn larger (labelled
+  "Fireball ×N").
 - **Largest impacts** (about a million megatons and up, a ~2.5 km rock): ejecta falling back worldwide, spreading
   fires and a dust veil that browns the planet. Illustrative, scaled by impact energy.
 - **Time**: excavation takes seconds to minutes; the blast takes up to hours to reach
   its outer zones. When needed, the aftermath clock speeds up as it plays so both fit;
   the time shown is always real.
-- **Zone outlines** are off during and after the impact by default; *Damage zones*
-  (over the 3D view) or *Outline on globe* (results panel) turns them on.
+- **Zone outlines** are off during and after the impact by default; _Damage zones_
+  (over the 3D view) or _Outline on globe_ (results panel) turns them on.
+- **Globe**: NASA imagery from GIBS. The whole planet loads at about 10 km per pixel;
+  zooming in streams sharper tiles (down to about 500 m colour and 31 m shaded relief)
+  for the area in view (`src/scene/DetailImagery.jsx`). Offline, the painted globe stays.
+- **Navigation** (`src/scene/GlobeControls.jsx`): drag moves the ground under the
+  finger at any zoom, the wheel or a pinch zooms towards the pointer, and two fingers
+  (or the right mouse button) tilt and turn. _Whole globe_ always flies back out.
 
 ## Mobile strategy
 
-- Layout: bottom sheet with tabs below 1100 px; side panels on desktop.
+- Layout: bottom sheet with tabs below 1100 px; side panels on desktop. Phones get
+  one menu button in the top bar and a column of round camera buttons, and the sheet
+  stays low after an impact so the crater is in view.
 - Graphics: device pixel ratio capped (1.75 on phones), quality lowered automatically
   if the frame rate drops, 2048 px textures on phones. Phones get a lighter impact:
   a quarter of the crater mesh, fewer ejecta particles and smoke puffs, and cheaper
@@ -178,6 +194,8 @@ identifies which site is asking; it doesn't keep anyone out.
 ## Credits
 
 - Asteroid data: AegisNEO API (NASA near-Earth object data via Kaggle, 1910–2024)
+- Satellite imagery: NASA Blue Marble (shaded relief and bathymetry), Black Marble city
+  lights and ASTER GDEM shaded relief, from NASA GIBS (public domain)
 - Country outlines: Natural Earth (public domain), via `world-atlas`
 - 3D: three.js, React Three Fiber, drei
 - Impact model: Collins, Melosh & Marcus (2005)

@@ -11,7 +11,7 @@ import { EARTH_RADIUS_M } from "../physics/impact.js";
 import { G } from "./impactVisuals.js";
 import { collapseWindow } from "./craterShape.js";
 import { APPROACH_SECONDS, aftermathRealSeconds, clock, simulatedSeconds } from "./timeline.js";
-import { surfaceShader } from "./surfaceShader.js";
+import { detailUniforms, surfaceShader } from "./surfaceShader.js";
 import { zoneShader, zoneUniforms } from "./zoneOverlay.js";
 import { damageNoise, damageShader, damageUniforms, texNoiseShader } from "./damageOverlay.js";
 
@@ -34,9 +34,7 @@ function patchGeometry(edge, rings, segments) {
   const xs = [];
   for (let i = 0; i <= rings; i++) {
     xs.push(
-      i <= inner
-        ? 1.2 * (i / inner) ** 0.8
-        : 1.2 + (edge - 1.2) * ((i - inner) / (rings - inner)) ** 1.5,
+      i <= inner ? 1.2 * (i / inner) ** 0.8 : 1.2 + (edge - 1.2) * ((i - inner) / (rings - inner)) ** 1.5,
     );
   }
   xs.push(edge); // skirt
@@ -79,25 +77,38 @@ const craterGlsl = /* glsl */ `
   uniform vec4 cAnim;    // growth, collapse, exaggeration, kind
   uniform vec4 cWave;    // water: wave time, wave height (m), jet height (m); ejecta blanket reveal
   uniform float cMelt;   // melt temperature, 0..1
+  uniform vec4 cSea;     // water: seabed reveal 0..1, water radii per seabed radius, drawn water depth (m), seabed kind
+  uniform vec4 cBed;     // water: seabed crater rim, depth, floor fraction, peak (m)
 
+  // Crater profile at x crater radii (kind: 0 bowl, 1 complex, 2 peak ring).
   // Mirrors finalHeight() in craterShape.js.
-  float craterFinal(float x) {
-    float rim = cShape.x;
-    float depth = cShape.y;
+  float craterProfile(float x, vec4 shape, float edge, float kind) {
+    float rim = shape.x;
+    float depth = shape.y;
     float floorH = rim - depth;
     if (x >= 1.0) {
-      float e = pow(cShape2.y, -3.0);
+      float e = pow(edge, -3.0);
       return max(0.0, rim * (pow(x, -3.0) - e) / (1.0 - e));
     }
-    if (cAnim.w < 0.5 || cAnim.w > 2.5) return floorH + depth * x * x;
-    float t = clamp((x - cShape.z) / (1.0 - cShape.z), 0.0, 1.0);
+    if (kind < 0.5) return floorH + depth * x * x;
+    float t = clamp((x - shape.z) / (1.0 - shape.z), 0.0, 1.0);
     float wall = t * t * (3.0 - 2.0 * t) + 0.04 * sin(6.0 * PI * t) * 4.0 * t * (1.0 - t);
     float h = floorH + depth * wall;
-    if (cShape.w > 0.0) {
-      float k = cShape2.x > 0.5 ? (x - 0.28) / 0.07 : x / 0.12;
-      h += cShape.w * exp(-k * k);
+    if (shape.w > 0.0) {
+      float k = kind > 1.5 ? (x - 0.28) / 0.07 : x / 0.12;
+      h += shape.w * exp(-k * k);
     }
     return h;
+  }
+
+  float craterFinal(float x) {
+    float kind = cAnim.w < 0.5 || cAnim.w > 2.5 ? 0.0 : 1.0 + cShape2.x;
+    return craterProfile(x, cShape, cShape2.y, kind);
+  }
+
+  // The seabed under the settled water: its crater, below the drawn water depth.
+  float seabed(float x) {
+    return craterProfile(x * cSea.y, cBed, cShape2.y * cSea.y, cSea.w) - cSea.z;
   }
 
   // Mirrors transientHeight() in craterShape.js.
@@ -118,7 +129,7 @@ const craterGlsl = /* glsl */ `
       float h = craterTransient(x, cAnim.x) * (1.0 - cAnim.y);
       h += cWave.y * sin(9.0 * (x - front)) * exp(-2.5 * abs(x - front));
       h += cWave.z * exp(-(x / 0.12) * (x / 0.12));
-      return h;
+      return cSea.x > 0.0 ? mix(h, seabed(x), cSea.x) : h;
     }
     return mix(craterTransient(x, cAnim.x), craterFinal(x), cAnim.y);
   }
@@ -191,7 +202,7 @@ const fragmentShader = /* glsl */ `
     vec3 nL = normalize(vNormalL);
     vec3 viewDir = normalize(cameraPosition - vPosW);
     vec2 uv = sphereUv(dir);
-    vec3 day = sampleSphere(dayMap, uv).rgb;
+    vec3 day = detailDay(uv, sampleSphere(dayMap, uv).rgb);
     vec3 night = sampleSphere(nightMap, uv).rgb;
     float land = sampleSphere(maskMap, uv).r;
     vec3 glow = applyDamage(day, night, land, dir);
@@ -234,8 +245,26 @@ const fragmentShader = /* glsl */ `
     day = mix(day, vec3(0.06, 0.05, 0.045), moltenRing * 0.8);
     float ringHeat = max(cMelt - 0.12, 0.0) * moltenRing;
 
+    // Water, once settled: the seabed and its crater, seen through the water
+    // (WaterSurface draws the water itself over it).
+    float bed = water * cSea.x;
+    if (bed > 0.0) {
+      float xs = x * cSea.y;
+      float inBowl = 1.0 - smoothstep(0.92, 1.12, xs);
+      float thrown = (1.0 - smoothstep(1.0, 2.6, xs + 0.4 * nb(p * 1.7))) * (1.0 - inBowl);
+      vec3 silt = vec3(0.27, 0.26, 0.21) * (0.75 + 0.45 * nb(p * 2.2 + 3.0)) * relief(p, sunT, 3.0, 0.02, 3.0);
+      vec3 rubble = vec3(0.24, 0.21, 0.18) * (0.7 + 0.5 * nb(p * 3.1 + 1.0)) * relief(p, sunT, 4.0, 0.02, 3.5);
+      vec3 fresh = vec3(0.19, 0.16, 0.14) * (0.7 + 0.5 * nb(p * 1.2)) * relief(p, sunT, 2.0, 0.03, 2.5);
+      // Light reaching the seabed and back loses its red first: blue-green,
+      // and darker down in the crater.
+      vec3 seabedColor = mix(mix(silt, rubble, thrown), fresh, inBowl);
+      seabedColor *= mix(vec3(0.5, 0.82, 0.88), vec3(0.22, 0.48, 0.62), inBowl);
+      day = mix(day, seabedColor, bed);
+      night *= 1.0 - bed;
+    }
+
     // Water: whitecaps where the surface is steep.
-    float foam = smoothstep(0.2, 0.7, abs(vSlope)) * water;
+    float foam = smoothstep(0.2, 0.7, abs(vSlope)) * water * (1.0 - bed);
     day = mix(day, vec3(0.86, 0.92, 0.95), foam * 0.85);
 
     // Nothing burns in the crater or under fresh ejecta.
@@ -243,14 +272,103 @@ const fragmentShader = /* glsl */ `
     glow += meltColor(cMelt) * hot * 3.0;
     glow += meltColor(ringHeat) * seams * ringHeat * 3.5;
 
-    vec3 color = shadeSurface(day, night, (1.0 - land) * (1.0 - bowl * rock), dir, nL, viewDir) + glow;
+    vec3 color = shadeSurface(day, night, (1.0 - land) * (1.0 - bowl * rock) * (1.0 - bed), dir, nL, viewDir) + glow;
     color += impactLight(vPosW, nL, day);
     // A faint fill light so the crater's shape still reads on the night side.
     // It fades out well inside the patch, so the join with the globe doesn't show.
     float nightSide = 1.0 - smoothstep(-0.12, 0.2, dot(dir, sunDir));
     float fill = 1.0 - smoothstep(0.45 * cShape2.y, 0.85 * cShape2.y, x);
-    color += day * 0.16 * max(dot(nL, normalize(viewDir + dir)), 0.0) * nightSide * fill;
+    color += day * 0.24 * max(dot(nL, normalize(viewDir + dir)), 0.0) * nightSide * fill;
     gl_FragColor = vec4(applyDust(color), 1.0);
+    #include <colorspace_fragment>
+    gl_FragColor.rgb = drawZones(gl_FragColor.rgb, dir);
+  }
+`;
+
+// The sea over a settled ocean impact: clear and pale over the seabed crater so
+// it shows through, muddy where sediment was stirred up, flecked with floating
+// pumice and debris, and turning into open ocean (matching the globe) by the
+// edge of the patch. Drawn much shallower than the real sea; the HUD says so.
+const waterVertex = /* glsl */ `
+  #include <common>
+  #include <logdepthbuf_pars_vertex>
+  attribute vec2 aPolar;
+  uniform vec3 cUp;
+  uniform vec3 cEast;
+  uniform vec3 cNorth;
+  uniform float cRadius;
+  varying vec3 vDir;
+  varying vec3 vPosW;
+  varying float vX;
+  void main() {
+    float x = aPolar.x;
+    vec3 radial = cos(aPolar.y) * cEast + sin(aPolar.y) * cNorth;
+    float theta = x * cRadius;
+    float hs = sin(0.5 * theta);
+    float cm1 = -2.0 * hs * hs;
+    vec3 local = cUp * cm1 + radial * sin(theta);
+    vDir = cUp * (1.0 + cm1) + radial * sin(theta);
+    vX = x;
+    vPosW = (modelMatrix * vec4(local, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(local, 1.0);
+    #include <logdepthbuf_vertex>
+  }
+`;
+
+const waterFragment = /* glsl */ `
+  #include <common>
+  #include <logdepthbuf_pars_fragment>
+  ${texNoiseShader}
+  ${surfaceShader}
+  uniform vec3 cUp;
+  uniform vec3 cEast;
+  uniform vec3 cNorth;
+  uniform float cRadius;
+  uniform vec4 cShape2;
+  uniform vec4 cSea;
+  ${zoneShader}
+  ${damageShader}
+  varying vec3 vDir;
+  varying vec3 vPosW;
+  varying float vX;
+  void main() {
+    #include <logdepthbuf_fragment>
+    vec3 dir = normalize(vDir);
+    vec3 viewDir = normalize(cameraPosition - vPosW);
+    vec2 uv = sphereUv(dir);
+    vec3 day = detailDay(uv, sampleSphere(dayMap, uv).rgb);
+    vec3 night = sampleSphere(nightMap, uv).rgb;
+    vec3 glow = applyDamage(day, night, 0.0, dir);
+    float x = vX;
+    float xs = x * cSea.y; // in seabed crater radii
+    vec3 p = (dir - cUp) / cRadius;
+    vec2 flat2 = vec2(dot(p, cEast), dot(p, cNorth));
+
+    // Clear only over the crater and its surroundings; open ocean beyond, and
+    // always by the patch edge, so it meets the globe without a seam.
+    float open = max(smoothstep(0.62 * cShape2.y, 0.96 * cShape2.y, x), smoothstep(1.3, 3.6, xs + 1.6 * (nb(p * cSea.y * 0.35) - 0.5)));
+    float reveal = cSea.x;
+    // Sediment stirred up from the seabed drifts out in muddy swirls.
+    vec2 q = flat2 * cSea.y;
+    vec2 warp = vec2(nb(vec3(q * 0.3, 1.7)), nb(vec3(q * 0.3, 4.1))) - 0.5;
+    float swirl = nb(vec3(q * 0.45 + warp * 2.5, 0.3));
+    float mud = smoothstep(0.45, 0.75, swirl) * (1.0 - smoothstep(0.8, 3.4, xs + warp.x * 1.5)) * (1.0 - open * 0.6);
+    // Pumice and wreckage floating on the surface.
+    float specks = smoothstep(0.05, 0.0, nc(p * 7.0 + 2.0)) * (1.0 - smoothstep(0.7, 2.6, xs)) * (1.0 - open);
+
+    vec3 shallow = vec3(0.03, 0.2, 0.26);
+    vec3 water = mix(shallow, day, open);
+    water = mix(water, vec3(0.3, 0.27, 0.2), mud * 0.6);
+    water = mix(water, vec3(0.6, 0.58, 0.54), specks * 0.85);
+    float clearness = (1.0 - open) * (1.0 - 0.7 * mud) * (1.0 - specks);
+    float fresnel = pow(1.0 - max(dot(dir, viewDir), 0.0), 4.0);
+    float alpha = 1.0 - clearness * (1.0 - fresnel) * 0.55;
+    // Fades in as the water settles; the edge first, so the globe stays sealed.
+    alpha *= mix(smoothstep(0.0, 0.2, reveal), reveal, 1.0 - open);
+
+    vec3 color = shadeSurface(water, night, 1.0 - max(mud, specks), dir, dir, viewDir) + glow;
+    color += impactLight(vPosW, dir, water);
+    gl_FragColor = vec4(applyDust(color), alpha);
     #include <colorspace_fragment>
     gl_FragColor.rgb = drawZones(gl_FragColor.rgb, dir);
   }
@@ -259,6 +377,7 @@ const fragmentShader = /* glsl */ `
 export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
   const lowQuality = useSim((s) => s.quality === "low");
   const mesh = useRef();
+  const sea = useRef();
   const geometry = useMemo(
     () => (lowQuality ? patchGeometry(visual.edgeFrac, 72, 128) : patchGeometry(visual.edgeFrac, 160, 256)),
     [visual, lowQuality],
@@ -271,6 +390,7 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
       ...zoneUniforms,
       ...damageUniforms,
       ...damageNoise,
+      ...detailUniforms,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
       maskMap: { value: textures.mask },
@@ -291,6 +411,7 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
       cAnim: { value: new Vector4(0, 0, visual.exaggeration, KIND[visual.kind]) },
       cWave: { value: new Vector4() },
       cMelt: { value: 0 },
+      ...seabedUniforms(visual),
     };
   }, [geo, visual, textures, sunDir]);
 
@@ -332,6 +453,11 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
     const jetPhase = Math.min(1, Math.max(0, (s - 1.2 * E) / (1.5 * E)));
     const jet = visual.transientDepthM * 0.5 * Math.sin(Math.PI * jetPhase);
     u.cWave.value.set(waveT, done ? 0 : waveAmp, done ? 0 : jet, reveal);
+    // Once the water has settled, the seabed crater shows through it.
+    if (visual.seafloor) {
+      u.cSea.value.x = done ? 1 : smooth(collapse[1], collapse[1] + 3 * E, s);
+      if (sea.current) sea.current.visible = mesh.current?.visible && u.cSea.value.x > 0;
+    }
   });
 
   return (
@@ -344,10 +470,32 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
       visible={false}
       name="crater"
     >
-      <shaderMaterial
-        key={lowQuality ? "low" : "high"}
-        args={[{ vertexShader, fragmentShader, uniforms }]}
-      />
+      <shaderMaterial key={lowQuality ? "low" : "high"} args={[{ vertexShader, fragmentShader, uniforms }]} />
+      {visual.seafloor && (
+        <mesh ref={sea} geometry={geometry} frustumCulled={false} raycast={() => null} visible={false}>
+          <shaderMaterial
+            args={[{ vertexShader: waterVertex, fragmentShader: waterFragment, uniforms }]}
+            transparent
+            depthWrite={false}
+          />
+        </mesh>
+      )}
     </mesh>
   );
+}
+
+/**
+ * Seabed crater uniforms for an ocean impact. Heights are passed at the water
+ * crater's exaggeration (applied to everything in the shader), so they are
+ * rescaled to the seabed crater's own.
+ */
+function seabedUniforms(visual) {
+  const bed = visual.seafloor;
+  if (!bed) return { cSea: { value: new Vector4(0, 1, 0, 0) }, cBed: { value: new Vector4(0, 0, 0, 0) } };
+  const k = bed.exaggeration / visual.exaggeration;
+  const kind = bed.complex ? (bed.peakRing ? 2 : 1) : 0;
+  return {
+    cSea: { value: new Vector4(0, visual.radiusM / bed.radiusM, 0.6 * bed.depthM * k, kind) },
+    cBed: { value: new Vector4(bed.rimM * k, bed.depthM * k, bed.floorFrac, bed.peakM * k) },
+  };
 }

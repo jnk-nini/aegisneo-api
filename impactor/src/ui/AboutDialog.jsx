@@ -97,9 +97,10 @@ export default function AboutDialog({ open, onClose }) {
         <ul className="muted">
           <li>Country outlines: Natural Earth (public domain), via the world-atlas package.</li>
           <li>
-            3D: three.js and React Three Fiber. The Earth textures are generated in your browser from those
-            outlines.
+            Satellite imagery: NASA Blue Marble, Black Marble and ASTER shaded relief, from NASA GIBS (public
+            domain). If it can't load, the globe is painted in your browser from the country outlines.
           </li>
+          <li>3D: three.js and React Three Fiber.</li>
           <li>Asteroid data: AegisNEO API (NASA near-Earth object data via Kaggle, 1910–2024).</li>
         </ul>
       </div>

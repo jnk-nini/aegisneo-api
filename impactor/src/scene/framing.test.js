@@ -17,9 +17,12 @@ describe("framing small and large impacts", () => {
     const { radiusM, boost } = fireballDrawn(small);
     expect(radiusM).toBeGreaterThanOrEqual(closeUpRadiusM(small) * 0.16);
     expect(boost).toBeNull(); // the model gives no fireball for an airburst
+    // Regional impacts keep a fireball near the model's size.
+    expect(fireballDrawn(rock(1000)).radiusM).toBeLessThan(rock(1000).fireballRadiusM * 4);
+    // Planet-scale impacts: the plume spreads far beyond the fireball, and the HUD says so.
     const big = fireballDrawn(rock(10000));
-    expect(big.radiusM).toBeCloseTo(rock(10000).fireballRadiusM, 0);
-    expect(big.boost).toBe(1);
+    expect(big.radiusM).toBeGreaterThan(rock(10000).fireballRadiusM * 2);
+    expect(big.boost).toBeGreaterThan(2);
   });
 
   it("throws debris farther the bigger the impact, up to most of the globe", () => {

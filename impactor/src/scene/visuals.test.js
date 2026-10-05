@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { simulateImpact } from "../physics/impact.js";
 import { craterVisual, finalHeight, niceFactor, transientHeight, TARGET_DEPTH_RATIO } from "./craterShape.js";
 import {
+  debrisRange,
   damageRadii,
   ejectaReachM,
   ejectaThicknessM,
@@ -183,5 +184,27 @@ describe("aftermath clock", () => {
     for (const t of [5.5, 7, 9.3, 14]) {
       expect(playbackAt(simulatedSeconds(t, run), run)).toBeCloseTo(t, 4);
     }
+  });
+});
+
+describe("debris", () => {
+  it("lands most debris near the crater and only a thin tail far away", () => {
+    const minM = 90000;
+    const maxM = 18000000;
+    const ranges = Array.from({ length: 2000 }, (_, i) => debrisRange((i + 0.5) / 2000, minM, maxM));
+    const within = (m) => ranges.filter((r) => r <= m).length / ranges.length;
+    expect(Math.min(...ranges)).toBeGreaterThanOrEqual(minM);
+    expect(Math.max(...ranges)).toBeLessThanOrEqual(maxM);
+    expect(within(minM * 3)).toBeGreaterThan(0.8);
+    expect(within(minM * 30)).toBeGreaterThan(0.99);
+  });
+
+  it("puts a seabed crater under an ocean impact", () => {
+    const v = craterVisual(
+      simulateImpact({ diameterM: 1000, density: 3000, velocityKms: 20, angleDeg: 45, surface: "water" }),
+    );
+    expect(v.kind).toBe("water");
+    expect(v.seafloor.radiusM).toBeGreaterThan(0);
+    expect(v.seafloor.radiusM).toBeLessThan(v.radiusM * v.edgeFrac);
   });
 });

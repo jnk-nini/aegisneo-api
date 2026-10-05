@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
       include: ["@react-three/fiber", "@react-three/drei", "@react-three/postprocessing", "postprocessing"],
     },
     server: {
+      // A port picked by whoever starts the server (PORT), else Vite's default.
+      port: Number(process.env.PORT) || undefined,
       proxy: {
         "/api/neo": {
           target,

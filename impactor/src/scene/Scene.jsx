@@ -12,6 +12,7 @@ import CameraRig from "./CameraRig.jsx";
 import Flyby from "./Flyby.jsx";
 import { ImpactSequence, PreviewZones, TargetMarker, Timeline } from "./ImpactScene.jsx";
 import PostFX from "./PostFX.jsx";
+import DetailImagery from "./DetailImagery.jsx";
 
 const isCoarse = () => window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 900;
 
@@ -50,6 +51,7 @@ function ImpactWorld({ textures, sunDir }) {
   return (
     <>
       <Earth textures={textures} sunDir={sunDir} onSurfaceClick={onSurfaceClick} showZones />
+      <DetailImagery baseDay={textures.day} />
       <TargetMarker />
       <PreviewZones />
       <ImpactSequence textures={textures} sunDir={sunDir} />

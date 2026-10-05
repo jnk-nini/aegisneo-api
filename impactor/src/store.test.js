@@ -73,7 +73,7 @@ describe("simulation store", () => {
     expect(useSim.getState().run).not.toBeNull();
 
     useSim.getState().setPhase("done");
-    expect(useSim.getState().sheet).toBe("half");
+    expect(useSim.getState().sheet).toBe("peek");
     useSim.getState().setTarget({ ...MANILA, lat: 11 });
     expect(useSim.getState().run).toBeNull();
     expect(useSim.getState().phase).toBe("idle");

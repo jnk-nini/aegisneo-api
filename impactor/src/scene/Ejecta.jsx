@@ -173,7 +173,14 @@ export function EjectaCurtain({ run, geo, visual }) {
   });
 
   return (
-    <points ref={points} position={geo.center} geometry={geometry} frustumCulled={false} raycast={() => null} visible={false}>
+    <points
+      ref={points}
+      position={geo.center}
+      geometry={geometry}
+      frustumCulled={false}
+      raycast={() => null}
+      visible={false}
+    >
       <shaderMaterial
         args={[{ vertexShader: curtainVertex, fragmentShader: curtainFragment, uniforms }]}
         transparent
@@ -317,7 +324,10 @@ export function EjectaRocks({ run, geo, visual, sunDir }) {
     const axis = new Vector3();
     for (let i = 0; i < count; i++) {
       // Launch fraction, azimuth, speed jitter, and size: mostly small, a few big blocks.
-      p.set([0.2 + 0.8 * rand() ** 0.7, rand() * Math.PI * 2, 0.65 + rand() * 0.7, 0.35 + 1.6 * rand() ** 3], i * 4);
+      p.set(
+        [0.2 + 0.8 * rand() ** 0.7, rand() * Math.PI * 2, 0.65 + rand() * 0.7, 0.35 + 1.6 * rand() ** 3],
+        i * 4,
+      );
       axis.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
       spin.set([axis.x, axis.y, axis.z, (rand() - 0.5) * 0.9], i * 4);
       r.set([((30 + rand() * 35) * Math.PI) / 180, rand() * Math.PI * 2, rand(), 0.7 + rand() * 0.6], i * 4);
@@ -362,7 +372,14 @@ export function EjectaRocks({ run, geo, visual, sunDir }) {
   });
 
   return (
-    <mesh ref={mesh} position={geo.center} geometry={geometry} frustumCulled={false} raycast={() => null} visible={false}>
+    <mesh
+      ref={mesh}
+      position={geo.center}
+      geometry={geometry}
+      frustumCulled={false}
+      raycast={() => null}
+      visible={false}
+    >
       <shaderMaterial args={[{ vertexShader: rockVertex, fragmentShader: rockFragment, uniforms }]} />
     </mesh>
   );
@@ -411,12 +428,12 @@ const reentryFragment = /* glsl */ `
 export function Reentry({ run, geo, strength }) {
   const lowQuality = useSim((s) => s.quality === "low");
   const points = useRef();
-  const count = lowQuality ? 700 : 2000;
+  const count = Math.round((lowQuality ? 300 : 900) * strength);
   const geometry = useMemo(() => {
     const rand = mulberry32(run.id * 104729 + 3);
     return pointsGeometry(count, (d, k) => {
-      // More of it lands nearer the impact.
-      const theta = Math.acos(1 - 2 * rand() ** 0.7);
+      // Most of it comes down within a few thousand km; less and less farther.
+      const theta = Math.PI * rand() ** 1.8;
       d[k] = theta;
       d[k + 1] = rand() * Math.PI * 2;
       d[k + 2] = reentrySeconds(theta) * (0.85 + rand() * 0.3);
@@ -432,7 +449,7 @@ export function Reentry({ run, geo, strength }) {
       uNorth: { value: new Vector3().copy(geo.frame.north) },
       uTime: { value: 0 },
       uViewH: { value: 800 },
-      uOpacity: { value: strength },
+      uOpacity: { value: strength * 0.7 },
     }),
     [geo, strength],
   );

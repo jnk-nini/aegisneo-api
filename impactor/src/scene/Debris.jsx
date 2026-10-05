@@ -1,8 +1,10 @@
-// Debris thrown out on ballistic arcs, drawn as glowing streaks. Small impacts
-// throw a burst of hot debris around the crater; the largest throw it out of
-// the atmosphere and halfway round the planet, where it glows again as it
-// falls back in. Ranges and flight times follow 45° ballistic flight scaled
-// by the impact's energy (severity); counts and look are illustrative.
+// Debris thrown out on ballistic arcs, drawn as glowing streaks of molten rock.
+// Like real ejecta, almost all of it lands close to the crater: ranges follow a
+// steep power law (mass thrown past range r falls off roughly as r^-1.6), in
+// rays, and more of it downrange after a slanting hit. Only the largest
+// impacts send a thin tail of it out of the atmosphere and far round the
+// planet, where it glows again as it falls back in. Flight times follow 45°
+// ballistic flight; counts and look are illustrative.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -15,7 +17,7 @@ import {
 } from "three";
 import { useSim } from "../store.js";
 import { EARTH_RADIUS_M } from "../physics/impact.js";
-import { arc, debrisReachM } from "./impactVisuals.js";
+import { arc, debrisRange, debrisReachM } from "./impactVisuals.js";
 import { APPROACH_SECONDS, clock, simulatedSeconds } from "./timeline.js";
 
 function mulberry32(seed) {
@@ -123,21 +125,32 @@ export default function Debris({ run, geo, visual, severity, sunDir }) {
     const flight = new Float32Array(count * 4);
     const look = new Float32Array(count * 2);
     const E = Math.max(visual.excavationSeconds, 0.05);
+    const minM = visual.radiusM * 1.1;
+    // Rays: most debris flies out in a dozen or so narrow fans.
+    const rays = Array.from({ length: 9 + Math.floor(rand() * 6) }, () => rand() * Math.PI * 2);
+    // A slanting impact throws more of it downrange (the way the rock was going).
+    const down = Math.atan2(-geo.horizontal.dot(geo.frame.north), -geo.horizontal.dot(geo.frame.east));
+    const bias = Math.min(1, Math.max(0, (60 - run.params.angleDeg) / 45)) * 0.8;
     for (let i = 0; i < count; i++) {
-      // Most debris falls close in; a long tail of it goes far.
-      const rangeM = reachM * (0.04 + 0.96 * rand() ** 2.2);
+      const rangeM = debrisRange(rand(), minM, reachM);
       const { seconds, apexM } = arc(rangeM);
-      flight.set(
-        [rangeM / EARTH_RADIUS_M, rand() * Math.PI * 2, seconds * (0.85 + rand() * 0.3), E * rand() ** 2],
-        i * 4,
-      );
-      look.set([apexM / EARTH_RADIUS_M, 0.6 + rand() * 0.8], i * 2);
+      let azimuth;
+      do {
+        azimuth =
+          rand() < 0.7
+            ? rays[Math.floor(rand() * rays.length)] + (rand() - 0.5) * 0.18
+            : rand() * Math.PI * 2;
+      } while (rand() * (1 + bias) > 1 + bias * Math.cos(azimuth - down));
+      // Near the crater it is big splashes of melt; far out, thin specks.
+      const near = 1 - Math.min(1, Math.log(rangeM / minM) / Math.log(Math.max(reachM / minM, 1.01)));
+      flight.set([rangeM / EARTH_RADIUS_M, azimuth, seconds * (0.85 + rand() * 0.3), E * rand() ** 2], i * 4);
+      look.set([apexM / EARTH_RADIUS_M, (0.5 + rand() * 0.6) * (0.7 + 1.1 * near)], i * 2);
     }
     g.setAttribute("aFlight", new InstancedBufferAttribute(flight, 4));
     g.setAttribute("aLook", new InstancedBufferAttribute(look, 2));
     g.instanceCount = count;
     return g;
-  }, [run.id, count, reachM, visual]);
+  }, [run, geo, count, reachM, visual]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   const uniforms = useMemo(

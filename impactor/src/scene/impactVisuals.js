@@ -82,6 +82,16 @@ export function debrisReachM(patchRadiusM, severity) {
   return Math.max(patchRadiusM * 1.6, severity ** 1.5 * Math.PI * 0.9 * EARTH_RADIUS_M);
 }
 
+/** Steepness of the debris range distribution: mass thrown past range r falls off about as r^-1.6. */
+const RANGE_POWER = 1.6;
+
+/** Range (m) for a uniform random `u`: truncated power law between `minM` and `maxM`. */
+export function debrisRange(u, minM, maxM) {
+  if (!(maxM > minM)) return minM;
+  const k = 1 - (minM / maxM) ** RANGE_POWER;
+  return Math.min(maxM, minM * (1 - u * k) ** (-1 / RANGE_POWER));
+}
+
 /** Flight time (s) and apex height (m) of a 45° arc covering `rangeM`, capped at half an Earth radius. */
 export function arc(rangeM) {
   return {

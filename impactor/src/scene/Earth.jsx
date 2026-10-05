@@ -2,8 +2,14 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { AdditiveBlending, BackSide, Vector3 } from "three";
 import { createZoneUniforms, zoneShader, zoneUniforms } from "./zoneOverlay.js";
-import { createDamageUniforms, damageNoise, damageShader, damageUniforms, texNoiseShader } from "./damageOverlay.js";
-import { surfaceShader } from "./surfaceShader.js";
+import {
+  createDamageUniforms,
+  damageNoise,
+  damageShader,
+  damageUniforms,
+  texNoiseShader,
+} from "./damageOverlay.js";
+import { detailUniforms, surfaceShader } from "./surfaceShader.js";
 import { noiseVolume } from "./noiseVolume.js";
 
 const earthVertex = /* glsl */ `
@@ -39,7 +45,7 @@ const earthFragment = /* glsl */ `
     if (dmgChordB.w > 0.0 && length(n - zoneCenter) < dmgChordB.w) discard;
     vec3 viewDir = normalize(cameraPosition - vPosW);
 
-    vec3 day = texture2D(dayMap, vUv).rgb;
+    vec3 day = detailDay(vUv, texture2D(dayMap, vUv).rgb);
     vec3 night = texture2D(nightMap, vUv).rgb;
     float land = texture2D(maskMap, vUv).r;
     vec3 glow = applyDamage(day, night, land, n);
@@ -146,6 +152,7 @@ export default function Earth({
     return {
       ...zones,
       ...damage,
+      ...detailUniforms,
       dmgNoise: damageNoise.dmgNoise,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
@@ -200,7 +207,11 @@ export default function Earth({
         <sphereGeometry args={[ATMOSPHERE_RADIUS, 64, 32]} />
         <shaderMaterial
           args={[
-            { vertexShader: atmosphereVertex, fragmentShader: atmosphereFragment, uniforms: atmosphereUniforms },
+            {
+              vertexShader: atmosphereVertex,
+              fragmentShader: atmosphereFragment,
+              uniforms: atmosphereUniforms,
+            },
           ]}
           side={BackSide}
           blending={AdditiveBlending}

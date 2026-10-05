@@ -344,6 +344,9 @@ export default function Plume({ run, geo, radiusM, sunDir }) {
     const tau = clock.t - APPROACH_SECONDS;
     const done = useSim.getState().phase === "done";
     const state = plumeState(tau, topUnits, shockRadiusM(clock.t, run) / radiusM);
+    // A planet-scale plume has thinned out over the hours the time-lapse has
+    // covered by the closing shot, which flies back down through where it was.
+    if (L > 0.03) state.opacity *= 1 - smooth(5.4, 7, tau);
     const show = tau >= 0 && !done && state.opacity > 0;
     m.visible = show;
     overlay.current.visible = show;

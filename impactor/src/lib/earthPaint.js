@@ -16,7 +16,7 @@ export function worldFromTopology(topo) {
   };
 }
 
-function projectionFor(width, height) {
+export function projectionFor(width, height) {
   return geoEquirectangular()
     .scale(width / (2 * Math.PI))
     .translate([width / 2, height / 2])
@@ -299,7 +299,7 @@ export function paintEarth(world, size, makeCanvas = defaultCanvas) {
     const lat = 90 - ((y + 0.5) / ch) * 180;
     // More cloud along the storm tracks (~±55°) and the tropics, less in the subtropics.
     const band = 0.08 * Math.cos((lat * Math.PI) / 30);
-    const v = clamp01((cloudNoise[p] / 255 - 0.47 + band) * 3.4) * 255;
+    const v = clamp01((cloudNoise[p] / 255 - 0.51 + band) * 3.4) * 255;
     const i = p * 4;
     cimg.data[i] = cimg.data[i + 1] = cimg.data[i + 2] = v;
     cimg.data[i + 3] = 255;

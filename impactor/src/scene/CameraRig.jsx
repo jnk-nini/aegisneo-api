@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import { Vector3 } from "three";
+import { PerspectiveCamera, Vector3 } from "three";
 import { useSim } from "../store.js";
 import { latLonToVector, localFrame } from "./sphereMath.js";
 import { EARTH_RADIUS_M, simulateImpact } from "../physics/impact.js";
@@ -10,22 +9,38 @@ import { AFTERMATH_SECONDS, APPROACH_SECONDS, clock, playbackAt } from "./timeli
 import { blendPose, focusPose, newPose, runGeometry } from "./effects.js";
 import { severity } from "./impactVisuals.js";
 import { collapseWindow, craterVisual } from "./craterShape.js";
+import GlobeControls from "./GlobeControls.jsx";
+import { fitGlobeDistance, navFromCamera, newNav } from "./globeNav.js";
 
 const ORIGIN = new Vector3();
-const WORLD_UP = new Vector3(0, 1, 0);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const ramp = (a, b, x) => easeInOut(Math.min(1, Math.max(0, (x - a) / (b - a))));
 const CRATER_TILT = 55; // lower than the usual 38° so the crater's depth reads
-const ORBIT_RADIANS = 0.55; // how far the camera circles the site during the aftermath
+const ORBIT_RADIANS = 0.22; // how far the camera circles the site during the aftermath
 const AIRBURST_TILT = 68; // nearly side-on, so the burst shows above the ground
 const FINALE_TILT = 50;
 // The run ends back over the crater, so it is in view once the animation stops.
-const FINALE = [AFTERMATH_SECONDS - 2.6, AFTERMATH_SECONDS - 0.3];
+const FINALE = [AFTERMATH_SECONDS - 3.2, AFTERMATH_SECONDS - 0.2];
+const poseCamera = new PerspectiveCamera();
+
+/** Nav state (see globeNav.js) for a camera pose, so flights can end anywhere. */
+function navFromPose(pose, camera) {
+  poseCamera.fov = camera.fov;
+  poseCamera.position.copy(pose.position);
+  poseCamera.up.copy(pose.up);
+  poseCamera.lookAt(pose.target);
+  return navFromCamera(poseCamera, pose.target, newNav());
+}
 
 /** Radius (Earth radii) of the closing shot over the finished crater, or null for an airburst. */
 function finaleRadiusRE(run, geo) {
   const crater = run ? craterVisual(run.result) : null;
-  return crater ? Math.min(geo.viewRadiusRE, (crater.radiusM * 3.6) / EARTH_RADIUS_M) : null;
+  if (!crater) return null;
+  // At sea, the crater that lasts is the smaller one on the seabed.
+  const radiusM = crater.seafloor
+    ? Math.max(crater.seafloor.radiusM * 1.3, crater.radiusM * 0.6)
+    : crater.radiusM;
+  return Math.min(geo.viewRadiusRE, (radiusM * 3.6) / EARTH_RADIUS_M);
 }
 
 /** Whole-planet view centred on the impact, for the largest impacts. */
@@ -51,30 +66,44 @@ function widePose(geo) {
   };
 }
 
-function currentPose(camera, controls) {
-  return {
-    position: camera.position.clone(),
-    target: controls?.target?.clone() ?? ORIGIN.clone(),
-    up: camera.up.clone(),
-  };
+function currentPose(camera) {
+  const target = camera.userData.lookAt?.clone() ?? ORIGIN.clone();
+  return { position: camera.position.clone(), target, up: camera.up.clone() };
 }
 
-function globePose(camera) {
-  const dir = camera.position.clone().normalize();
-  return { position: dir.multiplyScalar(3.3), target: ORIGIN.clone(), up: WORLD_UP.clone() };
+/** Share of the screen's height the globe can use: phones lose some to the top bar and the sheet. */
+function freeHeightShare(height) {
+  const { sheetHeight, sheet } = useSim.getState();
+  if (!window.matchMedia("(max-width: 1099px)").matches) return 1;
+  const covered = Math.min(sheetHeight || height * (sheet === "peek" ? 0.2 : 0.52), height * 0.55);
+  return Math.max(0.3, (height - covered - 60) / height);
+}
+
+/** The whole globe, north up, centred on `center` or on what is in view now. */
+function globeNav(camera, center, height) {
+  const nav = newNav();
+  const look = center ?? camera.userData.lookAt;
+  nav.n.copy(look && look.length() > 0.5 ? look : camera.position).normalize();
+  nav.dist = fitGlobeDistance(camera, freeHeightShare(height));
+  return nav;
+}
+
+/** Where the globe first faces: the viewer's part of the world, guessed from their time zone. */
+function homeNav(camera, height) {
+  const lon = Math.max(-180, Math.min(180, (-new Date().getTimezoneOffset() / 60) * 15));
+  return globeNav(camera, latLonToVector(18, lon), height);
 }
 
 export default function CameraRig() {
   const camera = useThree((s) => s.camera);
-  const controlsRef = useRef();
+  const height = useThree((s) => s.size.height);
   const run = useSim((s) => s.run);
   const phase = useSim((s) => s.phase);
   const focusRequest = useSim((s) => s.focusRequest);
   const craterRequest = useSim((s) => s.craterRequest);
   const globeRequest = useSim((s) => s.globeRequest);
   const reducedMotion = useSim((s) => s.reducedMotion);
-  const [control, setControl] = useState({ kind: "globe", center: null, key: 0 });
-  const flight = useRef(null);
+  const controls = useRef();
   // Reused every frame so the cinematic allocates nothing (less GC stutter on phones).
   const scratch = useMemo(
     () => ({
@@ -83,7 +112,6 @@ export default function CameraRig() {
       focus: newPose(),
       close: newPose(),
       mid: newPose(),
-      late: newPose(),
       finale: newPose(),
       orbit: new Vector3(),
     }),
@@ -108,41 +136,34 @@ export default function CameraRig() {
     camera.position.copy(pose.position);
     camera.up.copy(pose.up);
     camera.lookAt(pose.target);
+    (camera.userData.lookAt ??= new Vector3()).copy(pose.target);
   };
 
-  const fly = (to, duration, then) => {
-    const from = currentPose(camera, controlsRef.current);
-    if (reducedMotion || duration <= 0) {
-      applyPose(to);
-      then?.();
-      return;
-    }
-    flight.current = { from, to, start: performance.now(), duration, then };
-    // Controls would fight the scripted move; switch them off until it lands.
-    if (controlsRef.current) controlsRef.current.enabled = false;
+  const fly = (to, duration) => {
+    const nav = to.n ? to : navFromPose(to, camera);
+    controls.current?.flyTo(nav, reducedMotion ? 1 : duration);
   };
 
-  // Hand control to the user, orbiting either the globe or a surface point.
-  const settle = (kind, center) => setControl((c) => ({ kind, center, key: c.key + 1 }));
-
-  // A finished run: orbit the impact site. The camera lives outside React, so
-  // syncing control state to the run's end is exactly what an effect is for.
+  // A finished run leaves the camera over the crater; the controls take over
+  // from there (GlobeControls syncs when it is switched back on), free to roam.
   useEffect(() => {
-    if (!geo || phase !== "done") return;
-    flight.current = null;
-    if (reducedMotion) {
-      applyPose(
-        finaleRE
-          ? focusPose(geo.center, geo.frame, finaleRE, camera, geo.horizontal, newPose(), FINALE_TILT)
-          : focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal),
-      );
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    settle("focus", geo.center);
+    if (!geo || phase !== "done" || !reducedMotion) return;
+    applyPose(
+      finaleRE
+        ? focusPose(geo.center, geo.frame, finaleRE, camera, geo.horizontal, newPose(), FINALE_TILT)
+        : focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal),
+    );
+    controls.current?.sync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo, phase]);
 
-  // "Focus target" button.
+  // First view: the viewer's own side of the planet, the whole globe in view.
+  useEffect(() => {
+    if (!useSim.getState().run) controls.current?.flyTo(homeNav(camera, height), 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "Zoom to target" button.
   useEffect(() => {
     if (!focusRequest) return;
     const { target, run: r } = useSim.getState();
@@ -154,22 +175,31 @@ export default function CameraRig() {
     else if (useSim.getState().asteroid)
       outerM = outermostRadiusM(simulateImpact(useSim.getState().params()));
     const viewRadiusRE = (Math.max(outerM, 20000) * 1.4) / 6.371e6;
-    fly(focusPose(center, frame, viewRadiusRE, camera), 1400, () => settle("focus", center));
+    fly(focusPose(center, frame, viewRadiusRE, camera), 1600);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequest]);
 
   // "Crater" button: back to the close-up of the finished run's crater.
   useEffect(() => {
     if (!craterRequest || !geo) return;
-    const pose = focusPose(geo.center, geo.frame, geo.closeRadiusRE, camera, geo.horizontal, newPose(), CRATER_TILT);
-    fly(pose, 1400, () => settle("focus", geo.center));
+    const pose = focusPose(
+      geo.center,
+      geo.frame,
+      finaleRE ?? geo.closeRadiusRE,
+      camera,
+      geo.horizontal,
+      newPose(),
+      CRATER_TILT,
+    );
+    fly(pose, 1600);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [craterRequest]);
 
-  // "Globe view" button.
+  // "Reset view": the whole globe, north up, over the target if there is one.
   useEffect(() => {
     if (!globeRequest) return;
-    fly(globePose(camera), 1400, () => settle("globe", null));
+    const { target } = useSim.getState();
+    fly(globeNav(camera, target ? latLonToVector(target.lat, target.lon) : null, height), 1400);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globeRequest]);
 
@@ -179,8 +209,8 @@ export default function CameraRig() {
       wideStart.current = null;
       return;
     }
-    flight.current = null;
-    wideStart.current = currentPose(camera, controlsRef.current);
+    controls.current?.stop();
+    wideStart.current = currentPose(camera);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cinematic, run?.id]);
 
@@ -210,58 +240,35 @@ export default function CameraRig() {
         const u = Math.min(1, t / APPROACH_SECONDS);
         pose = blendPose(intro, close, u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7), scratch.out);
       } else {
-        // Close-up, then out over the spreading damage (and the whole planet
-        // after the largest impacts), then back down over the finished crater.
-        const region = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, around, scratch.focus);
-        pose = blendPose(close, region, ramp(holdUntil, holdUntil + 2.2, tau), scratch.mid);
-        if (planet) {
-          pose = blendPose(pose, planet, ramp(holdUntil + 2.3, FINALE[0] - 0.3, tau), scratch.late);
-        }
+        // Close-up, then one slow pull-back over the spreading damage (the whole
+        // planet after the largest impacts), then back down over the crater.
+        const pulled =
+          planet ?? focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, around, scratch.focus);
+        const pullBack = ramp(holdUntil, Math.min(holdUntil + 3.2, FINALE[0] - 0.4), tau);
+        pose = blendPose(close, pulled, pullBack, scratch.mid);
         if (finaleRE) {
-          const finale = focusPose(geo.center, geo.frame, finaleRE, camera, around, scratch.finale, FINALE_TILT);
+          const finale = focusPose(
+            geo.center,
+            geo.frame,
+            finaleRE,
+            camera,
+            around,
+            scratch.finale,
+            FINALE_TILT,
+          );
           pose = blendPose(pose, finale, ramp(FINALE[0], FINALE[1], tau), scratch.out);
         }
       }
-      // Camera shake right after impact.
-      if (tau > 0 && tau < 1.2) {
-        const amp = pose.position.distanceTo(pose.target) * 0.012 * (1 - tau / 1.2);
-        pose.position.x += (Math.random() - 0.5) * amp;
-        pose.position.y += (Math.random() - 0.5) * amp;
-        pose.position.z += (Math.random() - 0.5) * amp;
+      // A short, smooth rumble right after impact (not per-frame jitter).
+      if (tau > 0 && tau < 0.9 && !reducedMotion) {
+        const amp = pose.position.distanceTo(pose.target) * 0.004 * (1 - tau / 0.9) ** 2;
+        pose.position.x += Math.sin(tau * 47) * amp;
+        pose.position.y += Math.sin(tau * 39 + 1.3) * amp;
+        pose.position.z += Math.sin(tau * 53 + 2.1) * amp;
       }
       applyPose(pose);
-      return;
-    }
-    const f = flight.current;
-    if (f) {
-      const t = Math.min(1, (performance.now() - f.start) / f.duration);
-      applyPose(blendPose(f.from, f.to, easeInOut(t), scratch.out));
-      if (t >= 1) {
-        flight.current = null;
-        if (controlsRef.current) controlsRef.current.enabled = !cinematic;
-        f.then?.();
-      }
     }
   });
 
-  const focus = control.kind === "focus";
-  const target = useMemo(() => (focus ? control.center.clone() : ORIGIN.clone()), [focus, control]);
-
-  return (
-    <OrbitControls
-      key={control.key}
-      ref={controlsRef}
-      makeDefault
-      target={target}
-      enabled={!cinematic}
-      enablePan={false}
-      enableDamping
-      dampingFactor={0.08}
-      rotateSpeed={focus ? 0.45 : 0.5}
-      zoomSpeed={0.9}
-      minDistance={focus ? 0.00008 : 1.08}
-      maxDistance={focus ? 4 : 9}
-      maxPolarAngle={focus ? 1.42 : Math.PI}
-    />
-  );
+  return <GlobeControls ref={controls} enabled={!cinematic} />;
 }
