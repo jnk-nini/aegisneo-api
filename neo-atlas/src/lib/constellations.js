@@ -10,7 +10,7 @@ export const MAX_NAME = 40;
 
 const ID = /^[A-Za-z0-9_-]{1,32}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const STORAGE_KEY = "neo-atlas:constellations:v1";
+export const STORAGE_KEY = "neo-atlas:constellations:v1";
 const FILE_APP = "neo-atlas";
 
 /** Ready-made constellations, each one API query over the whole catalog. */
@@ -138,6 +138,33 @@ export function shareQuery(c) {
   return `?${q}`;
 }
 
+/** A stable ID for a shared link, so saving the same link twice doesn't make a copy. */
+export function sharedId({ name, mode, path }) {
+  let hash = 0;
+  for (const ch of `${name}|${mode}|${path.join(".")}`) hash = (Math.imul(hash, 31) + ch.charCodeAt(0)) | 0;
+  return `shared-${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * Fetches the asteroids of a shared link with `get(id)`. Stars that fail are
+ * counted rather than quietly dropped, so the page can say so. `constellation`
+ * is null when fewer than two stars loaded; `retryable` is false when every
+ * failure was an asteroid the catalog doesn't have.
+ */
+export async function loadShared(shared, get) {
+  const ids = uniqueIds(shared.path);
+  const results = await Promise.allSettled(ids.map((id) => get(id)));
+  const asteroids = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  const failures = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+  const constellation = makeConstellation({ ...shared, id: sharedId(shared), asteroids });
+  return {
+    constellation: isComplete(constellation) ? constellation : null,
+    missing: failures.length,
+    total: ids.length,
+    retryable: failures.some((err) => err?.status !== 404),
+  };
+}
+
 /** Reads a shared constellation from a URL query. Null if there isn't a valid one. */
 export function sharedFromQuery(search) {
   const q = new URLSearchParams(search);
@@ -171,12 +198,18 @@ function fromJson(list) {
     .filter(isComplete);
 }
 
-export function loadSaved(store = storage()) {
+/** The saved list as stored right now, or null if storage can't be read. */
+export function readSaved(store = storage()) {
   try {
-    return fromJson(JSON.parse(store?.getItem(STORAGE_KEY) || "[]"));
+    if (!store) return null;
+    return fromJson(JSON.parse(store.getItem(STORAGE_KEY) || "[]"));
   } catch {
-    return [];
+    return null;
   }
+}
+
+export function loadSaved(store = storage()) {
+  return readSaved(store) ?? [];
 }
 
 /** Returns false if the browser refused (private mode, storage full). */

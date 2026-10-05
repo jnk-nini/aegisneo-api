@@ -36,6 +36,9 @@ export default function ConstellationsView({
   onDelete,
   onExport,
   onImport,
+  drawing = false,
+  onBackToDrawing,
+  catalogTotal = null,
 }) {
   const fileRef = useRef(null);
 
@@ -47,9 +50,18 @@ export default function ConstellationsView({
           Join asteroids into a shape of your own — your birthday sky, a year that matters to you — then share
           it as a link. Nothing is uploaded: your constellations stay on this device.
         </p>
-        <button type="button" className="btn btn-solid btn-make" onClick={onMake}>
-          <span aria-hidden="true">✦</span> Make a constellation
-        </button>
+        {drawing ? (
+          <div className="drawing-note" role="status">
+            <p>You&rsquo;re in the middle of drawing a constellation.</p>
+            <button type="button" className="btn btn-solid btn-small" onClick={onBackToDrawing}>
+              Back to drawing
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-solid btn-make" onClick={onMake}>
+            <span aria-hidden="true">✦</span> Make a constellation
+          </button>
+        )}
       </header>
 
       <section aria-labelledby="saved-heading" className="shelf">
@@ -119,7 +131,8 @@ export default function ConstellationsView({
       <section aria-labelledby="featured-heading" className="shelf">
         <h3 id="featured-heading">From the whole catalog</h3>
         <p className="shelf-note">
-          Each one is a single sorted query to the AegisNEO API across all 33,511 asteroids.
+          Each one is a single sorted query to the AegisNEO API across all{" "}
+          {catalogTotal ? catalogTotal.toLocaleString("en-US") : ""} asteroids in the catalog.
         </p>
         {featured.status === "loading" && (
           <p className="list-note" role="status">
@@ -154,6 +167,15 @@ export default function ConstellationsView({
           </ul>
         )}
       </section>
+
+      <p className="credit-inline">
+        Asteroid data:{" "}
+        <a href="https://aegisneo-api.vercel.app/docs" target="_blank" rel="noreferrer">
+          AegisNEO API
+        </a>{" "}
+        · NASA NeoWs records via Kaggle. Sizes, speeds and miss distances are real; close-approach dates
+        are simulated, because the source catalog doesn&rsquo;t include them.
+      </p>
     </div>
   );
 }

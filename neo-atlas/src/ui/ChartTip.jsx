@@ -27,8 +27,8 @@ export default function ChartTip() {
   return (
     <div className="chart-tip">
       <p>
-        Each star is a real asteroid that passed Earth. <strong>Tap one</strong> for its story,{" "}
-        <strong>pinch or scroll</strong> to zoom.
+        Each star is a real near-Earth asteroid. <strong>Tap one</strong> for its story,{" "}
+        <strong>pinch</strong> to zoom.
       </p>
       <button type="button" className="tip-close" onClick={close} aria-label="Dismiss tip">
         ×

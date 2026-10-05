@@ -1,7 +1,8 @@
-// Turns an asteroid into a position on the planisphere. Every coordinate is
-// real data: nothing is random or hashed.
+// Turns an asteroid into a position on the planisphere.
 //
-//   angle    — when it passed: day of the year (year view) or year (date view)
+//   angle    — when it passed: day of the year (year view) or year (date view).
+//              The source catalog has no dates, so these come from the
+//              simulated close_approach_date the AegisNEO API serves.
 //   distance — how close it came, on a log scale of lunar distances
 //   size     — estimated diameter, on a log scale
 //

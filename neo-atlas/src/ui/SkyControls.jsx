@@ -111,7 +111,7 @@ export default function SkyControls({ sky, onChange, disabled = false }) {
           </label>
           <button
             type="button"
-            className="btn btn-small"
+            className="btn btn-small btn-today"
             disabled={disabled}
             onClick={() => onChange({ ...sky, date: todayMonthDay() })}
           >

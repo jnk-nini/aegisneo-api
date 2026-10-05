@@ -73,6 +73,7 @@ export default function ListView({ toolbar, title, result, highlight, onHighligh
             {rows.length === asteroids.length
               ? `${rows.length} asteroids · ${title}`
               : `${rows.length} of ${asteroids.length} asteroids · ${title}`}
+            <span className="list-sim"> · dates simulated</span>
           </p>
           {rows.length === 0 ? (
             <div className="list-note">

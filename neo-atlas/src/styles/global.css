@@ -120,17 +120,17 @@ a {
   justify-content: space-between;
   gap: 4px 16px;
   flex-wrap: wrap;
-  padding: calc(10px + var(--safe-top)) 16px 8px;
+  padding: calc(8px + var(--safe-top)) 16px 8px;
   border-bottom: 1px solid var(--rule-soft);
 }
 
 .wordmark {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.7rem;
+  font-size: 1.4rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1.1;
@@ -138,14 +138,31 @@ a {
 }
 .wordmark img {
   align-self: center;
+  width: 24px;
+  height: 24px;
 }
 
+/* Phones spend their height on the chart: the tagline and footer appear on larger screens. */
 .tagline {
+  display: none;
   margin: 0;
   font-family: var(--font-display);
   font-style: italic;
   font-size: 1.05rem;
   color: var(--paper-muted);
+}
+@media (min-width: 640px) {
+  .tagline {
+    display: block;
+  }
+  .wordmark {
+    font-size: 1.7rem;
+    gap: 10px;
+  }
+  .wordmark img {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 .stage {
@@ -170,16 +187,22 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 8px 12px;
 }
 
 .credit {
   grid-area: credit;
+  display: none;
   padding: 6px 16px;
   font-size: 0.75rem;
   color: var(--paper-muted);
   text-align: center;
   border-top: 1px solid var(--rule-soft);
+}
+@media (min-width: 900px) and (min-height: 541px) {
+  .credit {
+    display: block;
+  }
 }
 
 /* ---------- Tabs: bottom bar on phones, top nav on wide screens ---------- */
@@ -293,7 +316,7 @@ a {
   height: 100%;
   max-width: 820px;
   max-height: 820px;
-  aspect-ratio: 1;
+  container-type: size; /* the corner controls grow a text label once the chart is big enough */
 }
 
 .star-chart-svg {
@@ -360,13 +383,6 @@ a {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-.chart-make {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  z-index: 2;
-}
-
 .star-ring {
   fill: none;
   stroke: var(--paper-muted);
@@ -386,13 +402,54 @@ a {
   fill: var(--gold-bright);
 }
 
+/* Controls live in the corners of the chart box. The dial is round, so the corners are always empty:
+   even on the smallest phones these buttons only touch the outer decorative ring, never a star. */
+.corner-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 1.15rem;
+}
 .zoom-controls {
   position: absolute;
   right: 0;
   bottom: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+.zoom-reset {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+}
+
+/* Shown over the chart while a sky loads, or when it couldn't be loaded. */
+.chart-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: min(19rem, calc(100% - 32px));
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 34, 0.94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 0.9rem;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+.chart-status p {
+  margin: 0;
+}
+.chart-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .icon-btn {
@@ -426,30 +483,24 @@ a {
   z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 8px 12px;
-  padding: 10px 16px 0;
+  padding: 8px 10px 0;
 }
 
-/* On phones the mode switch shares a row with "How to read" and the picker gets its own row. */
+/* The mode switch and the picker share one row, and wrap onto two only on the narrowest phones. */
 .sky-controls {
-  display: contents;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-width: 44rem;
 }
 .sky-controls .picker {
-  order: 2;
-  flex-basis: 100%;
-}
-@media (min-width: 640px) {
-  .sky-controls {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-  }
-  .sky-controls .picker {
-    flex-basis: auto;
-  }
+  margin-left: auto;
 }
 
 .segmented {
@@ -473,10 +524,10 @@ a {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
-  padding: 0 14px;
+  padding: 0 10px;
   border-radius: 999px;
   color: var(--paper-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 .segmented input:checked + span {
@@ -491,17 +542,20 @@ a {
 .picker {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+.btn-today {
+  padding: 0 10px;
 }
 
 .select-wrap select {
   min-height: var(--tap);
-  padding: 0 32px 0 14px;
+  padding: 0 26px 0 11px;
   border: 1px solid var(--rule);
   border-radius: 999px;
   background:
-    linear-gradient(45deg, transparent 50%, var(--gold) 50%) right 16px center / 5px 5px no-repeat,
-    linear-gradient(-45deg, transparent 50%, var(--gold) 50%) right 11px center / 5px 5px no-repeat,
+    linear-gradient(45deg, transparent 50%, var(--gold) 50%) right 14px center / 5px 5px no-repeat,
+    linear-gradient(-45deg, transparent 50%, var(--gold) 50%) right 9px center / 5px 5px no-repeat,
     rgba(7, 13, 34, 0.85);
   font-family: var(--font-mono);
   font-size: 1rem; /* 16px or more stops iOS Safari zooming in on focus */
@@ -517,13 +571,36 @@ a {
   position: absolute;
   top: 0;
   right: 0;
-  z-index: 2;
+  z-index: 3;
+}
+.legend-toggle {
+  font-weight: 700;
+}
+.legend-toggle-text {
+  display: none;
+}
+@container (min-width: 520px) and (min-height: 520px) {
+  .legend-toggle {
+    width: auto;
+    padding: 0 16px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+  }
+  .legend-toggle > span:first-child {
+    display: none;
+  }
+  .legend-toggle-text {
+    display: inline;
+  }
 }
 .legend-panel {
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
   width: min(22rem, calc(100vw - 32px));
+  max-height: min(30rem, 70dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px 14px;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
@@ -571,18 +648,30 @@ a {
 .lg-hazard {
   fill: var(--hazard);
 }
+.legend-note {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--paper-muted);
+}
+.legend-note strong {
+  color: var(--paper);
+}
+.legend-credit {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--paper-muted);
+}
 
 /* ---------- Summary line under the chart ---------- */
 
 .sky-summary {
-  width: calc(100% - 32px);
+  display: grid;
+  gap: 8px;
+  width: calc(100% - 24px);
   max-width: 44rem;
   margin: 0 auto 10px;
-  padding: 8px 14px;
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--radius);
-  background: rgba(7, 13, 34, 0.7);
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   text-align: center;
 }
 .sky-summary.error {
@@ -591,22 +680,40 @@ a {
   justify-content: center;
   flex-wrap: wrap;
   gap: 8px 12px;
-  border-color: rgba(239, 123, 95, 0.5);
+  padding: 8px 14px;
+  border: 1px solid rgba(239, 123, 95, 0.5);
+  border-radius: var(--radius);
 }
 .sky-title {
   font-family: var(--font-display);
   font-size: 1.1rem;
 }
 .sky-line {
-  margin: 0 0 6px;
+  margin: 0;
 }
-.sky-hint {
+.sky-sim,
+.list-sim {
   color: var(--paper-muted);
-  font-size: 0.8rem;
 }
-@media (max-width: 479px) {
-  .sky-hint {
-    display: none;
+.sky-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(239, 123, 95, 0.5);
+  border-radius: var(--radius);
+}
+.sky-make {
+  justify-content: center;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .sky-make {
+    justify-self: center;
+    width: auto;
   }
 }
 
@@ -618,6 +725,8 @@ a {
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Fades the edge so a chip cut off by the scroll reads as "more this way", not as clipped text. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 .chips::-webkit-scrollbar {
   display: none;
@@ -679,16 +788,17 @@ a {
 
 .chart-tip {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  width: calc(100% - 32px);
+  width: calc(100% - 24px);
   max-width: 44rem;
-  margin: 10px auto 0;
-  padding: 8px 6px 8px 14px;
+  margin: 8px auto 0;
+  padding: 4px 4px 4px 12px;
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   background: rgba(201, 164, 92, 0.1);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 .chart-tip p {
   flex: 1;
@@ -715,7 +825,7 @@ a {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  width: calc(100% - 32px);
+  width: calc(100% - 24px);
   max-width: 44rem;
   margin: 0 auto 10px;
   padding: 10px 12px 10px 14px;
@@ -1048,6 +1158,29 @@ form.draw-bar .text-input {
   fill: var(--hazard);
 }
 
+.drawing-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  background: rgba(201, 164, 92, 0.1);
+}
+.drawing-note p {
+  flex: 1 1 14rem;
+  margin: 0;
+  color: var(--paper);
+}
+.credit-inline {
+  margin: 32px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-soft);
+  font-size: 0.8rem;
+  color: var(--paper-muted);
+}
+
 .file-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1103,16 +1236,18 @@ form.draw-bar .text-input {
 
 /* ---------- Detail sheet: bottom sheet on phones, side card on wide screens ---------- */
 
+/* On phones a short "peek" sheet: name, how close, three key numbers and the actions. The chart slides
+   the selected star above it. The grip or "More details" expands it for the rest. */
 .detail-sheet {
   position: absolute;
   z-index: 3;
   left: 0;
   right: 0;
   bottom: 0;
-  max-height: 58%;
+  max-height: 72%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 6px 16px 16px;
+  padding: 0 16px 12px;
   border-top: 1px solid var(--rule);
   border-radius: 18px 18px 0 0;
   background: rgba(9, 16, 40, 0.97);
@@ -1127,11 +1262,31 @@ form.draw-bar .text-input {
 }
 
 .sheet-grip {
+  display: block;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grip span {
+  display: block;
   width: 40px;
   height: 4px;
-  margin: 4px auto 8px;
+  margin: 8px auto 10px;
   border-radius: 2px;
   background: var(--rule);
+}
+.detail-sheet .more {
+  display: none;
+}
+.detail-sheet.expanded .detail-grid .more {
+  display: block;
+}
+.detail-sheet.expanded .detail-link.more {
+  display: inline-flex;
 }
 
 .detail-head {
@@ -1143,7 +1298,7 @@ form.draw-bar .text-input {
 .detail-name {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 600;
   line-height: 1.15;
   overflow-wrap: anywhere;
@@ -1176,18 +1331,27 @@ form.draw-bar .text-input {
 }
 
 .detail-note {
-  margin: 10px 0 12px;
+  margin: 6px 0 10px;
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--gold-bright);
 }
 
 .detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 16px;
-  margin: 0 0 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0 0 10px;
+}
+.dt-flag {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 999px;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  color: var(--gold);
 }
 .detail-grid dt {
   font-size: 0.72rem;
@@ -1218,6 +1382,9 @@ form.draw-bar .text-input {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
+}
+.detail-toggle {
+  margin-left: auto;
 }
 
 /* ---------- Status, notes, buttons ---------- */
@@ -1315,9 +1482,9 @@ form.draw-bar .text-input {
   color: var(--paper);
 }
 
-/* ---------- Wide screens: tabs move up beside the title ---------- */
+/* ---------- Wide screens and phones on their side: tabs move up beside the title ---------- */
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {
   .app {
     grid-template-areas:
       "header tabs"
@@ -1366,16 +1533,127 @@ form.draw-bar .text-input {
     bottom: auto;
     width: 340px;
     max-height: calc(100% - 88px);
+    padding-top: 14px;
     border: 1px solid var(--rule);
     border-radius: var(--radius);
   }
-  .sheet-grip {
+  /* The side card has room for everything, so it is always expanded. */
+  .sheet-grip,
+  .detail-toggle {
     display: none;
+  }
+  .detail-sheet .detail-grid .more {
+    display: block;
+  }
+  .detail-sheet .detail-link.more {
+    display: inline-flex;
+  }
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .toast-region {
     bottom: 48px;
   }
+}
+
+/* ---------- Phones on their side: the chart on the left, everything else beside it ---------- */
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .topbar {
+    padding-top: calc(4px + var(--safe-top));
+    padding-bottom: 4px;
+  }
+  .tagline {
+    display: none;
+  }
+  .wordmark {
+    font-size: 1.25rem;
+  }
+  .tab {
+    min-height: 40px;
+  }
+
+  .panel-chart {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "chart toolbar"
+      "chart tip"
+      "chart summary";
+  }
+  .chart-area {
+    grid-area: chart;
+    /* As wide as the panel is tall (plus room for the zoom buttons), so the dial is as big as the screen allows. */
+    width: min(62vw, calc(100dvh - 52px - var(--safe-top) - var(--safe-bottom) + 36px));
+    height: 100%;
+    padding: 6px;
+  }
+  .chart-toolbar {
+    grid-area: toolbar;
+    padding: 8px 12px 0 4px;
+  }
+  .chart-tip {
+    grid-area: tip;
+    width: auto;
+    margin: 8px 12px 0 4px;
+  }
+  .panel-chart .sky-summary,
+  .panel-chart .draw-bar {
+    grid-area: summary;
+    align-self: start;
+    width: auto;
+    max-height: 100%;
+    margin: 10px 12px 10px 4px;
+    overflow-y: auto;
+  }
+
+  .detail-sheet {
+    top: 8px;
+    right: 12px;
+    width: min(340px, 48%);
+    max-height: calc(100% - 16px);
+  }
+
+  .toast-region {
+    bottom: 12px;
+  }
+}
+
+/* ---------- Confirm dialog ---------- */
+
+.confirm {
+  width: min(22rem, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  background: var(--ink-deep);
+  color: var(--paper);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+.confirm::backdrop {
+  background: rgba(3, 6, 18, 0.65);
+}
+.confirm-body {
+  padding: 18px 18px 14px;
+}
+.confirm h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+.confirm p {
+  margin: 0;
+  color: var(--paper-muted);
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {

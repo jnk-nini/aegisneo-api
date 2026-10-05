@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      // Small font files would otherwise be inlined as data: URLs, which the
+      // site's Content-Security-Policy (font-src 'self') blocks.
+      assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
+    },
     server: {
       proxy: {
         "/api/neo": {

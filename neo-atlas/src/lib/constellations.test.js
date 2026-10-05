@@ -4,10 +4,13 @@ import {
   featuredConstellation,
   FEATURED,
   loadSaved,
+  loadShared,
   makeConstellation,
   MAX_POINTS,
   mergeImported,
   parseImport,
+  readSaved,
+  sharedId,
   shareQuery,
   sharedFromQuery,
   starCount,
@@ -131,5 +134,52 @@ describe("featured constellations and the list", () => {
     const ids = (r) => r.map((a) => a.neo_reference_id);
     expect(ids(listRows(rows, { highlight: "hazardous", query: "", sort: "closest" }))).toEqual(["1", "2"]);
     expect(ids(listRows(rows, { highlight: null, query: "ben", sort: "date" }))).toEqual(["2"]);
+  });
+});
+
+describe("loading a shared link", () => {
+  const shared = { name: "Kite", mode: "year", path: ["a", "b", "c", "a"] };
+  const notFound = Object.assign(new Error("missing"), { status: 404 });
+  const offline = Object.assign(new Error("offline"), { status: 0 });
+
+  it("loads every star and gives the same link the same ID", async () => {
+    const r = await loadShared(shared, async (id) => rock(id));
+    expect(r.missing).toBe(0);
+    expect(r.total).toBe(3);
+    expect(r.constellation.path).toEqual(["a", "b", "c", "a"]);
+    expect(r.constellation.id).toBe(sharedId(shared));
+    expect(sharedId(shared)).not.toBe(sharedId({ ...shared, name: "Other" }));
+  });
+
+  it("counts stars that failed instead of quietly dropping them", async () => {
+    const r = await loadShared(shared, async (id) => {
+      if (id === "c") throw offline;
+      return rock(id);
+    });
+    expect(r.missing).toBe(1);
+    expect(r.retryable).toBe(true);
+    expect(r.constellation.path).toEqual(["a", "b", "a"]);
+  });
+
+  it("has no constellation when under two stars load, and no retry when they aren't in the catalog", async () => {
+    const r = await loadShared(shared, async (id) => {
+      if (id !== "a") throw notFound;
+      return rock(id);
+    });
+    expect(r.constellation).toBeNull();
+    expect(r.missing).toBe(2);
+    expect(r.retryable).toBe(false);
+  });
+});
+
+describe("reading saves", () => {
+  it("reads what another tab stored, and returns null when storage can't be read", () => {
+    const store = memoryStore();
+    const kite = makeConstellation({ name: "Kite", mode: "year", path: ["a", "b"], asteroids: [rock("a"), rock("b")] });
+    storeSaved([kite], store);
+    expect(readSaved(store)).toEqual([kite]);
+    expect(readSaved(null)).toBeNull();
+    expect(readSaved({ getItem: () => "{broken" })).toBeNull();
+    expect(loadSaved({ getItem: () => "{broken" })).toEqual([]);
   });
 });

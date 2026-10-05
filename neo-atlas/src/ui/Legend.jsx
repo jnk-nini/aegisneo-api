@@ -1,20 +1,39 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { FIRST_YEAR, LAST_YEAR } from "../lib/chart.js";
 
-/** "How to read this chart" — explains what every visual property encodes. */
+/** "How to read this chart" — explains what every visual property encodes, and where the data comes from. */
 export default function Legend({ mode }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const rootRef = useRef(null);
+
+  // Closes on Escape or a tap anywhere else, like any popover.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    const onDown = (e) => !rootRef.current?.contains(e.target) && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
 
   return (
-    <div className="legend">
+    <div className="legend" ref={rootRef}>
       <button
         type="button"
-        className="btn btn-small legend-toggle"
+        className="icon-btn corner-btn legend-toggle"
         aria-expanded={open}
         aria-controls={panelId}
+        aria-label="How to read this chart"
         onClick={() => setOpen((v) => !v)}
       >
-        {open ? "Hide guide" : "How to read"}
+        <span aria-hidden="true">{open ? "×" : "?"}</span>
+        <span className="legend-toggle-text" aria-hidden="true">
+          {open ? "Close" : "How to read"}
+        </span>
       </button>
       <div id={panelId} className="legend-panel" hidden={!open}>
         <ul>
@@ -27,8 +46,9 @@ export default function Legend({ mode }) {
             <span>
               <strong>Around the dial:</strong>{" "}
               {mode === "date"
-                ? "the year it passed Earth, 1910 at the top and running clockwise to 2024."
-                : "the day of the year it passed Earth, January at the top."}
+                ? `the year of the close approach, ${FIRST_YEAR} at the top and running clockwise to ${LAST_YEAR}.`
+                : "the day of the year of the close approach, January at the top."}{" "}
+              These dates are simulated (see below).
             </span>
           </li>
           <li>
@@ -62,6 +82,19 @@ export default function Legend({ mode }) {
             </span>
           </li>
         </ul>
+        <p className="legend-note">
+          <strong>About the dates.</strong> The source catalog gives each asteroid&rsquo;s size, speed, miss
+          distance and hazard class, but not the date of the pass. Each asteroid is given a fixed, simulated
+          date between {FIRST_YEAR} and {LAST_YEAR}, so where a star sits around the dial is illustrative.
+          Its distance from Earth, its size and its hazard class are real.
+        </p>
+        <p className="legend-credit">
+          Data:{" "}
+          <a href="https://aegisneo-api.vercel.app/docs" target="_blank" rel="noreferrer">
+            AegisNEO API
+          </a>{" "}
+          · NASA NeoWs records via Kaggle
+        </p>
       </div>
     </div>
   );

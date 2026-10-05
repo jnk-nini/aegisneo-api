@@ -1,7 +1,7 @@
 # NEO Atlas
 
-A star atlas of real near-Earth asteroid close approaches. Pick a year (1910–2024) or a date such as your
-birthday, and the asteroids that passed Earth then are drawn as a planisphere:
+A star atlas of real near-Earth asteroids. Pick a year (1910–2024) or a date such as your birthday, and the
+asteroids whose close approach falls then are drawn as a planisphere:
 
 - **Earth** sits at the center.
 - **Angle** around the dial is the day of the year of the close approach (January at the top, clockwise).
@@ -62,5 +62,11 @@ NEO Atlas is deployed as its own Vercel project, separate from the API and the m
 
 ## Data
 
-Close-approach records come from NASA's NeoWs feed (via the Kaggle "Nearest Earth Objects 1910–2024"
-dataset) and are served by the AegisNEO API: 33,511 objects, one recorded close approach each.
+Asteroid records come from NASA's NeoWs feed (via the Kaggle "Nearest Earth Objects 1910–2024" dataset) and
+are served by the AegisNEO API: 33,511 objects, one record each.
+
+**The close-approach dates are simulated.** The Kaggle dataset has each object's size, speed, miss distance
+and hazard class, but no date column, so the API gives every object a fixed date between 1910 and 2024,
+derived from its ID (see `scripts/build_dataset.py`). A star's distance from Earth, its size and its hazard
+marking are real; its position around the dial is illustrative. The site says so in the chart summary, the
+"How to read" guide, the detail sheet and the footer.
