@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCatalogTotal } from "./hooks/useCatalogTotal.js";
 import { useDraft } from "./hooks/useDraft.js";
 import { useFeatured } from "./hooks/useFeatured.js";
@@ -7,8 +7,10 @@ import { useSaved } from "./hooks/useSaved.js";
 import { useSky } from "./hooks/useSky.js";
 import { useToast } from "./hooks/useToast.js";
 import { useViewing } from "./hooks/useViewing.js";
+import { autoConstellation } from "./lib/auto.js";
 import { placeStar } from "./lib/chart.js";
 import {
+  constellationSky,
   exportJson,
   makeConstellation,
   MAX_IMPORT_BYTES,
@@ -19,7 +21,9 @@ import {
 } from "./lib/constellations.js";
 import { formatMonthDay, plural } from "./lib/format.js";
 import { highlightTest } from "./lib/highlights.js";
-import { completeSky, skyFromQuery, skyTitle, skyToQuery } from "./lib/sky.js";
+import { DEFAULT_THEME, postcardFromQuery, postcardQuery } from "./lib/postcard.js";
+import { completeSky, skyFromQuery, skySearch, skyTitle, skyToQuery } from "./lib/sky.js";
+import AutoCard from "./ui/AutoCard.jsx";
 import ChartTip from "./ui/ChartTip.jsx";
 import ConfirmDialog from "./ui/ConfirmDialog.jsx";
 import ConstellationsView from "./ui/ConstellationsView.jsx";
@@ -27,12 +31,15 @@ import DetailSheet from "./ui/DetailSheet.jsx";
 import DrawBar from "./ui/DrawBar.jsx";
 import Legend from "./ui/Legend.jsx";
 import ListView from "./ui/ListView.jsx";
+import PostcardComposer from "./ui/PostcardComposer.jsx";
+import PostcardReceived from "./ui/PostcardReceived.jsx";
 import SkyControls from "./ui/SkyControls.jsx";
 import SkySummary from "./ui/SkySummary.jsx";
 import StarChart from "./ui/StarChart.jsx";
 import TabBar from "./ui/TabBar.jsx";
 import Toast from "./ui/Toast.jsx";
 import ViewingBar from "./ui/ViewingBar.jsx";
+import WelcomeDialog from "./ui/WelcomeDialog.jsx";
 
 const TABS = [
   { id: "chart", label: "Chart" },
@@ -41,14 +48,37 @@ const TABS = [
 ];
 
 const NO_ASTEROIDS = [];
+const WELCOME_KEY = "neo-atlas:welcome-seen";
+
+function welcomeSeen() {
+  try {
+    return window.localStorage.getItem(WELCOME_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markWelcomeSeen() {
+  try {
+    window.localStorage.setItem(WELCOME_KEY, "1");
+  } catch {
+    // Storage refused: the welcome just shows again next visit.
+  }
+}
 
 function initialState() {
-  const { sky, selected } = skyFromQuery(window.location.search);
-  const shared = sharedFromQuery(window.location.search);
+  const search = window.location.search;
+  const { sky, selected } = skyFromQuery(search);
+  const shared = sharedFromQuery(search);
+  const postcard = shared ? postcardFromQuery(search) : null;
+  // The birthday welcome greets a first visit to the plain address, never a link to something.
+  const plain = !["y", "d", "a", "cs"].some((key) => new URLSearchParams(search).has(key));
   return {
     sky: completeSky(sky),
     selected: shared ? null : selected,
     viewing: shared ? { status: "loading", pending: shared, source: "shared" } : null,
+    card: postcard ? { kind: "received", ...postcard } : null,
+    welcome: plain && !welcomeSeen(),
   };
 }
 
@@ -98,6 +128,14 @@ export default function App() {
   const [selected, setSelected] = useState(initial.selected);
   const [highlight, setHighlight] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  // The postcard open on top: { kind: "compose" }, or { kind: "received", message, from, theme } from a link.
+  const [card, setCard] = useState(initial.card);
+  const [welcome, setWelcome] = useState(initial.welcome);
+  // The sky (its API search) to make a constellation for as soon as it loads, after the welcome.
+  const [autoFor, setAutoFor] = useState(null);
+  const [shuffle, setShuffle] = useState(0);
+  // What was last typed on a postcard, so closing and reopening it keeps the message.
+  const [postcardDraft, setPostcardDraft] = useState({ message: "", from: "", theme: DEFAULT_THEME });
   const sheetRef = useRef(null);
   // Set once a discard is confirmed and Back is about to close the drawing, so it isn't asked twice.
   const discarding = useRef(false);
@@ -125,18 +163,42 @@ export default function App() {
   // A highlight with nothing to pick out in this sky is set aside (not lost) instead of dimming every star.
   const shownHighlight = highlight && shown.some(highlightTest(highlight)) ? highlight : null;
 
+  // Behind a constellation, the rest of its sky, once that sky has loaded.
+  const ownSky = constellation ? constellationSky(constellation) : null;
+  const backdrop = ownSky && skySearch(ownSky) === skySearch(sky) ? result.asteroids : NO_ASTEROIDS;
+  const backdropStars = useMemo(() => {
+    const onChart = new Set(shown.map((a) => a.neo_reference_id));
+    return backdrop.filter((a) => !onChart.has(a.neo_reference_id)).map((a) => placeStar(a, mode));
+  }, [backdrop, shown, mode]);
+
+  // After the welcome, the birthday's constellation is made as soon as its sky has loaded.
+  if (autoFor && autoFor === skySearch(sky) && result.status !== "loading") {
+    setAutoFor(null);
+    const c = result.status === "ready" ? autoConstellation(result.asteroids, sky.mode) : null;
+    if (c) {
+      setShuffle(0);
+      setViewing({ status: "ready", constellation: c, source: "auto" });
+    }
+  }
+
   // ---------- Address bar and Back button ----------
 
   const layers = [
     viewing && "viewing",
     selectedId && !draft.drawing && "sheet",
     draft.drawing && "drawing",
+    card && "postcard",
   ].filter(Boolean);
   // A shared link that hasn't fully loaded is left in the address bar, so reloading tries the whole link again.
-  const url = viewing ? (viewing.status === "ready" ? shareQuery(constellation) : null) : skyToQuery(sky, selectedId);
+  // A postcard someone sent keeps its message in the address bar while it is open.
+  let url = skyToQuery(sky, selectedId);
+  if (viewing) {
+    const sent = card?.kind === "received";
+    url = viewing.status !== "ready" ? null : sent ? postcardQuery(constellation, card) : shareQuery(constellation);
+  }
   const snapshot = useMemo(
-    () => ({ selected: selectedId, viewing: viewingSnapshot(viewing) }),
-    [selectedId, viewing],
+    () => ({ selected: selectedId, viewing: viewingSnapshot(viewing), card }),
+    [selectedId, viewing, card],
   );
 
   const onBack = (entry) => {
@@ -154,6 +216,7 @@ export default function App() {
     setViewing(entry.viewing ?? null);
     if (!entry.viewing) setSkyState(completeSky(skyFromQuery(window.location.search).sky));
     setSelected(entry.layers.includes("sheet") ? (entry.selected ?? null) : null);
+    setCard(entry.layers.includes("postcard") ? (entry.card ?? null) : null);
     return true;
   };
 
@@ -162,10 +225,12 @@ export default function App() {
   const without = (...names) => layers.filter((l) => !names.includes(l));
   const closeSheet = () => closeLayer(layers, without("sheet"), () => setSelected(null));
   const exitViewing = () =>
-    closeLayer(layers, without("viewing", "sheet"), () => {
+    closeLayer(layers, without("viewing", "sheet", "postcard"), () => {
       setViewing(null);
       setSelected(null);
+      setCard(null);
     });
+  const closeCard = () => closeLayer(layers, without("postcard"), () => setCard(null));
   const discardDraft = () => {
     discarding.current = true;
     closeLayer(layers, without("drawing"), () => {
@@ -184,6 +249,7 @@ export default function App() {
   const setSky = useCallback((next) => {
     setSkyState(next);
     setSelected(null);
+    setAutoFor(null);
   }, []);
 
   const backToChart = () => setTab("chart");
@@ -212,14 +278,61 @@ export default function App() {
     [showToast],
   );
 
-  const view = (c, source) =>
+  /** Shows a constellation on the chart, with the rest of its sky behind it. `then` runs once it's shown. */
+  const view = (c, source, then) =>
     draft.guard(() => {
       draft.stop();
       setSelected(null);
       setHighlight(null);
+      const own = constellationSky(c);
+      if (own) {
+        setSkyState((s) => ({ ...s, mode: own.mode, ...(own.mode === "date" ? { date: own.date } : { year: own.year }) }));
+      }
       setViewing({ status: "ready", constellation: c, source });
       setTab("chart");
+      then?.();
     }, backToChart);
+
+  const openPostcard = (c, source) => {
+    if (constellation?.id === c.id) setCard({ kind: "compose" });
+    else view(c, source, () => setCard({ kind: "compose" }));
+  };
+  // A toast's button runs after later renders, so it reaches the current openPostcard through this.
+  const openPostcardRef = useRef(openPostcard);
+  useEffect(() => {
+    openPostcardRef.current = openPostcard;
+  });
+
+  /** "Make a postcard": a constellation joined from this sky's biggest asteroids. */
+  const makeAuto = (n) => {
+    const c = autoConstellation(result.asteroids, sky.mode, { shuffle: n });
+    if (!c) return showToast("This sky has too few asteroids to join into a constellation.");
+    setShuffle(n);
+    view(c, "auto");
+  };
+
+  const showBirthday = (date) => {
+    markWelcomeSeen();
+    setWelcome(false);
+    const next = { ...sky, mode: "date", date };
+    setSky(next);
+    setAutoFor(skySearch(next));
+  };
+
+  const closeWelcome = () => {
+    markWelcomeSeen();
+    setWelcome(false);
+  };
+
+  // From a postcard someone sent: back to the plain sky, and the welcome to make one.
+  const makeOwn = () => {
+    closeLayer(layers, [], () => {
+      setCard(null);
+      setViewing(null);
+      setSelected(null);
+    });
+    setWelcome(true);
+  };
 
   const startDrawing = (firstId = null) =>
     draft.guard(() => {
@@ -244,7 +357,10 @@ export default function App() {
     add(c);
     draft.stop();
     setViewing({ status: "ready", constellation: c, source: "saved" });
-    showToast(`Saved “${c.name}” to Constellations.`, { label: "Share", run: () => share(c) });
+    showToast(`Saved “${c.name}” to Constellations.`, {
+      label: "Postcard",
+      run: () => openPostcardRef.current(c, "saved"),
+    });
   };
 
   const saveViewed = () => {
@@ -304,7 +420,7 @@ export default function App() {
       ready={viewing.status === "ready" || (viewing.status === "partial" && !viewing.retryable)}
       isSaved={isSaved}
       onSave={saveViewed}
-      onShare={() => share(constellation)}
+      onPostcard={viewing.source === "auto" ? null : () => setCard({ kind: "compose" })}
       onExit={exitViewing}
     />
   ) : (
@@ -381,6 +497,7 @@ export default function App() {
               onSelect={onStarTap}
               description={description}
               path={draft.drawing ? draft.draft : (constellation?.path ?? undefined)}
+              backdrop={backdropStars}
               highlight={highlightTest(shownHighlight)}
               drawing={draft.drawing}
               coverRef={sheetRef}
@@ -400,6 +517,13 @@ export default function App() {
               onCancel={() => draft.cancel(discardDraft)}
               onSave={saveDraft}
             />
+          ) : viewing?.source === "auto" && constellation ? (
+            <AutoCard
+              constellation={constellation}
+              onPostcard={() => setCard({ kind: "compose" })}
+              onShuffle={() => makeAuto(shuffle + 1)}
+              onDraw={() => startDrawing()}
+            />
           ) : (
             <SkySummary
               title={title}
@@ -409,6 +533,7 @@ export default function App() {
               onHighlight={setHighlight}
               notice={notice}
               onMake={viewing ? null : () => startDrawing()}
+              onPostcard={() => makeAuto(0)}
               canMake={result.status === "ready"}
             />
           )}
@@ -446,6 +571,7 @@ export default function App() {
             onMake={() => startDrawing()}
             onView={view}
             onShare={share}
+            onPostcard={openPostcard}
             onDelete={deleteSaved}
             onExport={exportSaved}
             onImport={importFile}
@@ -478,6 +604,27 @@ export default function App() {
         </a>{" "}
         · NASA NeoWs records via Kaggle · close-approach dates simulated
       </footer>
+
+      {card?.kind === "compose" && constellation && (
+        <PostcardComposer
+          key={constellation.id}
+          constellation={constellation}
+          backdrop={backdrop}
+          draft={postcardDraft}
+          onDraft={setPostcardDraft}
+          onClose={closeCard}
+        />
+      )}
+      {card?.kind === "received" && constellation && (
+        <PostcardReceived
+          constellation={constellation}
+          backdrop={backdrop}
+          postcard={card}
+          onExplore={closeCard}
+          onMakeOwn={makeOwn}
+        />
+      )}
+      {welcome && <WelcomeDialog date={sky.date} onShow={showBirthday} onClose={closeWelcome} />}
 
       <Toast toast={toast} onDismiss={dismissToast} onPause={pause} onResume={resume} />
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />

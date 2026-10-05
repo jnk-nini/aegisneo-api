@@ -10,6 +10,7 @@ const HIT_PX = 24; // how far (in screen pixels) a tap may land from a star and 
 const TAP_MOVE_PX = 8;
 const TAP_MS = 500;
 const NO_PATH = [];
+const NO_STARS = [];
 const DIAL_EXTENT = [
   [-VIEW, -VIEW],
   [VIEW, VIEW],
@@ -76,6 +77,23 @@ function StarLabel({ star, k, variant, unitPx }) {
   );
 }
 
+/** The rest of a constellation's sky, drawn faintly behind it. Not selectable. */
+const Backdrop = memo(function Backdrop({ stars, k }) {
+  return (
+    <g className="backdrop" pointerEvents="none">
+      {stars.map((star) => (
+        <circle
+          key={star.id}
+          cx={star.x}
+          cy={star.y}
+          r={(star.size * 0.8) / Math.sqrt(k)}
+          className={star.hazardous ? "backdrop-star hazardous" : "backdrop-star"}
+        />
+      ))}
+    </g>
+  );
+});
+
 /** Constellation lines, drawn star to star in path order. */
 function ConstellationLines({ path, byId, k, drawing }) {
   const segments = [];
@@ -114,6 +132,8 @@ function ConstellationLines({ path, byId, k, drawing }) {
  * `coverRef` points at the detail sheet while it is open. If the selected star
  * ends up underneath it, the dial slides until the star is visible, and slides
  * back when the sheet closes.
+ *
+ * `backdrop` is the rest of the sky behind a constellation, drawn faintly.
  */
 export default function StarChart({
   stars,
@@ -123,6 +143,7 @@ export default function StarChart({
   onSelect,
   description,
   path = NO_PATH,
+  backdrop = NO_STARS,
   highlight = null,
   drawing = false,
   coverRef = null,
@@ -387,6 +408,7 @@ export default function StarChart({
         </defs>
         <g ref={sceneRef}>
           <AtlasFrame segments={dial.segments} ticks={dial.ticks} unitPx={unitPx} k={k} />
+          {backdrop.length > 0 && <Backdrop stars={backdrop} k={k} />}
           {path.length > 0 && <ConstellationLines path={path} byId={byId} k={k} drawing={drawing} />}
           <g className="stars">
             {stars.map((star) => (

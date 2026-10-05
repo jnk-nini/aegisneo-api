@@ -33,6 +33,7 @@ export default function ConstellationsView({
   onMake,
   onView,
   onShare,
+  onPostcard,
   onDelete,
   onExport,
   onImport,
@@ -47,8 +48,8 @@ export default function ConstellationsView({
       <header className="intro">
         <h2>Constellations</h2>
         <p>
-          Join asteroids into a shape of your own — your birthday sky, a year that matters to you — then share
-          it as a link. Nothing is uploaded: your constellations stay on this device.
+          Join asteroids into a shape of your own — your birthday sky, a year that matters to you — then send
+          it as a postcard or a link. Nothing is uploaded: your constellations stay on this device.
         </p>
         {drawing ? (
           <div className="drawing-note" role="status">
@@ -85,6 +86,9 @@ export default function ConstellationsView({
               <Card key={c.id} constellation={c}>
                 <button type="button" className="btn btn-small btn-solid" onClick={() => onView(c, "saved")}>
                   View
+                </button>
+                <button type="button" className="btn btn-small" onClick={() => onPostcard(c, "saved")}>
+                  Postcard
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => onShare(c)}>
                   Share
@@ -169,6 +173,13 @@ export default function ConstellationsView({
                   onClick={() => onView(constellation, "featured")}
                 >
                   View
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => onPostcard(constellation, "featured")}
+                >
+                  Postcard
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => onShare(constellation)}>
                   Share

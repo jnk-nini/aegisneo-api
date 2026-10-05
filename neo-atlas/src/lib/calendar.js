@@ -2,7 +2,7 @@
 // close approach, with January 1 at the top and the year running clockwise.
 
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const MONTH_LENGTHS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // leap-year layout, so Feb 29 has a place
+export const MONTH_LENGTHS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // leap-year layout, so Feb 29 has a place
 const YEAR_DAYS = 366;
 
 // Day index (0–365) each month starts on in the leap-year layout.

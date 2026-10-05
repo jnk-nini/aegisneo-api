@@ -8,7 +8,23 @@ asteroids whose close approach falls then are drawn as a planisphere:
 - **Distance from the center** is the real miss distance.
 - **Star size** is the estimated diameter; potentially hazardous objects are marked in red with a distinct shape.
 
-Visitors can connect stars into their own constellations, save them, and share them as links.
+Visitors can connect stars into their own constellations, save them, and send them as postcards or links.
+
+## Birthday postcards
+
+1. **First visit:** the site asks for a birthday (day and month only) and charts that date across every year.
+2. **A constellation is drawn for you:** the biggest asteroids of that sky are joined into a shape with a
+   made-up name, such as "The Silver Kite". *Shuffle* tries another shape; *Draw my own* joins stars by hand.
+   The same sky always gives the same first shape.
+3. **Write a postcard:** a title, a message (up to 160 characters) and who it's from, in one of three looks
+   (Midnight, Dusk, Parchment). The card is a 1080×1350 picture drawn in the browser.
+4. **Send it:** on phones *Share postcard* hands the picture and a link to the phone's share sheet;
+   everywhere, *Download* saves the picture and *Copy link* copies the link.
+5. **Receiving one:** the link opens the same postcard on the site, then *See it on the chart* or *Make your own*.
+
+Every constellation (saved, shared or ready-made) has a *Postcard* button too. The card says in its fine print
+that sizes and miss distances are real but dates are simulated. A message in a link is the sender's own text:
+it is only ever shown as plain text, and the page says the sender wrote it.
 
 NEO Atlas is a separate website from the main AegisNEO site. It gets all of its asteroid data from the
 [AegisNEO API](https://aegisneo-api.vercel.app/docs), to show the API can be used by other sites.
@@ -32,7 +48,10 @@ In development, the Vite dev server runs the same function ([`vite.config.js`](v
 
 Nothing is stored on a server:
 
-- **Share links** hold the whole constellation (asteroid IDs and name) in the URL.
+- **Share links** hold the whole constellation (asteroid IDs and name) in the URL, plus its sky (`d` or `y`)
+  so the rest of that sky can be drawn faintly behind it.
+- **Postcards** are drawn on the visitor's device. A postcard link adds the message (`pm`), sender (`pf`)
+  and look (`pt`) to the share link; nothing is uploaded.
 - **My constellations** are kept in the browser's `localStorage` on the visitor's device.
 - **Export / import** saves constellations to a JSON file and loads them back.
 

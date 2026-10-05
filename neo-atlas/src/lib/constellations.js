@@ -129,14 +129,35 @@ export function featuredConstellation(def, asteroids) {
   });
 }
 
+/**
+ * The sky a constellation was drawn from: its one year, or its one date across every year.
+ * Null when its stars come from more than one (the ready-made constellations).
+ */
+export function constellationSky(c) {
+  const dates = c.asteroids.map((a) => a.close_approach_date);
+  if (dates.length === 0) return null;
+  if (c.mode === "date") {
+    const date = dates[0].slice(5);
+    return dates.every((d) => d.slice(5) === date) ? { mode: "date", year: null, date } : null;
+  }
+  const year = dates[0].slice(0, 4);
+  return dates.every((d) => d.startsWith(year)) ? { mode: "year", year: Number(year), date: null } : null;
+}
+
 // ---------- Share links ----------
 
-/** "?cn=Name&cm=y&cs=id.id.id" — dots, because they never need escaping in a URL. */
+/**
+ * "?cn=Name&cm=y&cs=id.id.id&y=1987" — dots, because they never need escaping in a URL.
+ * The sky (y or d) lets the page load the rest of that sky behind the constellation.
+ */
 export function shareQuery(c) {
   const q = new URLSearchParams();
   q.set("cn", c.name);
   q.set("cm", c.mode === "date" ? "d" : "y");
   q.set("cs", c.path.join("."));
+  const sky = constellationSky(c);
+  if (sky?.mode === "date") q.set("d", sky.date);
+  if (sky?.mode === "year") q.set("y", String(sky.year));
   return `?${q}`;
 }
 

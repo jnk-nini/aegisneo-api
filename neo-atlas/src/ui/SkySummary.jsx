@@ -6,7 +6,7 @@ import HighlightChips from "./HighlightChips.jsx";
  * When the chart is empty, the chart itself says why, so this stays short.
  *
  * `notice` is a warning about the view (e.g. stars a shared link couldn't load);
- * `onMake` adds the "Make a constellation" button.
+ * `onPostcard` and `onMake` add the "Make a postcard" and "Draw my own" buttons.
  */
 export default function SkySummary({
   title,
@@ -16,14 +16,20 @@ export default function SkySummary({
   onHighlight,
   notice = null,
   onMake = null,
+  onPostcard = null,
   canMake = false,
 }) {
   const { status, asteroids, matched, error, retry } = result;
 
   const make = onMake && (
-    <button type="button" className="btn btn-solid btn-make sky-make" onClick={onMake} disabled={!canMake}>
-      <span aria-hidden="true">✦</span> Make a constellation
-    </button>
+    <div className="sky-make">
+      <button type="button" className="btn btn-solid btn-make" onClick={onPostcard} disabled={!canMake}>
+        <span aria-hidden="true">✦</span> Make a postcard
+      </button>
+      <button type="button" className="btn" onClick={onMake} disabled={!canMake}>
+        Draw my own
+      </button>
+    </div>
   );
 
   if (status === "error" && asteroids.length > 0) {

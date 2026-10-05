@@ -72,11 +72,15 @@ Pushing to `master` redeploys them.
   landscape layouts, safe saving across tabs, shared links that load partly, a crash screen, the Back
   button closing the detail sheet, constellation or drawing instead of leaving the site, faster loading,
   screen-reader announcements, readable chart text on phones, smoother zooming, and a link preview image.
+- NEO Atlas birthday postcards: a first-visit birthday welcome, a constellation drawn automatically from the
+  sky's biggest asteroids (with Shuffle), and postcards made in the browser in three looks, shared as a
+  picture plus a link that opens the same postcard. Still no database. Details in `neo-atlas/README.md`.
 
 ### Next steps
 - Test Impactor on real phones (iPhone Safari and Android Chrome). A Lighthouse mobile audit of the
   production build is done (see `impactor/README.md`).
-- NEO Atlas: test on real phones.
+- NEO Atlas: test on real phones, including the postcard Share button (iPhone Safari and Android Chrome).
+- Idea on hold: a "What if it hit?" button in NEO Atlas that opens Impactor with that asteroid loaded.
 - NEO Atlas: add a Vercel Firewall rate-limit rule for `/api/neo` (see `neo-atlas/README.md`).
 - NEO Atlas dates are simulated: the Kaggle data has no dates, so `scripts/build_dataset.py` makes them
   up, and the site says so. Real dates would mean rebuilding the dataset from NASA JPL's close-approach
