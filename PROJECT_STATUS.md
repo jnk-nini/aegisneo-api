@@ -67,7 +67,7 @@ Pushing to `master` redeploys them.
 - GitHub Actions (`.github/workflows/ci.yml`) runs tests, lint and build for Impactor and NEO Atlas
   on every push. Vercel still deploys on its own; turn on Vercel's "wait for checks" if you want
   failing checks to block a deploy.
-- Old `impact-simulator/` folder removed from the main site.
+- Old `impact-simulator/` and `constellation-explorer/` folders removed from the main site.
 - NEO Atlas deployed. Its review (18 points plus polish) is fixed except the dates (below): phone and
   landscape layouts, safe saving across tabs, shared links that load partly, a crash screen, the Back
   button closing the detail sheet, constellation or drawing instead of leaving the site, faster loading,
@@ -76,8 +76,7 @@ Pushing to `master` redeploys them.
 ### Next steps
 - Test Impactor on real phones (iPhone Safari and Android Chrome). A Lighthouse mobile audit of the
   production build is done (see `impactor/README.md`).
-- NEO Atlas: test on real phones, then remove the old `constellation-explorer/` folder and its line in
-  `vercel.json`.
+- NEO Atlas: test on real phones.
 - NEO Atlas: add a Vercel Firewall rate-limit rule for `/api/neo` (see `neo-atlas/README.md`).
 - NEO Atlas dates are simulated: the Kaggle data has no dates, so `scripts/build_dataset.py` makes them
   up, and the site says so. Real dates would mean rebuilding the dataset from NASA JPL's close-approach
