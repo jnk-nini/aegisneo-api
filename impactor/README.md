@@ -13,11 +13,15 @@ AegisNEO through its public REST API, to show that the API can power other apps.
   flybys and famous asteroids (Apophis, Bennu, Didymos…).
 - **3D globe** with real day/night for the current time, city lights, clouds and
   atmosphere. Tap anywhere to aim, or search a city or enter coordinates.
-- **Cinematic impact**: approach path, entry glow, airburst or ground impact,
-  fireball, expanding air blast, crater and ejecta, with play/pause and 0.25×–4× speed.
+- **Cinematic impact**: approach path, entry glow, airburst or ground impact, then a
+  3D crater dug out and collapsing into its final shape, an ejecta curtain, a rising
+  plume and the air blast sweeping outward, leaving scorched ground, fires, flattened
+  forest and darkened cities. The largest impacts darken the whole planet. Play/pause
+  and 0.25×–4× speed.
 - **Sandbox controls**: change size, speed, entry angle, direction and composition.
   Changes are labelled *Hypothetical*.
-- **Results**: energy, crater, earthquake magnitude, damage zones drawn to scale,
+- **Results**: energy, crater, earthquake magnitude, damage zones (outlines can be
+  shown on the globe),
   blast arrival times, major cities in range, and how often such an impact happens.
 - **Real flyby mode**: the asteroid's actual miss distance, drawn to scale with the Moon's orbit.
 - **Share, save, export**: share links hold the whole scenario, scenarios save in the
@@ -76,11 +80,42 @@ Assumptions and limitations:
 The tests (`src/physics/impact.test.js`) check the model against Chelyabinsk,
 Tunguska, Meteor Crater and Chicxulub.
 
+## How the impact is drawn
+
+Everything on screen is sized from the model's results, so the picture matches the
+numbers in the results panel:
+
+- **Crater**: a detailed patch of ground at the impact site (`src/scene/CraterPatch.jsx`),
+  carved to the model's diameter and depth: a bowl with a raised rim for simple craters;
+  a flat floor, terraced walls and a central peak (a peak ring above 100 km) for complex
+  ones. It is dug out over ≈ 0.8·√(D/g) seconds and then collapses into its final
+  shape. The globe's own mesh (~125 km per cell) is too coarse for this, so the globe
+  leaves a hole and the patch fills it with the same textures and lighting.
+- **Depth**: real large craters are very flat (900 km wide, 3 km deep), so depth is
+  scaled up to about 1:10 of the width when needed. The playback bar shows the factor.
+- **Ejecta**: launched on 45° ballistic arcs from the growing crater (an inverted cone),
+  landing as a blanket that thins as r⁻³ (McGetchin et al. 1973).
+- **Ground damage**: charred land inside the clothing-ignition range, fires in the
+  third-degree-burn range, flattened forest in the 90%-trees-down range, city lights
+  out where wood-frame houses collapse. Each appears when the blast or heat reaches it.
+- **Ocean impacts**: the water cavity opens and fills back in, and a ring crosses the
+  ocean at deep-water wave speed √(g·h) ≈ 190 m/s. The model has no tsunami height, so
+  the ring is illustrative.
+- **Largest impacts** (about a million megatons and up, a ~2.5 km rock): ejecta falling back worldwide, spreading
+  fires and a dust veil that browns the planet. Illustrative, scaled by impact energy.
+- **Time**: excavation takes seconds to minutes; the blast takes up to hours to reach
+  its outer zones. When needed, the aftermath clock speeds up as it plays so both fit;
+  the time shown is always real.
+- **Zone outlines** are off during and after the impact by default; *Damage zones*
+  (over the 3D view) or *Outline on globe* (results panel) turns them on.
+
 ## Mobile strategy
 
 - Layout: bottom sheet with tabs below 1100 px; side panels on desktop.
 - Graphics: device pixel ratio capped (1.75 on phones), quality lowered automatically
-  if the frame rate drops, 2048 px textures on phones.
+  if the frame rate drops, 2048 px textures on phones. Phones get a lighter impact:
+  a quarter of the crater mesh, fewer ejecta particles and smoke puffs, and cheaper
+  noise in the shaders. Particles are animated on the GPU, not in JavaScript.
 - Loading: the globe's textures are painted in a Web Worker (`src/lib/earth.worker.js`)
   so the page never freezes, falling back to the page on browsers without
   OffscreenCanvas. three.js only downloads with the 3D view, so the 2D map stays light.
@@ -98,7 +133,7 @@ Tunguska, Meteor Crater and Chicxulub.
 api/neo.js            Vercel serverless proxy to the AegisNEO API
 tests/                Proxy tests (kept out of api/, where every file becomes a function)
 src/physics/          Impact model, tests, damage-zone styling, reference events
-src/scene/            React Three Fiber scene: globe, impact effects, camera, flyby
+src/scene/            React Three Fiber scene: globe, crater, ejecta, plume, ground damage, camera, flyby
 src/ui/               Panels, results, HUD, 2D fallback map, dialogs
 src/lib/              API client, geography, share links, storage, world map data
 src/data/             City list, famous asteroid IDs

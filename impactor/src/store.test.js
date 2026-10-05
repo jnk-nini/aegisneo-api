@@ -78,4 +78,10 @@ describe("simulation store", () => {
     expect(useSim.getState().run).toBeNull();
     expect(useSim.getState().phase).toBe("idle");
   });
+
+  it("damage-zone rings over the impact start off and can be turned on", () => {
+    expect(useSim.getState().showZoneRings).toBe(false);
+    useSim.getState().setShowZoneRings(true); // no localStorage here; must not throw
+    expect(useSim.getState().showZoneRings).toBe(true);
+  });
 });

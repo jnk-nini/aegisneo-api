@@ -123,7 +123,11 @@ export const zoneShader = /* glsl */ `
       color = mix(color, zoneLine[i].rgb, zoneLine[i].a * line);
     }
     if (zoneShock.y > 0.0) {
-      color = mix(color, vec3(1.0), zoneShock.y * zoneStroke(abs(c - zoneShock.x) / px, zoneShock.z));
+      // The air-blast front: a bright crest with a glowing wake behind it.
+      float d = c - zoneShock.x;
+      float crest = zoneStroke(abs(d) / px, zoneShock.z);
+      float wake = d < 0.0 ? 0.45 * exp(d / max(zoneShock.x * 0.05, px * 4.0)) : 0.0;
+      color = mix(color, vec3(1.0, 0.96, 0.88), zoneShock.y * clamp(0.9 * crest + wake, 0.0, 1.0));
     }
     return color;
   }

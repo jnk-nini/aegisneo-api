@@ -66,7 +66,7 @@ function ImpactWorld({ textures, sunDir }) {
       <Earth textures={textures} sunDir={sunDir} onSurfaceClick={onSurfaceClick} showZones />
       <TargetMarker />
       <PreviewZones />
-      <ImpactSequence />
+      <ImpactSequence textures={textures} sunDir={sunDir} />
       <CameraRig />
       <Timeline />
     </>
@@ -96,6 +96,9 @@ function SceneCanvas({ textures, onContextLost }) {
   const asteroid = useSim((s) => s.asteroid);
   const [dpr, setDpr] = useState(() => Math.min(window.devicePixelRatio || 1, isCoarse() ? 1.75 : 2));
   const coarse = useMemo(() => isCoarse(), []);
+  useEffect(() => {
+    if (coarse) useSim.setState({ quality: "low" });
+  }, [coarse]);
   // Real day/night for the moment the page was opened.
   const sunDir = useMemo(() => {
     const { lat, lon } = subsolarPoint(new Date());
@@ -141,7 +144,13 @@ function SceneCanvas({ textures, onContextLost }) {
       aria-label="3D view of Earth. Choose a target with the panel or by tapping the globe."
       role="img"
     >
-      <PerformanceMonitor onDecline={() => setDpr((d) => Math.max(1, d * 0.75))} />
+      <PerformanceMonitor
+        onDecline={() => {
+          // Lower the resolution first; once it's at 1×, simplify the effects too.
+          if (dpr <= 1) useSim.setState({ quality: "low" });
+          setDpr((d) => Math.max(1, d * 0.75));
+        }}
+      />
       <color attach="background" args={["#020309"]} />
       <ambientLight intensity={0.06} />
       <directionalLight position={sunDir.clone().multiplyScalar(10)} intensity={2.4} />

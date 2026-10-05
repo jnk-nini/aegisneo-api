@@ -16,6 +16,7 @@ const HAS_WEBGL = webglAvailable();
 export const SYSTEM_REDUCED_MOTION =
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const MOTION_KEY = "impactor.animate";
+const ZONES_KEY = "impactor.zoneRings";
 
 /** Honour the OS "reduce motion" setting unless the user opted back in on this site. */
 function initialReducedMotion() {
@@ -24,6 +25,15 @@ function initialReducedMotion() {
     return localStorage.getItem(MOTION_KEY) !== "on";
   } catch {
     return true;
+  }
+}
+
+/** Damage-zone rings over the impact are off unless the user turned them on. */
+function initialZoneRings() {
+  try {
+    return localStorage.getItem(ZONES_KEY) === "on";
+  } catch {
+    return false;
   }
 }
 
@@ -61,11 +71,14 @@ export const useSim = create((set, get) => ({
     : "Your browser can't show the 3D globe, so you're seeing the 2D map instead.",
   focusRequest: 0, // bump to fly the camera to the target
   globeRequest: 0, // bump to fly back to the whole globe
+  craterRequest: 0, // bump to fly in close to the crater of the finished run
+  showZoneRings: initialZoneRings(), // outline the damage zones over the impact
   mobileTab: "object",
   sheet: "half", // peek | half | full (mobile only)
   sheetHeight: 0, // px the mobile sheet covers at the bottom of the view; 0 on desktop
   capture: null, // function returning a PNG blob of the 3D view
   globeReady: false, // the 3D globe's textures are painted and on screen
+  quality: "high", // "low" on phones or slow GPUs: fewer particles, simpler shaders
 
   selectAsteroid(asteroid) {
     set({ asteroid, ...realParamsFor(asteroid), run: null, phase: "idle" });
@@ -81,6 +94,14 @@ export const useSim = create((set, get) => ({
       /* preference just won't persist */
     }
     set({ reducedMotion: !animate });
+  },
+  setShowZoneRings(show) {
+    try {
+      localStorage.setItem(ZONES_KEY, show ? "on" : "off");
+    } catch {
+      /* preference just won't persist */
+    }
+    set({ showZoneRings: show });
   },
   setParam(key, value) {
     set({ [key]: value });

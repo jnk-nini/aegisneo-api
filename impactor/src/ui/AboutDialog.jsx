@@ -67,13 +67,22 @@ export default function AboutDialog({ open, onClose }) {
           <li>
             The catalog has no density, so you choose a composition. Stony (3,000 kg/m³) is the default.
           </li>
-          <li>Tsunamis, fires spreading and long-term climate effects aren&apos;t modelled.</li>
+          <li>
+            Tsunami height, fires spreading and long-term climate effects aren&apos;t modelled. In the
+            animation, the tsunami ring, worldwide fires and dust veil are illustrative.
+          </li>
           <li>
             For very high airbursts, the ground blast uses whichever is larger: the paper&apos;s fit or its
             surface-burst curve at slant range (the fit alone underestimates events like Chelyabinsk).
           </li>
           <li>
-            Asteroid size in the animation is enlarged so you can see it. Damage zones are drawn to scale.
+            Asteroid size in the animation is enlarged so you can see it. The crater&apos;s width, the damage
+            on the ground and the zone outlines are drawn to scale. Crater depth is exaggerated when it would
+            be too flat to see; the playback bar says by how much.
+          </li>
+          <li>
+            Crater formation takes seconds to minutes; the blast takes hours to cross the largest zones. So
+            both fit, the aftermath clock can speed up as it plays. The time shown is always real.
           </li>
         </ul>
         <p className="muted">These are estimates for learning, not predictions of real hazards.</p>

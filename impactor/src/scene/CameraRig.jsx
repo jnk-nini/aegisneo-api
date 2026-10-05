@@ -6,12 +6,25 @@ import { useSim } from "../store.js";
 import { latLonToVector, localFrame } from "./sphereMath.js";
 import { simulateImpact } from "../physics/impact.js";
 import { outermostRadiusM } from "../physics/zones.js";
-import { APPROACH_SECONDS, clock } from "./timeline.js";
+import { APPROACH_SECONDS, clock, playbackAt } from "./timeline.js";
 import { blendPose, focusPose, newPose, runGeometry } from "./effects.js";
+import { severity } from "./impactVisuals.js";
+import { collapseWindow, craterVisual } from "./craterShape.js";
 
 const ORIGIN = new Vector3();
 const WORLD_UP = new Vector3(0, 1, 0);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const ramp = (a, b, x) => easeInOut(Math.min(1, Math.max(0, (x - a) / (b - a))));
+const CRATER_TILT = 55; // lower than the usual 38° so the crater's depth reads
+
+/** Whole-planet view centred on the impact, for the largest impacts. */
+function planetPose(geo) {
+  return {
+    position: geo.center.clone().multiplyScalar(3.2),
+    target: ORIGIN.clone(),
+    up: geo.frame.north.clone(),
+  };
+}
 
 /** Wide opening shot of a run: side-on to the incoming path, both ends in view. */
 function widePose(geo) {
@@ -46,14 +59,27 @@ export default function CameraRig() {
   const run = useSim((s) => s.run);
   const phase = useSim((s) => s.phase);
   const focusRequest = useSim((s) => s.focusRequest);
+  const craterRequest = useSim((s) => s.craterRequest);
   const globeRequest = useSim((s) => s.globeRequest);
   const reducedMotion = useSim((s) => s.reducedMotion);
   const [control, setControl] = useState({ kind: "globe", center: null, key: 0 });
   const flight = useRef(null);
   // Reused every frame so the cinematic allocates nothing (less GC stutter on phones).
-  const scratch = useMemo(() => ({ out: newPose(), intro: newPose(), focus: newPose() }), []);
+  const scratch = useMemo(
+    () => ({ out: newPose(), intro: newPose(), focus: newPose(), close: newPose(), mid: newPose() }),
+    [],
+  );
   const geo = useMemo(() => (run ? runGeometry(run) : null), [run]);
   const wide = useMemo(() => (geo ? widePose(geo) : null), [geo]);
+  const planet = useMemo(() => (geo && severity(run.result) > 0.3 ? planetPose(geo) : null), [geo, run]);
+  // Stay on the crater until it has settled into its final shape (playback
+  // seconds after impact), then pull back over the spreading damage.
+  const holdUntil = useMemo(() => {
+    const crater = run ? craterVisual(run.result) : null;
+    if (!crater) return 2.2;
+    const settled = playbackAt(collapseWindow(crater)[1], run) - APPROACH_SECONDS;
+    return Math.min(5, Math.max(2.2, settled + 0.4));
+  }, [run]);
   const cinematic = Boolean(run) && (phase === "approach" || phase === "impact");
 
   const applyPose = (pose) => {
@@ -104,6 +130,14 @@ export default function CameraRig() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusRequest]);
 
+  // "Crater" button: back to the close-up of the finished run's crater.
+  useEffect(() => {
+    if (!craterRequest || !geo) return;
+    const pose = focusPose(geo.center, geo.frame, geo.closeRadiusRE, camera, geo.horizontal, newPose(), CRATER_TILT);
+    fly(pose, 1400, () => settle("focus", geo.center));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [craterRequest]);
+
   // "Globe view" button.
   useEffect(() => {
     if (!globeRequest) return;
@@ -124,15 +158,31 @@ export default function CameraRig() {
 
   useFrame(() => {
     if (cinematic && geo && wideStart.current) {
-      // Start from a wide shot showing the incoming path, end framed on the impact site.
+      // A wide shot of the incoming path, then down to a close-up of the crater
+      // as it forms; back out over the damage as the blast spreads, and out to
+      // the whole planet after the largest impacts.
       const t = clock.t;
-      const focus = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal, scratch.focus);
-      const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), scratch.intro);
-      const u = Math.min(1, t / APPROACH_SECONDS);
-      const k = u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7);
-      const pose = blendPose(intro, focus, k, scratch.out);
-      // Camera shake right after impact.
       const tau = t - APPROACH_SECONDS;
+      const close = focusPose(
+        geo.center,
+        geo.frame,
+        geo.closeRadiusRE,
+        camera,
+        geo.horizontal,
+        scratch.close,
+        CRATER_TILT,
+      );
+      let pose;
+      if (tau < 0) {
+        const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), scratch.intro);
+        const u = Math.min(1, t / APPROACH_SECONDS);
+        pose = blendPose(intro, close, u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7), scratch.out);
+      } else {
+        const region = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal, scratch.focus);
+        pose = blendPose(close, region, ramp(holdUntil, holdUntil + 2.4, tau), planet ? scratch.mid : scratch.out);
+        if (planet) pose = blendPose(scratch.mid, planet, ramp(holdUntil + 3, holdUntil + 6, tau), scratch.out);
+      }
+      // Camera shake right after impact.
       if (tau > 0 && tau < 1.2) {
         const amp = pose.position.distanceTo(pose.target) * 0.012 * (1 - tau / 1.2);
         pose.position.x += (Math.random() - 0.5) * amp;

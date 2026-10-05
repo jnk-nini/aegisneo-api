@@ -4,6 +4,7 @@ import { EARTH_RADIUS_M } from "../physics/impact.js";
 import { latLonToVector, localFrame } from "./sphereMath.js";
 import { outermostRadiusM } from "../physics/zones.js";
 import { PATH_LENGTH_RE } from "./timeline.js";
+import { craterVisual } from "./craterShape.js";
 
 let glow = null;
 /** Soft radial glow used for the flash, fireball and entry glow. */
@@ -71,6 +72,14 @@ export function runGeometry(run) {
   const end = center.clone().addScaledVector(incoming, burstRE / Math.max(Math.sin(theta), 0.05));
   const outer = Math.max(outermostRadiusM(run.result), (run.result.crater?.finalDiameterM ?? 0) * 3, 4000);
   const viewRadiusRE = (outer * 1.3) / EARTH_RADIUS_M;
+  // Close-up right after impact: the crater and its ejecta (or, for an
+  // airburst, the fireball), so the forming crater fills the view.
+  const crater = craterVisual(run.result);
+  const fireballM = run.result.fireballRadiusM ?? 0;
+  const closeM = crater
+    ? Math.max(crater.radiusM * 2.6, fireballM * 1.5, 800)
+    : Math.max(fireballM * 3, outer * 0.3, 2000);
+  const closeRadiusRE = Math.min(closeM / EARTH_RADIUS_M, viewRadiusRE);
   return {
     center,
     frame,
@@ -80,6 +89,7 @@ export function runGeometry(run) {
     end,
     burstRE,
     viewRadiusRE,
+    closeRadiusRE,
     airburst: run.result.entry.regime === "airburst",
   };
 }
@@ -92,14 +102,23 @@ const _b = new Vector3();
 const _c = new Vector3();
 
 /**
- * Camera pose that frames `viewRadiusRE` around a surface point, tilted for
- * depth. Writes into `out` (reuse one per caller to avoid per-frame garbage).
+ * Camera pose that frames `viewRadiusRE` around a surface point, tilted
+ * `tiltDeg` from straight down for depth. Writes into `out` (reuse one per
+ * caller to avoid per-frame garbage).
  */
-export function focusPose(center, frame, viewRadiusRE, camera, horizontal = frame.north, out = newPose()) {
+export function focusPose(
+  center,
+  frame,
+  viewRadiusRE,
+  camera,
+  horizontal = frame.north,
+  out = newPose(),
+  tiltDeg = 38,
+) {
   const vfov = (camera.fov * Math.PI) / 180;
   const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
-  const distance = Math.min(Math.max(viewRadiusRE / Math.tan(Math.min(vfov, hfov) / 2), 0.0005), 3.6);
-  const tilt = (38 * Math.PI) / 180;
+  const distance = Math.min(Math.max(viewRadiusRE / Math.tan(Math.min(vfov, hfov) / 2), 0.0002), 3.6);
+  const tilt = (tiltDeg * Math.PI) / 180;
   const side = _a
     .crossVectors(frame.up, horizontal)
     .multiplyScalar(0.83)

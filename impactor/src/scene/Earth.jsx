@@ -1,7 +1,10 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { AdditiveBlending, BackSide, Vector3 } from "three";
+import { useSim } from "../store.js";
 import { createZoneUniforms, zoneShader, zoneUniforms } from "./zoneOverlay.js";
+import { createDamageUniforms, damageShader, damageUniforms } from "./damageOverlay.js";
+import { noiseShader, surfaceShader } from "./surfaceShader.js";
 
 const earthVertex = /* glsl */ `
   #include <common>
@@ -22,36 +25,27 @@ const earthVertex = /* glsl */ `
 const earthFragment = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_fragment>
-  uniform sampler2D dayMap;
-  uniform sampler2D nightMap;
-  uniform sampler2D maskMap;
-  uniform vec3 sunDir;
+  ${noiseShader}
+  ${surfaceShader}
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vPosW;
   ${zoneShader}
+  ${damageShader}
   void main() {
     #include <logdepthbuf_fragment>
     vec3 n = normalize(vNormalW);
+    // The crater patch (CraterPatch.jsx) replaces the globe around the impact.
+    if (dmgChordB.w > 0.0 && length(n - zoneCenter) < dmgChordB.w) discard;
     vec3 viewDir = normalize(cameraPosition - vPosW);
-    float ndl = dot(n, sunDir);
-    float dayAmount = smoothstep(-0.12, 0.2, ndl);
 
     vec3 day = texture2D(dayMap, vUv).rgb;
     vec3 night = texture2D(nightMap, vUv).rgb;
-    float ocean = 1.0 - texture2D(maskMap, vUv).r;
+    float land = texture2D(maskMap, vUv).r;
+    vec3 glow = applyDamage(day, night, land, n);
+    vec3 color = shadeSurface(day, night, 1.0 - land, n, n, viewDir) + glow;
 
-    vec3 lit = day * (0.05 + 1.1 * max(ndl, 0.0));
-    vec3 halfDir = normalize(sunDir + viewDir);
-    lit += vec3(1.0, 0.92, 0.8) * pow(max(dot(n, halfDir), 0.0), 70.0) * ocean * 0.55;
-    vec3 color = mix(night * 1.6 + day * 0.025, lit, dayAmount);
-
-    // Thin blue limb, brighter on the day side, orange along the terminator.
-    float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
-    float terminator = smoothstep(0.25, 0.0, abs(ndl));
-    color += mix(vec3(0.25, 0.55, 1.0), vec3(1.0, 0.5, 0.2), terminator * 0.6) * fresnel * (0.15 + 0.85 * dayAmount);
-
-    gl_FragColor = vec4(color, 1.0);
+    gl_FragColor = vec4(applyDust(color), 1.0);
     #include <colorspace_fragment>
     gl_FragColor.rgb = drawZones(gl_FragColor.rgb, n);
   }
@@ -63,15 +57,31 @@ const cloudFragment = /* glsl */ `
   uniform sampler2D cloudMap;
   uniform vec3 sunDir;
   uniform float opacity;
+  uniform vec3 zoneCenter;
+  uniform vec4 zoneShock;
+  uniform vec4 dmgChordA;
+  uniform vec4 dmgFx;
   varying vec2 vUv;
   varying vec3 vNormalW;
   varying vec3 vPosW;
   void main() {
     #include <logdepthbuf_fragment>
+    vec3 n = normalize(vNormalW);
     float density = texture2D(cloudMap, vUv).r;
-    float ndl = dot(normalize(vNormalW), sunDir);
+    float c = length(n - zoneCenter);
+    // Blast winds tear the clouds apart where they flatten forests, and a
+    // condensation ring rides the shock front.
+    if (dmgChordA.z > 0.0) {
+      density *= mix(1.0, 0.15, 1.0 - smoothstep(dmgChordA.z * 0.85, dmgChordA.z, c));
+    }
+    if (zoneShock.y > 0.0) {
+      float d = (c - zoneShock.x) / max(zoneShock.x * 0.03, 1e-5);
+      density = max(density, 0.75 * zoneShock.y * exp(-d * d));
+    }
+    float ndl = dot(n, sunDir);
     float light = 0.04 + 0.96 * smoothstep(-0.15, 0.35, ndl);
-    gl_FragColor = vec4(vec3(light), density * 0.82 * opacity);
+    vec3 tint = mix(vec3(1.0), vec3(0.45, 0.38, 0.3), dmgFx.y);
+    gl_FragColor = vec4(vec3(light) * tint, density * 0.82 * opacity);
     #include <colorspace_fragment>
   }
 `;
@@ -93,13 +103,16 @@ const atmosphereFragment = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_fragment>
   uniform vec3 sunDir;
+  uniform vec4 dmgFx;
   varying vec3 vNormalV;
   varying vec3 vNormalW;
   void main() {
     #include <logdepthbuf_fragment>
     float intensity = pow(clamp(0.68 - dot(vNormalV, vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 3.5);
     float sunSide = 0.2 + 0.8 * smoothstep(-0.35, 0.45, dot(vNormalW, sunDir));
-    gl_FragColor = vec4(vec3(0.3, 0.6, 1.0) * intensity * sunSide * 1.6, 1.0);
+    // Dust from the largest impacts turns the blue limb a dull brown.
+    vec3 sky = mix(vec3(0.3, 0.6, 1.0), vec3(0.55, 0.36, 0.2), dmgFx.y);
+    gl_FragColor = vec4(sky * intensity * sunSide * 1.6, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -110,7 +123,8 @@ const ATMOSPHERE_RADIUS = 1.03;
 /**
  * Unit-radius Earth. `scale` lets the flyby view shrink it without breaking the
  * cloud fade, which depends on the camera's altitude in Earth radii. With
- * `showZones`, it paints the damage zones set through zoneOverlay.js.
+ * `showZones`, it paints the damage zones and ground damage set through
+ * zoneOverlay.js and damageOverlay.js.
  */
 export default function Earth({
   textures,
@@ -121,25 +135,38 @@ export default function Earth({
   showZones = false,
 }) {
   const cloudsRef = useRef();
+  const lowQuality = useSim((s) => s.quality === "low");
   const sun = useMemo(() => sunDir.clone().normalize(), [sunDir]);
   const tmp = useMemo(() => new Vector3(), []);
 
   const zones = useMemo(() => (showZones ? zoneUniforms : createZoneUniforms()), [showZones]);
+  const damage = useMemo(() => (showZones ? damageUniforms : createDamageUniforms()), [showZones]);
+  // Fixed when the material is built; phones get cheaper noise.
+  const defines = useMemo(() => ({ NOISE_OCTAVES: lowQuality ? 2 : 4 }), [lowQuality]);
   const earthUniforms = useMemo(
     () => ({
       ...zones,
+      ...damage,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
       maskMap: { value: textures.mask },
       sunDir: { value: sun },
     }),
-    [textures, sun, zones],
+    [textures, sun, zones, damage],
   );
   const cloudUniforms = useMemo(
-    () => ({ cloudMap: { value: textures.clouds }, sunDir: { value: sun }, opacity: { value: 1 } }),
-    [textures, sun],
+    () => ({
+      cloudMap: { value: textures.clouds },
+      sunDir: { value: sun },
+      opacity: { value: 1 },
+      zoneCenter: zones.zoneCenter,
+      zoneShock: zones.zoneShock,
+      dmgChordA: damage.dmgChordA,
+      dmgFx: damage.dmgFx,
+    }),
+    [textures, sun, zones, damage],
   );
-  const atmosphereUniforms = useMemo(() => ({ sunDir: { value: sun } }), [sun]);
+  const atmosphereUniforms = useMemo(() => ({ sunDir: { value: sun }, dmgFx: damage.dmgFx }), [sun, damage]);
 
   useFrame(({ camera, gl }, dt) => {
     zones.zonePixelRatio.value = gl.getPixelRatio();
@@ -159,7 +186,8 @@ export default function Earth({
         {/* Uniforms go through args: a `uniforms` prop is copied entry by entry, so
             numbers updated in place later (zone count, cloud fade) would never arrive. */}
         <shaderMaterial
-          args={[{ vertexShader: earthVertex, fragmentShader: earthFragment, uniforms: earthUniforms }]}
+          key={lowQuality ? "low" : "high"}
+          args={[{ vertexShader: earthVertex, fragmentShader: earthFragment, uniforms: earthUniforms, defines }]}
         />
       </mesh>
       <mesh ref={cloudsRef} raycast={() => null}>
@@ -173,9 +201,9 @@ export default function Earth({
       <mesh raycast={() => null}>
         <sphereGeometry args={[ATMOSPHERE_RADIUS, 64, 32]} />
         <shaderMaterial
-          vertexShader={atmosphereVertex}
-          fragmentShader={atmosphereFragment}
-          uniforms={atmosphereUniforms}
+          args={[
+            { vertexShader: atmosphereVertex, fragmentShader: atmosphereFragment, uniforms: atmosphereUniforms },
+          ]}
           side={BackSide}
           blending={AdditiveBlending}
           transparent

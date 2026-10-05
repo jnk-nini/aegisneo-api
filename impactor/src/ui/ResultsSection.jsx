@@ -124,6 +124,8 @@ export function SavedList() {
 export default function ResultsSection() {
   const run = useSim((s) => s.run);
   const phase = useSim((s) => s.phase);
+  const view3d = useSim((s) => s.view3d);
+  const showZoneRings = useSim((s) => s.showZoneRings);
   const zones = useMemo(() => zonesFor(run?.result), [run]);
   const cities = useMemo(() => (run ? citiesInRange(run.target, zones) : { list: [] }), [run, zones]);
 
@@ -226,7 +228,19 @@ export default function ResultsSection() {
 
       {zones.length > 0 ? (
         <>
-          <h3>Damage zones · radius from impact</h3>
+          <div className="zone-heading">
+            <h3>Damage zones · radius from impact</h3>
+            {view3d && (
+              <label className="zone-toggle">
+                <input
+                  type="checkbox"
+                  checked={showZoneRings}
+                  onChange={(e) => useSim.getState().setShowZoneRings(e.target.checked)}
+                />
+                <span>Outline on globe</span>
+              </label>
+            )}
+          </div>
           <ul className="zone-list">
             {zones.map((z) => (
               <li key={z.key}>

@@ -1,14 +1,28 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { Billboard, Line } from "@react-three/drei";
-import { AdditiveBlending, Color, Quaternion, Vector3 } from "three";
+import { AdditiveBlending, Quaternion, Vector3 } from "three";
 import { useSim } from "../store.js";
-import { simulateImpact } from "../physics/impact.js";
+import { EARTH_RADIUS_M, simulateImpact } from "../physics/impact.js";
 import { zonesFor } from "../physics/zones.js";
-import { latLonToVector, localFrame } from "./sphereMath.js";
+import { latLonToVector } from "./sphereMath.js";
 import { clearZones, setShock, setZoneOpacity, setZones } from "./zoneOverlay.js";
-import { APPROACH_SECONDS, TOTAL_SECONDS, clock, phaseAt, shockRadiusM } from "./timeline.js";
+import { resetDamage, setDamage } from "./damageOverlay.js";
+import {
+  APPROACH_SECONDS,
+  TOTAL_SECONDS,
+  aftermathRealSeconds,
+  clock,
+  phaseAt,
+  shockRadiusM,
+  simulatedSeconds,
+} from "./timeline.js";
 import { glowTexture, rockGeometry, runGeometry } from "./effects.js";
+import { craterVisual } from "./craterShape.js";
+import { damageRadii, reentrySeconds, severity, tsunamiSpeed } from "./impactVisuals.js";
+import CraterPatch from "./CraterPatch.jsx";
+import Plume from "./Plume.jsx";
+import { EjectaCurtain, Reentry } from "./Ejecta.jsx";
 
 const Y_AXIS = new Vector3(0, 1, 0);
 const smooth = (a, b, x) => {
@@ -202,179 +216,114 @@ function Asteroid({ geo, run }) {
   );
 }
 
-/** Flash, fireball, expanding air blast, damage zones, crater and ejecta. */
-function ImpactEffects({ geo, run }) {
-  const isMobile = useThree((s) => s.size.width < 900);
+/**
+ * Flash, the air-blast front, damage on the ground, and (when switched on) the
+ * damage-zone rings. The ground damage and rings are painted by the globe and
+ * crater shaders through damageOverlay.js and zoneOverlay.js.
+ */
+function ImpactEffects({ geo, run, visual }) {
+  const showZoneRings = useSim((s) => s.showZoneRings);
   const zones = useMemo(
     () => zonesFor(run.result).filter((z) => z.key !== "fireball" && z.key !== "crater"),
     [run],
   );
-  const crater = run.result.crater;
-  const craterIndex = crater?.finalDiameterM && !geo.airburst ? zones.length : -1;
+  const craterZone = useMemo(() => zonesFor(run.result).find((z) => z.key === "crater"), [run]);
   const outerM = zones[0]?.radiusM ?? 0;
-  const burstPoint = geo.end;
+  const radii = useMemo(() => damageRadii(run.result), [run]);
+  const level = useMemo(() => severity(run.result), [run]);
+  const aftermathS = useMemo(() => aftermathRealSeconds(run), [run]);
+  const water = run.params.surface === "water";
   const flash = useRef();
-  const fireball = useRef();
   const fills = useRef([]);
-  const debris = useRef();
 
-  // Zones and crater are painted by the Earth shader (see zoneOverlay.js); they
-  // start transparent and fade in as the blast front reaches them.
+  // Outlines of the zones, only when the user asks for them. Their fills
+  // fade in as the blast front reaches them.
   useEffect(() => {
     const owner = {};
-    const layers = zones.map((z) => ({
-      radiusM: z.radiusM,
-      fill: z.color,
-      fillOpacity: 0,
-      line: z.line,
-      lineOpacity: 0.9,
-      width: 1.6,
-    }));
-    if (craterIndex >= 0) {
-      layers.push({
-        radiusM: crater.finalDiameterM / 2,
-        fill: "#140a06",
-        fillOpacity: 0,
-        line: "#ff9a52",
-        lineOpacity: 0,
-        width: 2.2,
-      });
+    const layers = showZoneRings
+      ? zones.map((z) => ({
+          radiusM: z.radiusM,
+          fill: z.color,
+          fillOpacity: 0,
+          line: z.line,
+          lineOpacity: 0.9,
+          width: 1.6,
+        }))
+      : [];
+    if (showZoneRings && craterZone) {
+      layers.push({ radiusM: craterZone.radiusM, fillOpacity: 0, line: craterZone.line, lineOpacity: 0.9, width: 2 });
     }
     fills.current = layers.map(() => 0);
     setZones(owner, geo.center, layers);
     return () => clearZones(owner);
-  }, [geo, zones, crater, craterIndex]);
+  }, [geo, zones, craterZone, showZoneRings]);
+  useEffect(() => () => resetDamage(), []);
 
-  // Fireball size: Eq. 32 radius when the model reports one; otherwise a visual glow
-  // scaled to the blast so airbursts still read clearly.
-  const fireballRE = Math.max(run.result.fireballRadiusM ?? 0, Math.min(outerM * 0.08, 40000), 300) / 6.371e6;
-  const showDebris = !geo.airburst;
-
-  const debrisData = useMemo(() => {
-    const count = isMobile ? 160 : 380;
-    const spread = Math.max((crater?.finalDiameterM ?? 0) * 2.5, outerM * 0.18, 1500) / 6.371e6;
-    const { east, north, up } = localFrame(geo.center);
-    const dirs = [];
-    const params = [];
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      dirs.push(east.clone().multiplyScalar(Math.cos(a)).addScaledVector(north, Math.sin(a)));
-      const T = 0.8 + Math.random() * 1.6;
-      const R = spread * (0.15 + Math.random() ** 1.5 * 0.85);
-      params.push({ T, vh: R / T, vv: (spread * 4 * T) / 2 });
-    }
-    return { dirs, params, up, g: spread * 4, positions: new Float32Array(count * 3) };
-  }, [geo, crater, outerM, isMobile]);
-
-  // Hot ejecta cooling to dust (or spray settling to sea), mixed into one reused colour.
-  const debrisColors = useMemo(() => {
-    const water = run.target.surface === "water";
-    return {
-      hot: new Color(water ? "#d8f0ff" : "#ffb35c"),
-      cool: new Color(water ? "#7fb6d9" : "#5a3a28"),
-      now: new Color(),
-    };
-  }, [run]);
-  const tmp = useMemo(() => new Vector3(), []);
-
-  useFrame(() => {
+  useFrame(({ clock: frameClock }) => {
     const tau = clock.t - APPROACH_SECONDS;
     const done = useSim.getState().phase === "done";
-    const active = tau >= 0;
+    const active = done || tau >= 0;
 
     if (flash.current) {
-      const k = active ? Math.max(0, 1 - tau / 0.7) : 0;
-      flash.current.visible = k > 0 && !done;
-      flash.current.scale.setScalar(geo.viewRadiusRE * (0.4 + (1 - k) * 0.9));
+      const k = tau >= 0 && !done ? Math.max(0, 1 - tau / 0.7) : 0;
+      flash.current.visible = k > 0;
+      flash.current.scale.setScalar(geo.closeRadiusRE * (1.2 + (1 - k) * 2.5));
       flash.current.material.opacity = k * k;
     }
-    if (fireball.current) {
-      const grow = smooth(0, 0.9, tau);
-      const fade = 1 - smooth(1.2, 3.6, tau);
-      fireball.current.visible = active && fade > 0 && !done;
-      fireball.current.scale.setScalar(fireballRE * 2.4 * (0.3 + 0.7 * grow));
-      fireball.current.material.opacity = fade;
+
+    if (!active) {
+      setShock(0, 0);
+      setDamage({});
+      return;
     }
-    const front = active ? (done ? outerM * 2 : shockRadiusM(clock.t, run)) : 0;
-    const shockVisible = active && !done && front > 0 && front < outerM * 1.08;
-    setShock(Math.min(front, outerM), shockVisible ? 0.95 : 0);
-    zones.forEach((z, i) => {
-      const reached = front >= z.radiusM;
-      const target = reached ? 0.12 + 0.1 * (i / Math.max(1, zones.length - 1)) : 0;
-      const current = fills.current[i] ?? 0;
-      fills.current[i] = done ? target : current + (target - current) * 0.12;
-      setZoneOpacity(i, fills.current[i]);
+    const s = done ? aftermathS : Math.max(0, simulatedSeconds(clock.t, run));
+    const front = done ? Infinity : shockRadiusM(clock.t, run);
+    const shockVisible = !done && front > 0 && front < outerM * 1.08;
+    setShock(Math.min(front, outerM), shockVisible ? 0.95 : 0, 4);
+
+    if (useSim.getState().showZoneRings) {
+      zones.forEach((z, i) => {
+        const target = front >= z.radiusM ? 0.12 + 0.1 * (i / Math.max(1, zones.length - 1)) : 0;
+        const current = fills.current[i] ?? 0;
+        fills.current[i] = done ? target : current + (target - current) * 0.12;
+        setZoneOpacity(i, fills.current[i]);
+      });
+    }
+
+    // After the largest impacts, fires spread worldwide as ejecta falls back
+    // in, and dust and soot darken the whole planet over the following hours.
+    const fireAll = level > 0.3 ? level * smooth(reentrySeconds(0.3), reentrySeconds(Math.PI), s) : 0;
+    const firesM = radii.fires + (Math.PI * EARTH_RADIUS_M - radii.fires) * fireAll;
+    setDamage({
+      scorchM: radii.scorch,
+      firesM,
+      flattenedM: Math.min(radii.flattened, front),
+      lightsOutM: Math.min(radii.lightsOut, front),
+      wreckedM: Math.min(radii.wrecked, front),
+      tsunamiM: water ? tsunamiSpeed() * s : 0,
+      holeM: visual ? visual.patchRadiusM * 0.995 : 0,
+      levels: [done ? 1 : smooth(0, 0.8, tau), done ? 1 : smooth(0.6, 2.5, tau), 1, 1],
+      tsunami: water ? 1 : 0,
+      dust: level * 0.85 * smooth(0.02 * aftermathS, 0.6 * aftermathS, s),
+      time: frameClock.elapsedTime,
+      lightsOut: 1,
     });
-    if (craterIndex >= 0) {
-      const show = done ? 1 : smooth(0.15, 0.8, tau);
-      setZoneOpacity(craterIndex, 0.92 * show, show > 0.05 ? 1 : 0);
-    }
-    if (debris.current && showDebris) {
-      const { dirs, params, up, g, positions } = debrisData;
-      const visible = active && tau < 5 && !done;
-      debris.current.visible = visible;
-      if (visible) {
-        for (let i = 0; i < dirs.length; i++) {
-          const p = params[i];
-          const s = Math.min(tau, p.T);
-          const height = Math.max(0, p.vv * s - 0.5 * g * s * s);
-          tmp
-            .copy(geo.center)
-            .addScaledVector(dirs[i], p.vh * s)
-            .addScaledVector(up, height + 2e-6);
-          positions[i * 3] = tmp.x;
-          positions[i * 3 + 1] = tmp.y;
-          positions[i * 3 + 2] = tmp.z;
-        }
-        const attr = debris.current.geometry.getAttribute("position");
-        attr.needsUpdate = true;
-        const { hot, cool, now } = debrisColors;
-        debris.current.material.color.copy(now.lerpColors(hot, cool, smooth(0, 2.5, tau)));
-        debris.current.material.opacity = 1 - smooth(3.5, 5, tau);
-      }
-    }
   });
 
   return (
-    <group>
-      <Billboard position={burstPoint}>
-        <mesh ref={fireball} visible={false} raycast={() => null}>
-          <planeGeometry args={[1, 1]} />
-          <meshBasicMaterial
-            map={glowTexture()}
-            transparent
-            blending={AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh ref={flash} visible={false} raycast={() => null}>
-          <planeGeometry args={[1, 1]} />
-          <meshBasicMaterial
-            map={glowTexture()}
-            color="#fff8e8"
-            transparent
-            blending={AdditiveBlending}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-      </Billboard>
-      {showDebris && (
-        <points ref={debris} visible={false} frustumCulled={false} raycast={() => null}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[debrisData.positions, 3]} />
-          </bufferGeometry>
-          <pointsMaterial
-            size={isMobile ? 3 : 3.5}
-            sizeAttenuation={false}
-            transparent
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </points>
-      )}
-    </group>
+    <Billboard position={geo.end}>
+      <mesh ref={flash} visible={false} raycast={() => null}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          map={glowTexture()}
+          color="#fff8e8"
+          transparent
+          blending={AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </Billboard>
   );
 }
 
@@ -403,15 +352,25 @@ function Trajectory({ geo }) {
   );
 }
 
-export function ImpactSequence() {
+export function ImpactSequence({ textures, sunDir }) {
   const run = useSim((s) => s.run);
   const geo = useMemo(() => (run ? runGeometry(run) : null), [run]);
+  const visual = useMemo(() => (run ? craterVisual(run.result) : null), [run]);
   if (!run || !geo) return null;
+  const level = severity(run.result);
+  // Fireball radius from Eq. 32 when the model gives one; airbursts get a glow
+  // scaled to their blast so they still read clearly.
+  const outerM = zonesFor(run.result)[0]?.radiusM ?? 0;
+  const plumeM = Math.max(run.result.fireballRadiusM ?? 0, Math.min(outerM * 0.08, 40000), 300);
   return (
     <group key={run.id}>
       <Trajectory geo={geo} />
       <Asteroid geo={geo} run={run} />
-      <ImpactEffects geo={geo} run={run} />
+      <ImpactEffects geo={geo} run={run} visual={visual} />
+      {visual && <CraterPatch run={run} geo={geo} visual={visual} textures={textures} sunDir={sunDir} />}
+      {visual && <EjectaCurtain run={run} geo={geo} visual={visual} />}
+      <Plume run={run} geo={geo} radiusM={plumeM} sunDir={sunDir} />
+      {level > 0.3 && <Reentry run={run} geo={geo} strength={level} />}
     </group>
   );
 }
