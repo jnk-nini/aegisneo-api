@@ -10,24 +10,9 @@ import Earth from "./Earth.jsx";
 import CameraRig from "./CameraRig.jsx";
 import Flyby from "./Flyby.jsx";
 import { ImpactSequence, PreviewZones, TargetMarker, Timeline } from "./ImpactScene.jsx";
+import PostFX from "./PostFX.jsx";
 
 const isCoarse = () => window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 900;
-
-/** Lets the UI grab a PNG of the current 3D view without preserveDrawingBuffer. */
-function CaptureBridge() {
-  const { gl, scene, camera } = useThree();
-  useEffect(() => {
-    useSim.setState({
-      capture: () =>
-        new Promise((resolve) => {
-          gl.render(scene, camera);
-          gl.domElement.toBlob(resolve, "image/png");
-        }),
-    });
-    return () => useSim.setState({ capture: null });
-  }, [gl, scene, camera]);
-  return null;
-}
 
 /**
  * On phones the bottom sheet covers the lower part of the full-height canvas.
@@ -126,7 +111,9 @@ function SceneCanvas({ textures, onContextLost }) {
       dpr={dpr}
       camera={{ fov: 45, near: 1e-5, far: 2000, position: [0.6, 0.9, 3.3] }}
       gl={{
-        antialias: !coarse || dpr < 2,
+        // The scene is drawn into the post-processing buffers (PostFX), which do
+        // their own anti-aliasing, so the canvas itself needs none.
+        antialias: false,
         logarithmicDepthBuffer: true,
         powerPreference: "high-performance",
       }}
@@ -168,7 +155,7 @@ function SceneCanvas({ textures, onContextLost }) {
       ) : (
         <ImpactWorld textures={textures} sunDir={sunDir} />
       )}
-      <CaptureBridge />
+      <PostFX />
       <SheetViewOffset />
     </Canvas>
   );

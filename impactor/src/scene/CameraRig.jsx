@@ -16,6 +16,7 @@ const WORLD_UP = new Vector3(0, 1, 0);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const ramp = (a, b, x) => easeInOut(Math.min(1, Math.max(0, (x - a) / (b - a))));
 const CRATER_TILT = 55; // lower than the usual 38° so the crater's depth reads
+const ORBIT_RADIANS = 0.55; // how far the camera circles the site during the aftermath
 
 /** Whole-planet view centred on the impact, for the largest impacts. */
 function planetPose(geo) {
@@ -66,7 +67,14 @@ export default function CameraRig() {
   const flight = useRef(null);
   // Reused every frame so the cinematic allocates nothing (less GC stutter on phones).
   const scratch = useMemo(
-    () => ({ out: newPose(), intro: newPose(), focus: newPose(), close: newPose(), mid: newPose() }),
+    () => ({
+      out: newPose(),
+      intro: newPose(),
+      focus: newPose(),
+      close: newPose(),
+      mid: newPose(),
+      orbit: new Vector3(),
+    }),
     [],
   );
   const geo = useMemo(() => (run ? runGeometry(run) : null), [run]);
@@ -163,22 +171,18 @@ export default function CameraRig() {
       // the whole planet after the largest impacts.
       const t = clock.t;
       const tau = t - APPROACH_SECONDS;
-      const close = focusPose(
-        geo.center,
-        geo.frame,
-        geo.closeRadiusRE,
-        camera,
-        geo.horizontal,
-        scratch.close,
-        CRATER_TILT,
-      );
+      // After impact the camera slowly circles the site, so the parallax shows
+      // the crater, cloud and debris in depth instead of as a flat picture.
+      const drift = tau > 0 ? ORBIT_RADIANS * easeInOut(Math.min(1, tau / (holdUntil + 6))) : 0;
+      const around = scratch.orbit.copy(geo.horizontal).applyAxisAngle(geo.frame.up, drift);
+      const close = focusPose(geo.center, geo.frame, geo.closeRadiusRE, camera, around, scratch.close, CRATER_TILT);
       let pose;
       if (tau < 0) {
         const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), scratch.intro);
         const u = Math.min(1, t / APPROACH_SECONDS);
         pose = blendPose(intro, close, u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7), scratch.out);
       } else {
-        const region = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal, scratch.focus);
+        const region = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, around, scratch.focus);
         pose = blendPose(close, region, ramp(holdUntil, holdUntil + 2.4, tau), planet ? scratch.mid : scratch.out);
         if (planet) pose = blendPose(scratch.mid, planet, ramp(holdUntil + 3, holdUntil + 6, tau), scratch.out);
       }

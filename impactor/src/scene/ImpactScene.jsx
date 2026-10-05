@@ -22,7 +22,8 @@ import { craterVisual } from "./craterShape.js";
 import { damageRadii, reentrySeconds, severity, tsunamiSpeed } from "./impactVisuals.js";
 import CraterPatch from "./CraterPatch.jsx";
 import Plume from "./Plume.jsx";
-import { EjectaCurtain, Reentry } from "./Ejecta.jsx";
+import { EjectaCurtain, EjectaRocks, Reentry } from "./Ejecta.jsx";
+import ShockFront from "./ShockFront.jsx";
 
 const Y_AXIS = new Vector3(0, 1, 0);
 const smooth = (a, b, x) => {
@@ -195,6 +196,7 @@ function Asteroid({ geo, run }) {
           <planeGeometry args={[1, 1]} />
           <meshBasicMaterial
             map={glowTexture()}
+            color={[2.6, 2, 1.5]}
             transparent
             blending={AdditiveBlending}
             depthWrite={false}
@@ -205,7 +207,7 @@ function Asteroid({ geo, run }) {
       <mesh ref={trail} quaternion={trailQuat} raycast={() => null}>
         <cylinderGeometry args={[0.15, 1, 1, 16, 1, true]} />
         <meshBasicMaterial
-          color="#ffad5c"
+          color={[2.4, 1.1, 0.4]}
           transparent
           blending={AdditiveBlending}
           depthWrite={false}
@@ -279,7 +281,8 @@ function ImpactEffects({ geo, run, visual }) {
     const s = done ? aftermathS : Math.max(0, simulatedSeconds(clock.t, run));
     const front = done ? Infinity : shockRadiusM(clock.t, run);
     const shockVisible = !done && front > 0 && front < outerM * 1.08;
-    setShock(Math.min(front, outerM), shockVisible ? 0.95 : 0, 4);
+    // The front itself is drawn in 3D (ShockFront); only the clouds' ring is painted.
+    setShock(Math.min(front, outerM), shockVisible ? 0.95 : 0, 4, 0);
 
     if (useSim.getState().showZoneRings) {
       zones.forEach((z, i) => {
@@ -316,10 +319,11 @@ function ImpactEffects({ geo, run, visual }) {
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
           map={glowTexture()}
-          color="#fff8e8"
+          color={[2.6, 2.4, 2.1]}
           transparent
           blending={AdditiveBlending}
           depthWrite={false}
+          depthTest={false}
           toneMapped={false}
         />
       </mesh>
@@ -369,7 +373,9 @@ export function ImpactSequence({ textures, sunDir }) {
       <ImpactEffects geo={geo} run={run} visual={visual} />
       {visual && <CraterPatch run={run} geo={geo} visual={visual} textures={textures} sunDir={sunDir} />}
       {visual && <EjectaCurtain run={run} geo={geo} visual={visual} />}
+      {visual && visual.kind !== "water" && <EjectaRocks run={run} geo={geo} visual={visual} sunDir={sunDir} />}
       <Plume run={run} geo={geo} radiusM={plumeM} sunDir={sunDir} />
+      <ShockFront run={run} geo={geo} sunDir={sunDir} />
       {level > 0.3 && <Reentry run={run} geo={geo} strength={level} />}
     </group>
   );

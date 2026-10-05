@@ -19,7 +19,7 @@ export function createZoneUniforms() {
     zoneLine: { value: Array.from({ length: MAX_ZONES }, () => new Vector4()) },
     zoneWidth: { value: new Float32Array(MAX_ZONES) },
     zoneDashes: { value: new Float32Array(MAX_ZONES) },
-    zoneShock: { value: new Vector4() }, // chord, opacity, width, unused
+    zoneShock: { value: new Vector4() }, // chord, opacity, width, ground line strength
     zonePixelRatio: { value: 1 },
   };
 }
@@ -81,9 +81,12 @@ export function setZoneOpacity(i, fillOpacity, lineOpacity) {
   if (lineOpacity != null) zoneUniforms.zoneLine.value[i].w = lineOpacity;
 }
 
-/** The expanding air-blast front. */
-export function setShock(radiusM, opacity, width = 3) {
-  zoneUniforms.zoneShock.value.set(chordFor(radiusM), opacity, width, 0);
+/**
+ * The expanding air-blast front. The clouds always show its condensation ring;
+ * `groundLine` 0 leaves the crest off the ground (when a 3D front is drawn).
+ */
+export function setShock(radiusM, opacity, width = 3, groundLine = 1) {
+  zoneUniforms.zoneShock.value.set(chordFor(radiusM), opacity, width, groundLine);
 }
 
 export const zoneShader = /* glsl */ `
@@ -122,12 +125,12 @@ export const zoneShader = /* glsl */ `
       if (zoneDashes[i] > 0.0) line *= step(fract(around * zoneDashes[i]), 0.59);
       color = mix(color, zoneLine[i].rgb, zoneLine[i].a * line);
     }
-    if (zoneShock.y > 0.0) {
+    if (zoneShock.y * zoneShock.w > 0.0) {
       // The air-blast front: a bright crest with a glowing wake behind it.
       float d = c - zoneShock.x;
       float crest = zoneStroke(abs(d) / px, zoneShock.z);
       float wake = d < 0.0 ? 0.45 * exp(d / max(zoneShock.x * 0.05, px * 4.0)) : 0.0;
-      color = mix(color, vec3(1.0, 0.96, 0.88), zoneShock.y * clamp(0.9 * crest + wake, 0.0, 1.0));
+      color = mix(color, vec3(1.0, 0.96, 0.88), zoneShock.y * zoneShock.w * clamp(0.9 * crest + wake, 0.0, 1.0));
     }
     return color;
   }

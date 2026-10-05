@@ -43,7 +43,7 @@ const earthFragment = /* glsl */ `
     vec3 night = texture2D(nightMap, vUv).rgb;
     float land = texture2D(maskMap, vUv).r;
     vec3 glow = applyDamage(day, night, land, n);
-    vec3 color = shadeSurface(day, night, 1.0 - land, n, n, viewDir) + glow;
+    vec3 color = shadeSurface(day, night, 1.0 - land, n, n, viewDir) + glow + impactLight(vPosW, n, day);
 
     gl_FragColor = vec4(applyDust(color), 1.0);
     #include <colorspace_fragment>

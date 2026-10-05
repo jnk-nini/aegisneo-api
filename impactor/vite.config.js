@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // The 3D scene is lazy-loaded, so the dev server would only discover these
+    // on first launch and re-bundle mid-session, leaving two copies of React.
+    optimizeDeps: {
+      include: ["@react-three/fiber", "@react-three/drei", "@react-three/postprocessing", "postprocessing"],
+    },
     server: {
       proxy: {
         "/api/neo": {

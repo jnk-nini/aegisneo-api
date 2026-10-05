@@ -234,6 +234,7 @@ const fragmentShader = /* glsl */ `
     glow += meltColor(cMelt) * hot * 3.0;
 
     vec3 color = shadeSurface(day, night, (1.0 - land) * (1.0 - bowl * rock), dir, nL, viewDir) + glow;
+    color += impactLight(vPosW, nL, day);
     // A faint fill light so the crater's shape still reads on the night side.
     // It fades out well inside the patch, so the join with the globe doesn't show.
     float nightSide = 1.0 - smoothstep(-0.12, 0.2, dot(dir, sunDir));

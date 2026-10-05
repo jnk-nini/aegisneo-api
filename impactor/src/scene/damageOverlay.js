@@ -12,6 +12,8 @@ export function createDamageUniforms() {
     dmgChordB: { value: new Vector4() }, // wrecked, tsunami front, tsunami width, crater hole
     dmgLevel: { value: new Vector4() }, // scorched, fires, flattened, wrecked (0..1)
     dmgFx: { value: new Vector4() }, // tsunami strength, dust veil, time (s), lights-out level
+    dmgLight: { value: new Vector4() }, // fireball light: world position, reach (Earth radii)
+    dmgLightColor: { value: new Vector4() }, // its colour, brightness
   };
 }
 
@@ -49,12 +51,37 @@ export function setDamage({
   u.dmgFx.value.set(tsunami, dust, time, lightsOut);
 }
 
+/**
+ * Light from the fireball and molten rock, at `position` (world units) and
+ * reaching about `reachRE` Earth radii. Brightness 0 switches it off.
+ */
+export function setImpactLight(position, reachRE, color, brightness) {
+  damageUniforms.dmgLight.value.set(position.x, position.y, position.z, reachRE);
+  damageUniforms.dmgLightColor.value.set(color.x, color.y, color.z, brightness);
+}
+
+/** The fireball's light on anything nearby (ground, crater walls, ejecta). */
+export const impactLightShader = /* glsl */ `
+  uniform vec4 dmgLight;
+  uniform vec4 dmgLightColor;
+
+  vec3 impactLight(vec3 posW, vec3 normal, vec3 albedo) {
+    if (dmgLightColor.w <= 0.0) return vec3(0.0);
+    vec3 toLight = dmgLight.xyz - posW;
+    float d = length(toLight);
+    float falloff = 1.0 / (1.0 + d * d / (dmgLight.w * dmgLight.w));
+    float facing = max(dot(normal, toLight / max(d, 1e-9)), 0.0) * 0.85 + 0.15;
+    return (albedo + 0.04) * dmgLightColor.rgb * dmgLightColor.w * facing * falloff;
+  }
+`;
+
 /** Needs noiseShader and zoneShader (for zoneCenter/East/North) included first. */
 export const damageShader = /* glsl */ `
   uniform vec4 dmgChordA;
   uniform vec4 dmgChordB;
   uniform vec4 dmgLevel;
   uniform vec4 dmgFx;
+  ${impactLightShader}
 
   float dmgInside(float c, float chord, float soft) {
     return chord > 0.0 ? 1.0 - smoothstep(chord * (1.0 - soft), chord, c) : 0.0;
