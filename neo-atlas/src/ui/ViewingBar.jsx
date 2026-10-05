@@ -4,8 +4,20 @@
  * missing but could load on a retry, so it is never saved half-loaded.
  * The postcard also has the plain link to copy. Without `onPostcard` there is
  * no Postcard button (the card under the chart has one).
+ *
+ * `revealKey` writes the name in as the constellation draws itself.
  */
-export default function ViewingBar({ name, status, ready, isSaved, onSave, onPostcard, onExit }) {
+export default function ViewingBar({
+  name,
+  eyebrow = "Constellation",
+  status,
+  ready,
+  isSaved,
+  onSave,
+  onPostcard,
+  onExit,
+  revealKey = null,
+}) {
   return (
     <div className="viewing-bar">
       <button
@@ -17,8 +29,10 @@ export default function ViewingBar({ name, status, ready, isSaved, onSave, onPos
         ‹
       </button>
       <div className="viewing-title">
-        <span className="eyebrow">Constellation</span>
-        <strong>{status === "loading" ? "Loading…" : name}</strong>
+        <span className="eyebrow">{eyebrow}</span>
+        <strong key={revealKey ?? "name"} className={revealKey ? "name-reveal" : undefined}>
+          {status === "loading" ? "Loading…" : name}
+        </strong>
       </div>
       <div className="viewing-actions">
         {!isSaved && (

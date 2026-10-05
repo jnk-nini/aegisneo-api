@@ -1,35 +1,45 @@
 # NEO Atlas
 
-A star atlas of real near-Earth asteroids. Pick a year (1910–2024) or a date such as your birthday, and the
-asteroids whose close approach falls then are drawn as a planisphere:
+A star atlas of real near-Earth asteroids, made for phones. Tell it your birthday and it reveals the real
+asteroids that passed Earth on that day (in every year from 1910 to 2024), joins the biggest into your own
+constellation, and turns it into a postcard you can send.
 
-- **Earth** sits at the center.
-- **Angle** around the dial is the day of the year of the close approach (January at the top, clockwise).
-- **Distance from the center** is the real miss distance.
-- **Star size** is the estimated diameter; potentially hazardous objects are marked in red with a distinct shape.
+Live site: **https://neo-atlas-pearl.vercel.app**
 
-Visitors can connect stars into their own constellations, save them, and send them as postcards or links.
+![The postcard maker on a phone](docs/images/04-postcard.jpg)
 
-## Birthday postcards
+## What it does
 
-1. **First visit:** the site asks for a birthday (day and month only) and charts that date across every year.
-2. **A constellation is drawn for you:** the biggest asteroids of that sky are joined into a shape with a
-   made-up name, such as "The Silver Kite". *Shuffle* tries another shape; *Draw my own* joins stars by hand.
-   The same sky always gives the same first shape.
-3. **Write a postcard:** a title, a message (up to 160 characters) and who it's from, in one of three looks
-   (Midnight, Dusk, Parchment). The card is a 1080×1350 picture drawn in the browser.
-4. **Send it:** on phones *Share postcard* hands the picture and a link to the phone's share sheet;
-   everywhere, *Download* saves the picture and *Copy link* copies the link.
-5. **Receiving one:** the link opens the same postcard on the site, then *See it on the chart* or *Make your own*.
+- **One question first.** A first visit shows only "When's your birthday?" and one button.
+- **The reveal.** The sky fades in, the stars pop in and the constellation draws itself, with a made-up
+  name such as _The Iron Crown_. _Shuffle_ tries another shape; _Draw my own_ joins stars by hand.
+- **Postcards in one tap.** The card fills the screen: swipe for six looks, tap a ready-made message or
+  write your own, then _Send_. Every postcard starts blank; your name is remembered. The card has a
+  postage stamp with the biggest asteroid's real size, a postmark and a line of fun facts
+  (_"Biggest: as tall as 3 Burj Khalifas"_).
+- **Your asteroid sign.** A horoscope-style card from your birthday's biggest asteroid: real numbers,
+  made-up meanings, and it says so.
+- **Star Match.** Someone who receives a birthday postcard adds their own birthday, and the two
+  constellations are joined into one, with a playful match score and a reply postcard ready to send.
+- **Sealed postcards.** Send one early: the link shows a sealed envelope and a countdown until the birthday.
+- **The full atlas.** Every star is a real asteroid: tap for its size, speed and how close it came; browse
+  by year or date, as a chart or a list; save constellations, export and import them.
 
-Every constellation (saved, shared or ready-made) has a *Postcard* button too. The card says in its fine print
-that sizes and miss distances are real but dates are simulated. A message in a link is the sender's own text:
-it is only ever shown as plain text, and the page says the sender wrote it.
+Sizes, speeds and miss distances are real; **close-approach dates are simulated** (see below).
+
+## Documentation
+
+| Document                                    | What's in it                                                                  |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
+| [User guide](docs/user-guide.md)            | Every screen step by step: the reveal, postcards, the sign, Star Match, sealing, exploring |
+| [Architecture](docs/architecture.md)        | Components, the main flows, link parameters, drawing the cards, the reveal, the API proxy |
+| [Data and limits](docs/data-and-limits.md)  | What is real, simulated or just for fun; the sign and match rules; known limitations |
+| [Testing](docs/testing.md)                  | Running the checks, what the 64 unit tests cover, the manual checklist         |
+
+## How it uses the AegisNEO API
 
 NEO Atlas is a separate website from the main AegisNEO site. It gets all of its asteroid data from the
 [AegisNEO API](https://aegisneo-api.vercel.app/docs), to show the API can be used by other sites.
-
-## How it uses the AegisNEO API
 
 | Feature | API call |
 | --- | --- |
@@ -48,11 +58,11 @@ In development, the Vite dev server runs the same function ([`vite.config.js`](v
 
 Nothing is stored on a server:
 
-- **Share links** hold the whole constellation (asteroid IDs and name) in the URL, plus its sky (`d` or `y`)
-  so the rest of that sky can be drawn faintly behind it.
-- **Postcards** are drawn on the visitor's device. A postcard link adds the message (`pm`), sender (`pf`)
-  and look (`pt`) to the share link; nothing is uploaded.
-- **My constellations** are kept in the browser's `localStorage` on the visitor's device.
+- **Links carry everything shareable**: the constellation (asteroid IDs, name and sky), and for a postcard
+  its message (`pm`), sender (`pf`), look (`pt`) and seal date (`ps`). The full list is in
+  [Architecture § 5](docs/architecture.md#5-the-link-is-the-database).
+- **Pictures are drawn on the visitor's device** (postcards, sealed envelopes, sign cards); nothing is uploaded.
+- **Saved constellations and the sender's name** are kept in the browser's `localStorage`.
 - **Export / import** saves constellations to a JSON file and loads them back.
 
 ## Running locally

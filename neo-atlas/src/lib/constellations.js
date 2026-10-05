@@ -5,7 +5,8 @@
 //   - an exported JSON file the visitor can import again.
 
 export const MIN_STARS = 2;
-export const MAX_POINTS = 24; // taps in a path; a star may be revisited to close a loop
+export const MAX_POINTS = 24; // taps in a drawing; a star may be revisited to close a loop
+export const MAX_PATH = 40; // points in a stored or shared path: room for two joined constellations (Star Match)
 export const MAX_NAME = 40;
 // An export of hundreds of constellations is well under this; anything bigger isn't one.
 export const MAX_IMPORT_BYTES = 1_000_000;
@@ -79,7 +80,7 @@ export function cleanAsteroid(a) {
 function cleanPath(path, known) {
   const out = [];
   for (const id of path) {
-    if (out.length >= MAX_POINTS) break;
+    if (out.length >= MAX_PATH) break;
     if (known.has(id) && out[out.length - 1] !== id) out.push(id);
   }
   return out;

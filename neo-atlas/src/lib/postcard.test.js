@@ -165,17 +165,19 @@ describe("postcard links", () => {
       message: "Happy birthday!\nLove",
       from: "Nini",
       theme: "dusk",
+      sealed: null,
     });
     expect(sharedFromQuery(query).path).toEqual(["a", "b"]);
   });
 
   it("aren't postcards without postcard fields, and fall back to a known look", () => {
     expect(postcardFromQuery(shareQuery(c))).toBeNull();
-    expect(postcardFromQuery("?pt=<b>")).toEqual({ message: "", from: "", theme: "midnight" });
+    expect(postcardFromQuery("?pt=<b>")).toEqual({ message: "", from: "", theme: "midnight", sealed: null });
     expect(postcardFromQuery("?pm=" + encodeURIComponent("<img src=x>"))).toEqual({
       message: "<img src=x>",
       from: "",
       theme: "midnight",
+      sealed: null,
     });
   });
 });

@@ -21,7 +21,9 @@ import {
 } from "./lib/constellations.js";
 import { formatMonthDay, plural } from "./lib/format.js";
 import { highlightTest } from "./lib/highlights.js";
-import { DEFAULT_THEME, postcardFromQuery, postcardQuery } from "./lib/postcard.js";
+import { bridgeIndex, matchConstellation } from "./lib/match.js";
+import { postcardFromQuery, postcardQuery } from "./lib/postcard.js";
+import { asteroidSign } from "./lib/sign.js";
 import { completeSky, skyFromQuery, skySearch, skyTitle, skyToQuery } from "./lib/sky.js";
 import AutoCard from "./ui/AutoCard.jsx";
 import ChartTip from "./ui/ChartTip.jsx";
@@ -29,17 +31,18 @@ import ConfirmDialog from "./ui/ConfirmDialog.jsx";
 import ConstellationsView from "./ui/ConstellationsView.jsx";
 import DetailSheet from "./ui/DetailSheet.jsx";
 import DrawBar from "./ui/DrawBar.jsx";
+import Intro from "./ui/Intro.jsx";
 import Legend from "./ui/Legend.jsx";
 import ListView from "./ui/ListView.jsx";
 import PostcardComposer from "./ui/PostcardComposer.jsx";
 import PostcardReceived from "./ui/PostcardReceived.jsx";
+import SignCard from "./ui/SignCard.jsx";
 import SkyControls from "./ui/SkyControls.jsx";
 import SkySummary from "./ui/SkySummary.jsx";
 import StarChart from "./ui/StarChart.jsx";
 import TabBar from "./ui/TabBar.jsx";
 import Toast from "./ui/Toast.jsx";
 import ViewingBar from "./ui/ViewingBar.jsx";
-import WelcomeDialog from "./ui/WelcomeDialog.jsx";
 
 const TABS = [
   { id: "chart", label: "Chart" },
@@ -71,14 +74,14 @@ function initialState() {
   const { sky, selected } = skyFromQuery(search);
   const shared = sharedFromQuery(search);
   const postcard = shared ? postcardFromQuery(search) : null;
-  // The birthday welcome greets a first visit to the plain address, never a link to something.
+  // The birthday question greets a first visit to the plain address, never a link to something.
   const plain = !["y", "d", "a", "cs"].some((key) => new URLSearchParams(search).has(key));
   return {
     sky: completeSky(sky),
     selected: shared ? null : selected,
     viewing: shared ? { status: "loading", pending: shared, source: "shared" } : null,
     card: postcard ? { kind: "received", ...postcard } : null,
-    welcome: plain && !welcomeSeen(),
+    intro: plain && !welcomeSeen(),
   };
 }
 
@@ -128,14 +131,15 @@ export default function App() {
   const [selected, setSelected] = useState(initial.selected);
   const [highlight, setHighlight] = useState(null);
   const [confirm, setConfirm] = useState(null);
-  // The postcard open on top: { kind: "compose" }, or { kind: "received", message, from, theme } from a link.
+  // What is open on top: { kind: "compose", replyTo }, { kind: "sign" }, or
+  // { kind: "received", message, from, theme, sealed } from a link.
   const [card, setCard] = useState(initial.card);
-  const [welcome, setWelcome] = useState(initial.welcome);
-  // The sky (its API search) to make a constellation for as soon as it loads, after the welcome.
+  const [intro, setIntro] = useState(initial.intro);
+  // The sky (its API search) to make a constellation for as soon as it loads, after the birthday question.
   const [autoFor, setAutoFor] = useState(null);
+  // Star Match: the receiver's birthday sky to load, and the constellation it joins: { search, base, from }.
+  const [matchFor, setMatchFor] = useState(null);
   const [shuffle, setShuffle] = useState(0);
-  // What was last typed on a postcard, so closing and reopening it keeps the message.
-  const [postcardDraft, setPostcardDraft] = useState({ message: "", from: "", theme: DEFAULT_THEME });
   const sheetRef = useRef(null);
   // Set once a discard is confirmed and Back is about to close the drawing, so it isn't asked twice.
   const discarding = useRef(false);
@@ -171,7 +175,7 @@ export default function App() {
     return backdrop.filter((a) => !onChart.has(a.neo_reference_id)).map((a) => placeStar(a, mode));
   }, [backdrop, shown, mode]);
 
-  // After the welcome, the birthday's constellation is made as soon as its sky has loaded.
+  // After the birthday question, the birthday's constellation is made as soon as its sky has loaded.
   if (autoFor && autoFor === skySearch(sky) && result.status !== "loading") {
     setAutoFor(null);
     const c = result.status === "ready" ? autoConstellation(result.asteroids, sky.mode) : null;
@@ -180,6 +184,30 @@ export default function App() {
       setViewing({ status: "ready", constellation: c, source: "auto" });
     }
   }
+
+  // Star Match: once the receiver's birthday sky has loaded, their constellation joins the one they were sent.
+  if (matchFor && matchFor.search === skySearch(sky) && result.status !== "loading") {
+    setMatchFor(null);
+    const partner = result.status === "ready" ? autoConstellation(result.asteroids, "date") : null;
+    const joined = matchConstellation(matchFor.base, partner);
+    if (joined) {
+      setCard(null);
+      setViewing({ status: "ready", constellation: joined, source: "match", replyTo: matchFor.from });
+    } else {
+      showToast("Couldn't load the stars for your birthday. Try again in a moment.");
+    }
+  }
+
+  // Made for the visitor (their birthday's, or a Star Match): the chart reveals it, and the card under it leads on.
+  const madeForYou = viewing?.status === "ready" && (viewing.source === "auto" || viewing.source === "match");
+  const reveal = madeForYou ? constellation.id : null;
+  const sign = useMemo(
+    () =>
+      viewing?.source === "auto" && sky.mode === "date" && result.status === "ready"
+        ? asteroidSign(result.asteroids)
+        : null,
+    [viewing?.source, sky.mode, result.status, result.asteroids],
+  );
 
   // ---------- Address bar and Back button ----------
 
@@ -313,25 +341,33 @@ export default function App() {
 
   const showBirthday = (date) => {
     markWelcomeSeen();
-    setWelcome(false);
+    setIntro(false);
     const next = { ...sky, mode: "date", date };
     setSky(next);
     setAutoFor(skySearch(next));
   };
 
-  const closeWelcome = () => {
+  const closeIntro = () => {
     markWelcomeSeen();
-    setWelcome(false);
+    setIntro(false);
   };
 
-  // From a postcard someone sent: back to the plain sky, and the welcome to make one.
+  // From a postcard someone sent: back to the plain sky, and the birthday question to make one.
   const makeOwn = () => {
     closeLayer(layers, [], () => {
       setCard(null);
       setViewing(null);
       setSelected(null);
     });
-    setWelcome(true);
+    setIntro(true);
+  };
+
+  // Star Match, from a birthday postcard someone sent: load the receiver's birthday sky, then join the two.
+  const startMatch = (date) => {
+    const next = { ...sky, mode: "date", date };
+    setSkyState(next);
+    setSelected(null);
+    setMatchFor({ search: skySearch(next), base: constellation, from: card?.from ?? "" });
   };
 
   const startDrawing = (firstId = null) =>
@@ -415,12 +451,16 @@ export default function App() {
   const toolbar = viewing ? (
     <ViewingBar
       name={title}
+      eyebrow={
+        viewing.source === "match" ? "Your stars, joined" : viewing.source === "auto" ? "Your constellation" : undefined
+      }
+      revealKey={reveal}
       status={viewing.status}
       // Stars the catalog doesn't have will never load, so what did load can be saved.
       ready={viewing.status === "ready" || (viewing.status === "partial" && !viewing.retryable)}
       isSaved={isSaved}
       onSave={saveViewed}
-      onPostcard={viewing.source === "auto" ? null : () => setCard({ kind: "compose" })}
+      onPostcard={madeForYou ? null : () => setCard({ kind: "compose" })}
       onExit={exitViewing}
     />
   ) : (
@@ -502,8 +542,10 @@ export default function App() {
               drawing={draft.drawing}
               coverRef={sheetRef}
               covered={sheetOpen}
+              reveal={reveal}
+              bridge={constellation ? bridgeIndex(constellation) : -1}
             >
-              <Legend mode={mode} />
+              {!madeForYou && <Legend mode={mode} />}
               {chartStatus}
             </StarChart>
           </div>
@@ -517,12 +559,15 @@ export default function App() {
               onCancel={() => draft.cancel(discardDraft)}
               onSave={saveDraft}
             />
-          ) : viewing?.source === "auto" && constellation ? (
+          ) : madeForYou ? (
             <AutoCard
+              key={reveal}
               constellation={constellation}
-              onPostcard={() => setCard({ kind: "compose" })}
-              onShuffle={() => makeAuto(shuffle + 1)}
-              onDraw={() => startDrawing()}
+              sign={sign}
+              onSign={() => setCard({ kind: "sign" })}
+              onPostcard={() => setCard({ kind: "compose", replyTo: viewing.replyTo ?? "" })}
+              onShuffle={viewing.source === "auto" ? () => makeAuto(shuffle + 1) : null}
+              onDraw={viewing.source === "auto" ? () => startDrawing() : null}
             />
           ) : (
             <SkySummary
@@ -610,8 +655,7 @@ export default function App() {
           key={constellation.id}
           constellation={constellation}
           backdrop={backdrop}
-          draft={postcardDraft}
-          onDraft={setPostcardDraft}
+          replyTo={card.replyTo ?? ""}
           onClose={closeCard}
         />
       )}
@@ -620,11 +664,17 @@ export default function App() {
           constellation={constellation}
           backdrop={backdrop}
           postcard={card}
+          matching={matchFor !== null}
           onExplore={closeCard}
           onMakeOwn={makeOwn}
+          onMatch={startMatch}
+          onReply={() => setCard({ kind: "compose", replyTo: card.from })}
         />
       )}
-      {welcome && <WelcomeDialog date={sky.date} onShow={showBirthday} onClose={closeWelcome} />}
+      {card?.kind === "sign" && sign && (
+        <SignCard sign={sign} date={sky.date} onClose={closeCard} onPostcard={() => setCard({ kind: "compose" })} />
+      )}
+      {intro && <Intro date={sky.date} onShow={showBirthday} onClose={closeIntro} />}
 
       <Toast toast={toast} onDismiss={dismissToast} onPause={pause} onResume={resume} />
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />

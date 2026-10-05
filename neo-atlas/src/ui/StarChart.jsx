@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, zoomTransform } from "d3-zoom";
 import { dialSegments } from "../lib/chart.js";
+import { buzz } from "../lib/files.js";
 import { formatDate, formatLD } from "../lib/format.js";
 import AtlasFrame from "./AtlasFrame.jsx";
 
@@ -26,6 +27,12 @@ const TWEEN_MS = 280;
 // Star labels stay at least this big on screen, in pixels.
 const LABEL_PX = 11;
 
+// The reveal: the sky fades in, the constellation's stars pop in one by one, then its lines draw themselves.
+const POP_START_S = 0.5;
+const POP_STEP_S = 0.12;
+const LINES_S = 1.6; // all the lines together, however many there are
+const MAX_SEGMENT_S = 0.24;
+
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const sameTransform = (a, b) =>
   Math.abs(a.k - b.k) < 1e-3 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
@@ -42,14 +49,14 @@ function describe(star) {
   }.`;
 }
 
-const Star = memo(function Star({ star, k, dim, linked }) {
+const Star = memo(function Star({ star, k, dim, linked, delay }) {
   const r = star.size / Math.sqrt(k); // stars grow a little when zoomed, but not in proportion
   const { x, y } = star;
-  const className = ["star", star.hazardous && "hazardous", dim && "dim", linked && "linked"]
+  const className = ["star", star.hazardous && "hazardous", dim && "dim", linked && "linked", delay != null && "pop"]
     .filter(Boolean)
     .join(" ");
   return (
-    <g className={className}>
+    <g className={className} style={delay != null ? { animationDelay: `${delay}s` } : undefined}>
       <circle cx={x} cy={y} r={r * 3.2} className="star-halo" />
       {star.hazardous ? (
         <path
@@ -77,25 +84,39 @@ function StarLabel({ star, k, variant, unitPx }) {
   );
 }
 
-/** The rest of a constellation's sky, drawn faintly behind it. Not selectable. */
-const Backdrop = memo(function Backdrop({ stars, k }) {
+/**
+ * The rest of a constellation's sky, drawn faintly behind it. Not selectable.
+ * With `intro`, its stars fade in, scattered, when it first appears.
+ */
+const Backdrop = memo(function Backdrop({ stars, k, intro }) {
+  const [fading, setFading] = useState(intro);
+  useEffect(() => {
+    if (!fading) return undefined;
+    const timer = setTimeout(() => setFading(false), 1600);
+    return () => clearTimeout(timer);
+  }, [fading]);
   return (
-    <g className="backdrop" pointerEvents="none">
-      {stars.map((star) => (
+    <g className={fading ? "backdrop fade-in" : "backdrop"} pointerEvents="none">
+      {stars.map((star, i) => (
         <circle
           key={star.id}
           cx={star.x}
           cy={star.y}
           r={(star.size * 0.8) / Math.sqrt(k)}
           className={star.hazardous ? "backdrop-star hazardous" : "backdrop-star"}
+          style={fading ? { animationDelay: `${((i * 7) % 23) * 0.035}s` } : undefined}
         />
       ))}
     </g>
   );
 });
 
-/** Constellation lines, drawn star to star in path order. */
-function ConstellationLines({ path, byId, k, drawing }) {
+/**
+ * Constellation lines, drawn star to star in path order. A Star Match (`bridge`
+ * is the index where the second half starts) has its second half in another
+ * color and a dashed bridge between them. With `timing`, each line draws itself in turn.
+ */
+function ConstellationLines({ path, byId, k, drawing, bridge = -1, timing = null }) {
   const segments = [];
   for (let i = 1; i < path.length; i++) {
     const a = byId.get(path[i - 1]);
@@ -103,10 +124,26 @@ function ConstellationLines({ path, byId, k, drawing }) {
     if (a && b) segments.push([a, b, i]);
   }
   const last = byId.get(path[path.length - 1]);
+  const part = (i) => (bridge < 0 || i < bridge ? undefined : i === bridge ? "bridge" : "partner");
   return (
     <g className={drawing ? "constellation drawing" : "constellation"} pointerEvents="none">
-      {segments.map(([a, b, i]) => (
-        <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ strokeWidth: 0.7 / k }} />
+      {segments.map(([a, b, i], n) => (
+        <line
+          key={i}
+          x1={a.x}
+          y1={a.y}
+          x2={b.x}
+          y2={b.y}
+          className={timing ? [part(i), "draw-in"].filter(Boolean).join(" ") : part(i)}
+          pathLength={timing ? 1 : undefined}
+          style={{
+            strokeWidth: 0.7 / k,
+            ...(timing && {
+              animationDelay: `${timing.start + n * timing.segment}s`,
+              animationDuration: `${timing.segment}s`,
+            }),
+          }}
+        />
       ))}
       {drawing && last && (
         <circle
@@ -134,6 +171,9 @@ function ConstellationLines({ path, byId, k, drawing }) {
  * back when the sheet closes.
  *
  * `backdrop` is the rest of the sky behind a constellation, drawn faintly.
+ *
+ * `reveal` is a key (such as the constellation's ID): when it changes, the
+ * chart plays the reveal once. `bridge` marks where a Star Match's second half starts.
  */
 export default function StarChart({
   stars,
@@ -148,6 +188,8 @@ export default function StarChart({
   drawing = false,
   coverRef = null,
   covered = false,
+  reveal = null,
+  bridge = -1,
   children,
 }) {
   const svgRef = useRef(null);
@@ -172,6 +214,26 @@ export default function StarChart({
   const ordered = useMemo(() => [...stars].sort((a, b) => a.angle - b.angle), [stars]);
   const byId = useMemo(() => new Map(stars.map((s) => [s.id, s])), [stars]);
   const linked = useMemo(() => new Set(path), [path]);
+
+  // The reveal plays for a key it hasn't finished yet.
+  const [revealed, setRevealed] = useState(null);
+  const revealing = reveal != null && reveal !== revealed ? reveal : null;
+  const segmentS = Math.min(MAX_SEGMENT_S, LINES_S / Math.max(1, path.length - 1));
+  const linesStart = POP_START_S + linked.size * POP_STEP_S;
+  const revealMs = Math.round((linesStart + segmentS * (path.length - 1) + 0.3) * 1000);
+  const popDelay = useMemo(() => {
+    const delays = new Map();
+    for (const id of path) if (!delays.has(id)) delays.set(id, POP_START_S + delays.size * POP_STEP_S);
+    return delays;
+  }, [path]);
+  useEffect(() => {
+    if (reveal == null) return undefined;
+    const timer = setTimeout(() => {
+      setRevealed(reveal);
+      buzz(12);
+    }, revealMs);
+    return () => clearTimeout(timer);
+  }, [reveal, revealMs]);
 
   useEffect(() => {
     const svgEl = svgRef.current;
@@ -408,11 +470,28 @@ export default function StarChart({
         </defs>
         <g ref={sceneRef}>
           <AtlasFrame segments={dial.segments} ticks={dial.ticks} unitPx={unitPx} k={k} />
-          {backdrop.length > 0 && <Backdrop stars={backdrop} k={k} />}
-          {path.length > 0 && <ConstellationLines path={path} byId={byId} k={k} drawing={drawing} />}
-          <g className="stars">
+          {backdrop.length > 0 && <Backdrop stars={backdrop} k={k} intro={revealing !== null} />}
+          {path.length > 0 && (
+            <ConstellationLines
+              key={`lines:${revealing}`}
+              path={path}
+              byId={byId}
+              k={k}
+              drawing={drawing}
+              bridge={bridge}
+              timing={revealing ? { start: linesStart, segment: segmentS } : null}
+            />
+          )}
+          <g className="stars" key={`stars:${revealing}`}>
             {stars.map((star) => (
-              <Star key={star.id} star={star} k={k} dim={isDim(star)} linked={linked.has(star.id)} />
+              <Star
+                key={star.id}
+                star={star}
+                k={k}
+                dim={isDim(star)}
+                linked={linked.has(star.id)}
+                delay={revealing ? (popDelay.get(star.id) ?? 0) : undefined}
+              />
             ))}
           </g>
           {hovered && <StarLabel star={hovered} k={k} variant="hover" unitPx={unitPx} />}

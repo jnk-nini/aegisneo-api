@@ -6,7 +6,7 @@ import {
   loadSaved,
   loadShared,
   makeConstellation,
-  MAX_POINTS,
+  MAX_PATH,
   mergeImported,
   parseImport,
   readSaved,
@@ -51,7 +51,7 @@ describe("makeConstellation", () => {
   });
 
   it("drops bad records and caps the path", () => {
-    const ids = Array.from({ length: 40 }, (_, i) => `x${i}`);
+    const ids = Array.from({ length: 60 }, (_, i) => `x${i}`);
     const c = makeConstellation({
       name: "",
       mode: "weird",
@@ -60,7 +60,7 @@ describe("makeConstellation", () => {
     });
     expect(c.name).toBe("Untitled constellation");
     expect(c.mode).toBe("year");
-    expect(c.path).toHaveLength(MAX_POINTS);
+    expect(c.path).toHaveLength(MAX_PATH);
   });
 });
 

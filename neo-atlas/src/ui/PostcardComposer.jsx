@@ -1,106 +1,199 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { cleanName, MAX_NAME } from "../lib/constellations.js";
+import { cleanName, constellationSky, MAX_NAME } from "../lib/constellations.js";
+import { buzz, canShareImages, canvasToFile, offscreenCard, saveFile } from "../lib/files.js";
+import { formatDate, formatMonthDay } from "../lib/format.js";
+import { matchInfo } from "../lib/match.js";
 import {
   cardDescription,
   cleanFrom,
   cleanMessage,
+  DEFAULT_THEME,
+  drawEnvelope,
+  drawPostcard,
   fileName,
+  localISO,
   MAX_FROM,
   MAX_MESSAGE,
+  nextOccurrence,
   postcardQuery,
+  THEME_ORDER,
   THEMES,
 } from "../lib/postcard.js";
+import { rememberName, savedName } from "../lib/prefs.js";
+import Burst from "./Burst.jsx";
+import CardCanvas from "./CardCanvas.jsx";
 import Modal from "./Modal.jsx";
-import PostcardCanvas from "./PostcardCanvas.jsx";
 
-// Whether this browser can hand an image to the phone's share sheet.
-function canShareImages() {
-  try {
-    return Boolean(navigator.canShare?.({ files: [new File([""], "card.png", { type: "image/png" })] }));
-  } catch {
-    return false;
-  }
+const SWIPE_PX = 40;
+const TAP_PX = 10;
+
+/** Focuses a text field with the cursor after what's there, so typing carries on from the end. */
+function focusEnd(field) {
+  if (!field) return;
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
 }
 
-function saveFile(file) {
-  const url = URL.createObjectURL(file);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+/** Ready-made messages, so a postcard takes one tap instead of typing. */
+function presetsFor(c, replyTo) {
+  if (matchInfo(c)) {
+    return [
+      replyTo ? `${replyTo}, look what our birthdays made ✨` : "Look what our birthdays made ✨",
+      "Our stars, joined 💫",
+      "Same sky, different days 🌌",
+      "Cosmic match! ☄️",
+    ];
+  }
+  if (constellationSky(c)?.mode === "date") {
+    return [
+      "Happy birthday! 🎂 These are your stars.",
+      "Saw these stars and thought of you ✨",
+      "Written in the stars, just for you 💫",
+      "Real asteroids, real birthday wishes ☄️",
+    ];
+  }
+  return [
+    "Saw these stars and thought of you ✨",
+    "A little piece of the sky for you 🌌",
+    "Written in the stars 💫",
+    "Look what flew past Earth ☄️",
+  ];
 }
 
 /**
- * Write a postcard of the constellation: a title, a message and who it's from,
- * in one of three looks. The picture is made on this device; sharing sends it
- * with a link that opens the same postcard on the site.
+ * Make a postcard of the constellation. The card fills the screen: swipe it (or
+ * use the arrows) for another look, tap a ready-made message or write your own,
+ * then Send. Every postcard starts blank, apart from the sender's name, which
+ * is remembered on this device.
  *
- * `draft` keeps the message and the rest between openings; `onDraft` is told of every change.
+ * A birthday postcard can be sealed until the birthday: the link then opens
+ * on a countdown, and the picture sent with it is a sealed envelope.
+ * `replyTo` is the name of whoever sent the postcard this one answers.
  */
-export default function PostcardComposer({ constellation, backdrop, draft, onDraft, onClose }) {
+export default function PostcardComposer({ constellation, backdrop, replyTo = "", onClose }) {
   const titleId = useId();
   const canvasRef = useRef(null);
-  const fileRef = useRef(null); // the picture as it looks now, ready to share straight from the tap
+  const messageRef = useRef(null);
+  const titleRef = useRef(null);
+  // The pictures as they look now, ready to share straight from the tap (phones need that).
+  const cardFile = useRef(null);
+  const envelopeFile = useRef(null);
+  const drawn = useRef(0);
   const timer = useRef(0);
+  const swipe = useRef(null);
   const [title, setTitle] = useState(constellation.name);
-  const [message, setMessage] = useState(draft.message);
-  const [from, setFrom] = useState(draft.from);
-  const [theme, setTheme] = useState(draft.theme);
+  const [message, setMessage] = useState("");
+  const [from, setFrom] = useState(savedName);
+  const [theme, setTheme] = useState(DEFAULT_THEME);
+  const [sealed, setSealed] = useState(false);
+  const [editing, setEditing] = useState(null); // null, "message" or "title"
   const [canShare] = useState(canShareImages);
   const [busy, setBusy] = useState(false);
   // What just happened, said inside the dialog: a toast would be hidden behind it.
   const [status, setStatus] = useState("");
+  const [bursts, setBursts] = useState(0);
+
+  const presets = useMemo(() => presetsFor(constellation, replyTo), [constellation, replyTo]);
+  // A birthday postcard can be sealed until the birthday comes round (not on the day itself).
+  const { until, sealDay } = useMemo(() => {
+    const sky = constellationSky(constellation);
+    if (sky?.mode !== "date") return { until: null, sealDay: "" };
+    const next = nextOccurrence(sky.date);
+    return { until: next === localISO() ? null : next, sealDay: formatMonthDay(sky.date) };
+  }, [constellation]);
+  const canSeal = until !== null;
+  const sealUntil = sealed && canSeal ? until : null;
 
   const card = useMemo(
     () => ({ ...constellation, name: cleanName(title, constellation.name) }),
     [constellation, title],
   );
-  const fields = { message: cleanMessage(message), from: cleanFrom(from), theme };
+  const words = useMemo(() => cleanMessage(message), [message]);
+  const signed = useMemo(() => cleanFrom(from), [from]);
+  const clean = { message: words, from: signed };
+  const fields = { ...clean, theme, sealed: sealUntil };
   const link = `${window.location.origin}${window.location.pathname}${postcardQuery(card, fields)}`;
+  const name = fileName(card);
 
-  useEffect(() => onDraft({ message, from, theme }), [message, from, theme, onDraft]);
+  useEffect(() => rememberName(signed), [signed]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (editing === "message") focusEnd(messageRef.current);
+    if (editing === "title") focusEnd(titleRef.current);
+  }, [editing]);
 
-  const makeFile = useCallback(
-    (name) =>
-      new Promise((resolve, reject) =>
-        canvasRef.current.toBlob(
-          (blob) =>
-            blob ? resolve(new File([blob], name, { type: "image/png" })) : reject(new Error("No image")),
-          "image/png",
-        ),
-      ),
-    [],
+  const draw = useCallback(
+    (ctx) =>
+      drawPostcard(ctx, {
+        constellation: card,
+        backdrop,
+        message: words,
+        from: signed,
+        theme,
+        site: window.location.host,
+      }),
+    [card, backdrop, words, signed, theme],
   );
 
-  // Phones only open the share sheet straight from a tap, so the picture is made ahead of time.
-  const name = fileName(card);
   const onDrawn = useCallback(() => {
-    fileRef.current = null;
+    cardFile.current = null;
+    const version = ++drawn.current;
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      makeFile(name)
-        .then((file) => (fileRef.current = file))
+      canvasToFile(canvasRef.current, name)
+        .then((file) => version === drawn.current && (cardFile.current = file))
         .catch(() => {});
     }, 300);
-  }, [makeFile, name]);
+  }, [name]);
 
-  const currentFile = async () => fileRef.current ?? (await makeFile(name));
+  const makeEnvelope = useCallback(
+    () =>
+      canvasToFile(
+        offscreenCard((ctx) =>
+          drawEnvelope(ctx, { theme, from: signed, until: sealUntil, site: window.location.host }),
+        ),
+        "neo-atlas-sealed-postcard.png",
+      ),
+    [theme, signed, sealUntil],
+  );
+
+  useEffect(() => {
+    envelopeFile.current = null;
+    if (!sealUntil) return undefined;
+    let live = true;
+    const t = setTimeout(() => {
+      makeEnvelope()
+        .then((file) => live && (envelopeFile.current = file))
+        .catch(() => {});
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [sealUntil, makeEnvelope]);
+
+  const celebrate = (text) => {
+    setStatus(text);
+    setBursts((n) => n + 1);
+    buzz([10, 40, 14]);
+  };
 
   const share = async () => {
     setBusy(true);
     try {
-      const file = await currentFile();
+      const file = sealUntil
+        ? (envelopeFile.current ?? (await makeEnvelope()))
+        : (cardFile.current ?? (await canvasToFile(canvasRef.current, name)));
       await navigator.share({
         files: [file],
         title: card.name,
-        text: `${card.name}, a NEO Atlas postcard: ${link}`,
+        text: sealUntil
+          ? `A sealed postcard for you ✦ It opens on ${formatDate(sealUntil)}: ${link}`
+          : `${card.name}, a NEO Atlas postcard: ${link}`,
       });
+      celebrate("Sent! Your stars are on their way ✨");
     } catch (err) {
-      if (err?.name !== "AbortError") setStatus("Couldn't open sharing here. Download the picture instead.");
+      if (err?.name !== "AbortError") setStatus("Couldn't open sharing here. Copy the link instead.");
     } finally {
       setBusy(false);
     }
@@ -108,8 +201,8 @@ export default function PostcardComposer({ constellation, backdrop, draft, onDra
 
   const download = async () => {
     try {
-      saveFile(await currentFile());
-      setStatus("Postcard saved as a picture.");
+      saveFile(cardFile.current ?? (await canvasToFile(canvasRef.current, name)));
+      celebrate("Saved to your device ✨");
     } catch {
       setStatus("Couldn't make the picture in this browser.");
     }
@@ -118,122 +211,197 @@ export default function PostcardComposer({ constellation, backdrop, draft, onDra
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(link);
-      setStatus("Link copied. It opens this postcard, message and all.");
+      celebrate(sealUntil ? "Link copied. It stays sealed until the day ✨" : "Link copied. Paste it anywhere ✨");
     } catch {
       setStatus("Couldn't copy the link in this browser.");
     }
   };
 
+  const step = (delta) =>
+    setTheme((t) => THEME_ORDER[(THEME_ORDER.indexOf(t) + delta + THEME_ORDER.length) % THEME_ORDER.length]);
+
+  // On the card: a sideways swipe changes the look; a tap on the words or the title edits them.
+  const onPointerDown = (e) => {
+    swipe.current = e.isPrimary ? { x: e.clientX, y: e.clientY } : null;
+  };
+  const onPointerUp = (e) => {
+    const start = swipe.current;
+    swipe.current = null;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) return step(dx < 0 ? 1 : -1);
+    if (Math.hypot(dx, dy) > TAP_PX) return;
+    const box = canvasRef.current.getBoundingClientRect();
+    const y = (e.clientY - box.top) / box.height;
+    if (y > 0.71) setEditing("message");
+    else if (y < 0.19) setEditing("title");
+  };
+
   const left = MAX_MESSAGE - Array.from(message).length;
+  const custom = message !== "" && !presets.includes(message);
 
   return (
-    <Modal onClose={onClose} labelledBy={titleId} className="postcard-modal">
-      <div className="postcard-layout">
-        <div className="postcard-preview">
-          <PostcardCanvas
-            canvasRef={canvasRef}
-            constellation={card}
-            backdrop={backdrop}
-            message={fields.message}
-            from={fields.from}
-            theme={theme}
-            label={cardDescription(card, fields)}
-            onDrawn={onDrawn}
-          />
+    <Modal
+      onClose={() => (editing ? setEditing(null) : onClose())}
+      labelledBy={titleId}
+      className="postcard-modal"
+    >
+      <div className="composer">
+        <header className="composer-top">
+          <h2 id={titleId}>Your postcard</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close postcard">
+            ×
+          </button>
+        </header>
+
+        <div className="composer-stage">
+          <div
+            className="composer-card"
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => (swipe.current = null)}
+          >
+            <CardCanvas
+              canvasRef={canvasRef}
+              draw={draw}
+              label={cardDescription(card, clean)}
+              onDrawn={onDrawn}
+            />
+            {bursts > 0 && <Burst key={bursts} />}
+          </div>
         </div>
 
-        <form className="postcard-form" onSubmit={(e) => e.preventDefault()}>
-          <div className="postcard-head">
-            <h2 id={titleId}>Make a postcard</h2>
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close postcard">
-              ×
+        <div className="composer-controls">
+          <div className="looks" role="group" aria-label="Look">
+            <button type="button" className="look-step" onClick={() => step(-1)} aria-label="Previous look">
+              ‹
             </button>
+            {THEME_ORDER.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="look-dot"
+                aria-pressed={id === theme}
+                aria-label={`${THEMES[id].label} look`}
+                onClick={() => setTheme(id)}
+                style={{ "--dot": THEMES[id].bg[1], "--dot-line": THEMES[id].line }}
+              />
+            ))}
+            <button type="button" className="look-step" onClick={() => step(1)} aria-label="Next look">
+              ›
+            </button>
+            <span className="look-name" aria-live="polite">
+              {THEMES[theme].label}
+            </span>
           </div>
 
-          <label className="field">
-            <span>Title</span>
-            <input
-              className="text-input"
-              value={title}
-              maxLength={MAX_NAME}
-              autoComplete="off"
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>
-              Message <span className="field-count num">{left}</span>
-            </span>
-            <textarea
-              className="text-input text-area"
-              value={message}
-              maxLength={MAX_MESSAGE}
-              rows={3}
-              placeholder="Happy birthday! These are your stars."
-              onChange={(e) => setMessage(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>From</span>
-            <input
-              className="text-input"
-              value={from}
-              maxLength={MAX_FROM}
-              autoComplete="off"
-              placeholder="Your name (optional)"
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          </label>
-
-          <fieldset className="field theme-pick">
-            <legend>Look</legend>
-            {Object.entries(THEMES).map(([id, t]) => (
-              <label key={id}>
-                <input
-                  type="radio"
-                  name={`${titleId}-theme`}
-                  value={id}
-                  checked={theme === id}
-                  onChange={() => setTheme(id)}
-                />
-                <span>
-                  <i
-                    className="swatch"
-                    style={{ background: t.bg[1], borderColor: t.line }}
-                    aria-hidden="true"
-                  />
-                  {t.label}
-                </span>
-              </label>
+          <div className="presets" role="group" aria-label="Quick messages">
+            {presets.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className="chip preset"
+                aria-pressed={message === p}
+                onClick={() => setMessage(message === p ? "" : p)}
+              >
+                {p}
+              </button>
             ))}
-          </fieldset>
+          </div>
 
-          <div className="postcard-actions">
+          <div className="composer-row">
+            <button type="button" className="btn btn-small write-btn" onClick={() => setEditing("message")}>
+              <span aria-hidden="true">✎</span> {custom ? "Edit words" : "Your own words"}
+              {signed ? ` · ${signed}` : " & name"}
+            </button>
+            {canSeal && (
+              <button
+                type="button"
+                className="chip seal-chip"
+                aria-pressed={sealed}
+                onClick={() => setSealed((on) => !on)}
+              >
+                <span aria-hidden="true">{sealed ? "🔒" : "🔓"}</span>{" "}
+                {sealed ? `Sealed · ${sealDay}` : "Seal it"}
+              </button>
+            )}
+          </div>
+
+          <div className="send-row">
             {canShare ? (
-              <button type="button" className="btn btn-solid" onClick={share} disabled={busy}>
-                Share postcard
+              <button type="button" className="btn btn-solid btn-make send-btn" onClick={share} disabled={busy}>
+                <span aria-hidden="true">✦</span> Send
               </button>
             ) : (
-              <button type="button" className="btn btn-solid" onClick={download}>
-                Download picture
+              <button type="button" className="btn btn-solid btn-make send-btn" onClick={copyLink}>
+                <span aria-hidden="true">✦</span> Copy link to send
               </button>
             )}
             {canShare && (
-              <button type="button" className="btn" onClick={download}>
-                Download
+              <button type="button" className="btn btn-small" onClick={copyLink}>
+                Copy link
               </button>
             )}
-            <button type="button" className="btn" onClick={copyLink}>
-              Copy link
+            <button type="button" className="btn btn-small" onClick={download}>
+              Save picture
             </button>
           </div>
           <p className="postcard-status" role="status">
-            {status}
+            {status ||
+              (sealUntil ? `They'll get a sealed envelope that opens on ${formatDate(sealUntil)}.` : "")}
           </p>
-          <p className="postcard-fine">
-            Nothing is uploaded. The picture is made on this device, and your message travels inside the link.
-          </p>
-        </form>
+        </div>
+
+        {editing && (
+          <div className="editor" role="group" aria-label="Your words">
+            <label className="field">
+              <span>
+                Message <span className="field-count num">{left}</span>
+              </span>
+              <textarea
+                ref={messageRef}
+                className="text-input text-area"
+                value={message}
+                maxLength={MAX_MESSAGE}
+                rows={3}
+                placeholder="Happy birthday! These are your stars."
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </label>
+            <div className="editor-pair">
+              <label className="field">
+                <span>From</span>
+                <input
+                  className="text-input"
+                  value={from}
+                  maxLength={MAX_FROM}
+                  autoComplete="off"
+                  placeholder="Your name"
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Title</span>
+                <input
+                  ref={titleRef}
+                  className="text-input"
+                  value={title}
+                  maxLength={MAX_NAME}
+                  autoComplete="off"
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </label>
+            </div>
+            <button type="button" className="btn btn-solid" onClick={() => setEditing(null)}>
+              Done
+            </button>
+            <p className="postcard-fine">
+              Nothing is uploaded: the picture is made on this device, and your words travel inside the link.
+              Your name is remembered here for next time.
+            </p>
+          </div>
+        )}
       </div>
     </Modal>
   );

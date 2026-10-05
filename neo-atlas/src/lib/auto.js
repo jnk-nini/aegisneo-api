@@ -29,7 +29,7 @@ const CALM = [
 ];
 // Used when one of the stars is potentially hazardous.
 const FIERY = ["Burning", "Crimson", "Restless", "Wild", "Ember", "Iron"];
-const NOUNS = [
+export const NOUNS = [
   "Kite",
   "Serpent",
   "Lantern",
@@ -104,6 +104,11 @@ function treeWalk(children) {
   return path;
 }
 
+/** Star IDs joined into one pen stroke: the shortest lines that connect them all, starting at the first star. */
+export function joinStars(stars) {
+  return treeWalk(spanningTree(stars)).map((i) => stars[i].id);
+}
+
 /**
  * A constellation made from `asteroids` (one sky), or null if there are fewer than two.
  * Shuffle 0 starts from the biggest asteroid; each further shuffle starts somewhere else
@@ -138,7 +143,7 @@ export function autoConstellation(asteroids, mode, { shuffle = 0 } = {}) {
     if (!chosen.includes(star)) chosen.push(star);
   }
 
-  const path = treeWalk(spanningTree(chosen)).map((i) => chosen[i].id);
+  const path = joinStars(chosen);
   const ids = chosen.map((s) => s.id);
   return makeConstellation({
     name: autoName(
