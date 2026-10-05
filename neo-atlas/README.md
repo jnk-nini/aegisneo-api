@@ -25,7 +25,8 @@ NEO Atlas is a separate website from the main AegisNEO site. It gets all of its 
 
 The browser never sees the API key. It calls `/api/neo/*` on this site, and a small server function
 ([`api/neo.js`](api/neo.js)) adds the key from an environment variable and forwards only these read-only
-endpoints. In development, the Vite dev server does the same thing ([`vite.config.js`](vite.config.js)).
+endpoints and their parameters; anything else is refused, so made-up parameters can't skip the edge cache.
+In development, the Vite dev server runs the same function ([`vite.config.js`](vite.config.js)).
 
 ## No database
 
@@ -59,6 +60,11 @@ NEO Atlas is deployed as its own Vercel project, separate from the API and the m
    - `AEGISNEO_API_KEY`: the key issued to NEO Atlas.
    - `AEGISNEO_API_URL`: `https://aegisneo-api.vercel.app` (optional; this is the default).
 3. On the API project, add the same key to `AEGISNEO_API_KEYS` as `neo-atlas:<key>`.
+4. Recommended: in the Vercel dashboard, add a Firewall rate-limit rule for `/api/neo` (for example
+   100 requests per minute per IP), since anyone can call the proxy.
+
+The link preview image is `public/og.png`. `index.html` points to it at the production address, so
+update that address if the site moves.
 
 ## Data
 

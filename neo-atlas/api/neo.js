@@ -33,6 +33,12 @@ export default async function handler(req, res) {
   if (!ALLOWED_PATH.test(path)) {
     return res.status(404).json({ detail: "Unknown endpoint." });
   }
+  // The edge cache is keyed on the full URL, so made-up parameters would let anyone skip it and
+  // send every request on to the API. Only the ones the site itself sends are accepted.
+  const unknown = Object.keys(req.query).filter((key) => key !== "path" && !ALLOWED_PARAMS.has(key));
+  if (unknown.length > 0) {
+    return res.status(400).json({ detail: `Unknown parameter: ${unknown[0].slice(0, MAX_PARAM_LENGTH)}.` });
+  }
 
   const base = process.env.AEGISNEO_API_URL || "https://aegisneo-api.vercel.app";
   const url = new URL(`/api/v1/${path}`, base);

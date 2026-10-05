@@ -1,6 +1,6 @@
 # AegisNEO — project status and hand-off notes
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## Live sites
 
@@ -8,7 +8,7 @@ Last updated: 2026-10-04
 | --- | --- | --- | --- |
 | AegisNEO main site + API | https://aegisneo-api.vercel.app (docs: `/docs`) | `aegisneo-api` | repo root (`index.py`, `index.html`) |
 | Impactor (impact simulator) | https://aegisneo-impactor.vercel.app | `aegisneo-impactor` (Root Directory: `impactor`) | `impactor/` |
-| NEO Atlas (constellation site) | in progress | `neo-atlas` (Root Directory: `neo-atlas`) | `neo-atlas/` |
+| NEO Atlas (constellation site) | https://neo-atlas-pearl.vercel.app | `neo-atlas` (Root Directory: `neo-atlas`) | `neo-atlas/` |
 
 All three Vercel projects are connected to `github.com/jnk-nini/aegisneo-api`, branch `master`.
 Pushing to `master` redeploys them.
@@ -61,15 +61,27 @@ Pushing to `master` redeploys them.
 - Impactor review (`IMPACTOR_REVIEW.pdf`, 4 Oct 2026): all 8 bugs and the design points fixed. Textures
   are painted in a Web Worker, three.js loads only with the 3D view, unused code is removed, the
   city search is a keyboard combobox, and the store, API client and proxy have tests (53 in total).
+- Impactor round 3 (`fa7a24b`): real NASA globe imagery (Blue Marble, Black Marble night lights,
+  sharper relief when zoomed in), free globe navigation on mouse and touch, seabed craters for ocean
+  impacts, debris that lands mostly near the crater, and a cleaner phone layout.
 - GitHub Actions (`.github/workflows/ci.yml`) runs tests, lint and build for Impactor and NEO Atlas
   on every push. Vercel still deploys on its own; turn on Vercel's "wait for checks" if you want
   failing checks to block a deploy.
 - Old `impact-simulator/` folder removed from the main site.
+- NEO Atlas deployed. Its review (18 points plus polish) is fixed except the dates (below): phone and
+  landscape layouts, safe saving across tabs, shared links that load partly, a crash screen, the Back
+  button closing the detail sheet, constellation or drawing instead of leaving the site, faster loading,
+  screen-reader announcements, readable chart text on phones, smoother zooming, and a link preview image.
 
 ### Next steps
 - Test Impactor on real phones (iPhone Safari and Android Chrome). A Lighthouse mobile audit of the
   production build is done (see `impactor/README.md`).
-- Finish NEO Atlas, deploy it, then remove the old `constellation-explorer/` folder and its line in `vercel.json`.
+- NEO Atlas: test on real phones, then remove the old `constellation-explorer/` folder and its line in
+  `vercel.json`.
+- NEO Atlas: add a Vercel Firewall rate-limit rule for `/api/neo` (see `neo-atlas/README.md`).
+- NEO Atlas dates are simulated: the Kaggle data has no dates, so `scripts/build_dataset.py` makes them
+  up, and the site says so. Real dates would mean rebuilding the dataset from NASA JPL's close-approach
+  API, which changes the main API's data too. Decided on 5 Oct 2026 to leave it for now.
 - Optional: link to the companion sites from the main AegisNEO page.
 
 ## Notes

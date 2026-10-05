@@ -36,6 +36,38 @@ describe("api.listAll", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
 
+  it("asks for the remaining pages together once the first says how many match", async () => {
+    const waiting = [];
+    globalThis.fetch = vi.fn((url) => {
+      const offset = Number(new URL(url, "http://x").searchParams.get("offset"));
+      if (offset === 0) return Promise.resolve(json(page(0, 100, 300)));
+      return new Promise((resolve) => waiting.push(() => resolve(json(page(offset, 100, 300)))));
+    });
+    const done = api.listAll({ search: "parallel-test" });
+    await vi.waitFor(() => expect(waiting).toHaveLength(2));
+    waiting.forEach((resolve) => resolve());
+    const result = await done;
+    expect(result.asteroids.map((a) => a.neo_reference_id).slice(98, 102)).toEqual(["98", "99", "100", "101"]);
+    expect(result.asteroids).toHaveLength(300);
+  });
+
+  it("stops reporting pages once one has failed", async () => {
+    let releaseLate;
+    globalThis.fetch = vi.fn((url) => {
+      const offset = Number(new URL(url, "http://x").searchParams.get("offset"));
+      if (offset === 0) return Promise.resolve(json(page(0, 100, 300)));
+      if (offset === 100) return Promise.resolve(json({ detail: "bad" }, 422));
+      return new Promise((resolve) => (releaseLate = () => resolve(json(page(offset, 100, 300)))));
+    });
+    const reported = [];
+    await expect(
+      api.listAll({ search: "fail-test" }, { onPage: (list) => reported.push(list.length) }),
+    ).rejects.toMatchObject({ status: 422 });
+    releaseLate();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(reported).toEqual([100]);
+  });
+
   it("stops at max", async () => {
     globalThis.fetch = vi.fn(async (url) => {
       const offset = Number(new URL(url, "http://x").searchParams.get("offset"));

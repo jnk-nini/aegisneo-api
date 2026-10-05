@@ -131,8 +131,9 @@ export default function ConstellationsView({
       <section aria-labelledby="featured-heading" className="shelf">
         <h3 id="featured-heading">From the whole catalog</h3>
         <p className="shelf-note">
-          Each one is a single sorted query to the AegisNEO API across all{" "}
-          {catalogTotal ? catalogTotal.toLocaleString("en-US") : ""} asteroids in the catalog.
+          Each one is a single sorted query to the AegisNEO API across{" "}
+          {catalogTotal ? `all ${catalogTotal.toLocaleString("en-US")} asteroids` : "every asteroid"} in the
+          catalog.
         </p>
         {featured.status === "loading" && (
           <p className="list-note" role="status">
@@ -143,6 +144,16 @@ export default function ConstellationsView({
         {featured.status === "error" && (
           <div className="list-note" role="alert">
             <p>{featured.error}</p>
+            <button type="button" className="btn btn-small" onClick={featured.retry}>
+              Try again
+            </button>
+          </div>
+        )}
+        {featured.status === "ready" && featured.failed > 0 && (
+          <div className="list-note" role="alert">
+            <p>
+              {featured.failed} of {featured.failed + featured.items.length} couldn&rsquo;t be loaded.
+            </p>
             <button type="button" className="btn btn-small" onClick={featured.retry}>
               Try again
             </button>

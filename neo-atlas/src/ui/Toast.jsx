@@ -1,9 +1,19 @@
-/** A short message above the tab bar, read out by screen readers, with an optional action. */
-export default function Toast({ toast, onDismiss }) {
+/**
+ * A short message above the tab bar, read out by screen readers, with an
+ * optional action. It stays while hovered or focused (`onPause`/`onResume`).
+ */
+export default function Toast({ toast, onDismiss, onPause, onResume }) {
   return (
     <div className="toast-region" aria-live="polite">
       {toast && (
-        <div className="toast" key={toast.at}>
+        <div
+          className="toast"
+          key={toast.at}
+          onPointerEnter={onPause}
+          onPointerLeave={onResume}
+          onFocus={onPause}
+          onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && onResume()}
+        >
           <span>{toast.message}</span>
           {toast.action && (
             <button

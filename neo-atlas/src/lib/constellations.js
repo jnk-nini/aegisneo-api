@@ -7,6 +7,8 @@
 export const MIN_STARS = 2;
 export const MAX_POINTS = 24; // taps in a path; a star may be revisited to close a loop
 export const MAX_NAME = 40;
+// An export of hundreds of constellations is well under this; anything bigger isn't one.
+export const MAX_IMPORT_BYTES = 1_000_000;
 
 const ID = /^[A-Za-z0-9_-]{1,32}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

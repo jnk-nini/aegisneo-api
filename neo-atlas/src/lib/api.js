@@ -3,7 +3,8 @@
 // with the key attached — the browser never sees the key.
 
 const BASE = "/api/neo";
-const TIMEOUT_MS = 15000;
+// Longer than the server function's own 15 s limit, so its "took too long" answer arrives before this gives up.
+const TIMEOUT_MS = 20000;
 export const PAGE_SIZE = 100; // the API's per-request maximum
 const cache = new Map();
 
@@ -69,20 +70,36 @@ async function request(path, params = {}, { signal } = {}) {
 
 /**
  * Fetches every page of a filtered list (the API returns at most 100 per call),
- * stopping at `max` objects. `onPage` gets the running list after each page so
- * the chart can fill in progressively on slow connections.
+ * stopping at `max` objects. The first page says how many match; the rest are
+ * then requested together. `onPage` gets everything loaded so far after each
+ * page, so the chart fills in progressively on slow connections.
  */
 async function listAll(params, { signal, max = 1000, onPage } = {}) {
-  const all = [];
-  let matched = Infinity;
-  for (let offset = 0; offset < Math.min(matched, max); offset += PAGE_SIZE) {
-    const page = await request("asteroids", { ...params, limit: PAGE_SIZE, offset }, { signal });
-    matched = page.matched ?? page.count;
-    all.push(...page.asteroids);
-    onPage?.(all.slice(), matched);
-    if (page.asteroids.length < PAGE_SIZE) break;
+  const fetchPage = (offset) => request("asteroids", { ...params, limit: PAGE_SIZE, offset }, { signal });
+  const first = await fetchPage(0);
+  const matched = first.matched ?? first.count;
+  onPage?.(first.asteroids.slice(), matched);
+
+  const pages = [first.asteroids];
+  const offsets = [];
+  if (first.asteroids.length === PAGE_SIZE) {
+    for (let offset = PAGE_SIZE; offset < Math.min(matched, max); offset += PAGE_SIZE) offsets.push(offset);
   }
-  return { asteroids: all.slice(0, max), matched: matched === Infinity ? all.length : matched };
+  let failed = false;
+  try {
+    await Promise.all(
+      offsets.map(async (offset, i) => {
+        const page = await fetchPage(offset);
+        pages[i + 1] = page.asteroids;
+        // Pages can arrive in any order; flat() skips the ones still missing.
+        if (!failed) onPage?.(pages.flat(), matched);
+      }),
+    );
+  } catch (err) {
+    failed = true; // pages still in flight must not report after the error
+    throw err;
+  }
+  return { asteroids: pages.flat().slice(0, max), matched };
 }
 
 export const api = {

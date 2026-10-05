@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { select } from "d3-selection";
 import { zoom, zoomIdentity, zoomTransform } from "d3-zoom";
 import { dialSegments } from "../lib/chart.js";
+import { formatDate, formatLD } from "../lib/format.js";
 import AtlasFrame from "./AtlasFrame.jsx";
 
 const VIEW = 110; // the dial spans -110…110 in SVG units
@@ -21,11 +22,26 @@ const REVEAL_EXTENT = [
 const REVEAL_MARGIN_PX = 48;
 const TWEEN_MS = 280;
 
+// Star labels stay at least this big on screen, in pixels.
+const LABEL_PX = 11;
+
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const sameTransform = (a, b) =>
   Math.abs(a.k - b.k) < 1e-3 && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5;
+const isHome = (t) => t.k === 1 && Math.abs(t.x) < 0.5 && Math.abs(t.y) < 0.5;
+const toAttr = (t) => `translate(${t.x},${t.y}) scale(${t.k})`;
+// Star sizes follow the zoom in steps of about 19%, so a pan or a small zoom doesn't redraw every star.
+const sizeStep = (k) => 2 ** (Math.round(Math.log2(k) * 4) / 4);
 
-function Star({ star, k, dim, linked }) {
+/** What a screen reader hears when the arrow keys land on a star. */
+function describe(star) {
+  const a = star.data;
+  return `${a.name}, ${formatDate(a.close_approach_date)}, ${formatLD(a.miss_distance_km)} from Earth${
+    a.is_potentially_hazardous ? ", potentially hazardous" : ""
+  }.`;
+}
+
+const Star = memo(function Star({ star, k, dim, linked }) {
   const r = star.size / Math.sqrt(k); // stars grow a little when zoomed, but not in proportion
   const { x, y } = star;
   const className = ["star", star.hazardous && "hazardous", dim && "dim", linked && "linked"]
@@ -44,15 +60,16 @@ function Star({ star, k, dim, linked }) {
       )}
     </g>
   );
-}
+});
 
-function StarLabel({ star, k, variant }) {
+function StarLabel({ star, k, variant, unitPx }) {
   const r = star.size / Math.sqrt(k);
   const ring = r * 2.4 + 1.6 / k;
+  const fontSize = Math.max(6, LABEL_PX / unitPx) / k;
   return (
     <g className={`star-mark ${variant}`} pointerEvents="none">
       <circle cx={star.x} cy={star.y} r={ring} className="star-ring" style={{ strokeWidth: 0.8 / k }} />
-      <text x={star.x + ring + 2 / k} y={star.y} dominantBaseline="central" style={{ fontSize: 6 / k }}>
+      <text x={star.x + ring + 2 / k} y={star.y} dominantBaseline="central" style={{ fontSize }}>
         {star.data.name}
       </text>
     </g>
@@ -113,46 +130,65 @@ export default function StarChart({
   children,
 }) {
   const svgRef = useRef(null);
+  // The group that pans and zooms. Its transform is set directly, never through React,
+  // so dragging the chart doesn't re-render ~350 stars on every frame.
+  const sceneRef = useRef(null);
   const zoomRef = useRef(null);
+  const dblClickRef = useRef(null);
   const tapRef = useRef(null);
   const tweenRef = useRef(0);
   // { from, to }: the view before the dial slid aside for the sheet, and where it slid to.
   const revealRef = useRef(null);
-  const [transform, setTransform] = useState(zoomIdentity);
+  // The zoom level star sizes and line widths are drawn for, in steps (see sizeStep).
+  const [k, setK] = useState(1);
+  const [home, setHome] = useState(true);
+  // Screen pixels per dial unit, so text can stay readable on small screens.
+  const [unitPx, setUnitPx] = useState(2);
   const [hoverId, setHoverId] = useState(null);
   const [cursorId, setCursorId] = useState(null);
+  const [announcement, setAnnouncement] = useState("");
   const dial = useMemo(() => dialSegments(mode), [mode]);
   const ordered = useMemo(() => [...stars].sort((a, b) => a.angle - b.angle), [stars]);
   const byId = useMemo(() => new Map(stars.map((s) => [s.id, s])), [stars]);
   const linked = useMemo(() => new Set(path), [path]);
 
   useEffect(() => {
-    const svg = select(svgRef.current);
-    let frame = 0;
-    let latest = zoomIdentity;
+    const svgEl = svgRef.current;
+    const svg = select(svgEl);
     const behavior = zoom()
       .scaleExtent([1, 14])
       .translateExtent(DIAL_EXTENT)
       .clickDistance(TAP_MOVE_PX)
       .tapDistance(TAP_MOVE_PX)
       .on("zoom", (event) => {
-        latest = event.transform;
-        // One React update per animation frame, however fast the gesture events arrive.
-        if (!frame) {
-          frame = requestAnimationFrame(() => {
-            frame = 0;
-            setTransform(latest);
-          });
-        }
+        const t = event.transform;
+        sceneRef.current?.setAttribute("transform", toAttr(t));
+        // React skips these when the value hasn't changed, which is most frames.
+        setK(sizeStep(t.k));
+        setHome(isHome(t));
       });
     zoomRef.current = behavior;
     svg.call(behavior);
+    dblClickRef.current = svg.on("dblclick.zoom");
+
+    const measure = () => {
+      const { width, height } = svgEl.getBoundingClientRect();
+      const size = Math.min(width, height);
+      if (size) setUnitPx(Math.round((size / (VIEW * 2)) * 20) / 20);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(svgEl);
     return () => {
-      cancelAnimationFrame(frame);
+      observer.disconnect();
       cancelAnimationFrame(tweenRef.current);
       svg.on(".zoom", null);
     };
   }, []);
+
+  // A double tap while drawing is two stars in a row, not a zoom.
+  useEffect(() => {
+    select(svgRef.current).on("dblclick.zoom", drawing ? null : dblClickRef.current);
+  }, [drawing]);
 
   /** Eases the view to `target` (instantly with reduced motion), then runs `done`. */
   function animateTo(target, done) {
@@ -261,6 +297,7 @@ export default function StarChart({
   function nearestStar(clientX, clientY) {
     const ctm = svgRef.current.getScreenCTM();
     if (!ctm) return null;
+    const transform = zoomTransform(svgRef.current);
     const point = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
     const [x, y] = transform.invert([point.x, point.y]);
     let best = null;
@@ -301,6 +338,7 @@ export default function StarChart({
     if (e.key === "Escape") return onSelect(null);
     if (drawing && (e.key === "Enter" || e.key === " ") && byId.has(cursorId)) {
       e.preventDefault();
+      setAnnouncement(`Joined ${byId.get(cursorId).data.name}.`);
       return onSelect(cursorId);
     }
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -310,6 +348,7 @@ export default function StarChart({
     const index = ordered.findIndex((s) => s.id === current);
     const next =
       index === -1 ? (step > 0 ? 0 : ordered.length - 1) : (index + step + ordered.length) % ordered.length;
+    setAnnouncement(describe(ordered[next]));
     if (drawing) setCursorId(ordered[next].id);
     else onSelect(ordered[next].id);
   };
@@ -317,7 +356,6 @@ export default function StarChart({
   const pointedId = hoverId ?? (drawing ? cursorId : null);
   const hovered = pointedId !== selectedId ? byId.get(pointedId) : null;
   const isDim = (star) => highlight !== null && !highlight(star.data);
-  const { x, y, k } = transform;
 
   return (
     <div className="star-chart">
@@ -347,23 +385,27 @@ export default function StarChart({
             <stop offset="100%" stopOpacity="0" />
           </radialGradient>
         </defs>
-        <g transform={`translate(${x},${y}) scale(${k})`}>
-          <AtlasFrame segments={dial.segments} ticks={dial.ticks} />
+        <g ref={sceneRef}>
+          <AtlasFrame segments={dial.segments} ticks={dial.ticks} unitPx={unitPx} k={k} />
           {path.length > 0 && <ConstellationLines path={path} byId={byId} k={k} drawing={drawing} />}
           <g className="stars">
             {stars.map((star) => (
               <Star key={star.id} star={star} k={k} dim={isDim(star)} linked={linked.has(star.id)} />
             ))}
           </g>
-          {hovered && <StarLabel star={hovered} k={k} variant="hover" />}
-          {selected && <StarLabel star={selected} k={k} variant="selected" />}
+          {hovered && <StarLabel star={hovered} k={k} variant="hover" unitPx={unitPx} />}
+          {selected && <StarLabel star={selected} k={k} variant="selected" unitPx={unitPx} />}
         </g>
       </svg>
+
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
 
       {children}
 
       {/* The controls sit in the square's empty corners, outside the round dial, so they never hide a star. */}
-      {!(k === 1 && Math.abs(x) < 0.5 && Math.abs(y) < 0.5) && (
+      {!home && (
         <button type="button" className="icon-btn corner-btn zoom-reset" onClick={resetZoom} aria-label="Reset zoom">
           ⟲
         </button>

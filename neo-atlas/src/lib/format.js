@@ -18,6 +18,9 @@ const FULL_MONTHS = [
 
 export const toLunarDistances = (km) => km / KM_PER_LD;
 
+/** "1 star", "3 stars". */
+export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 export function formatLD(km) {
   const ld = toLunarDistances(km);
   const digits = ld < 1 ? 2 : ld < 10 ? 1 : 0;

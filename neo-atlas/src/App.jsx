@@ -1,21 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useCatalogTotal } from "./hooks/useCatalogTotal.js";
+import { useDraft } from "./hooks/useDraft.js";
 import { useFeatured } from "./hooks/useFeatured.js";
+import { closeLayer, useHistorySync } from "./hooks/useHistorySync.js";
 import { useSaved } from "./hooks/useSaved.js";
 import { useSky } from "./hooks/useSky.js";
 import { useToast } from "./hooks/useToast.js";
-import { api } from "./lib/api.js";
+import { useViewing } from "./hooks/useViewing.js";
 import { placeStar } from "./lib/chart.js";
 import {
   exportJson,
-  loadShared,
   makeConstellation,
+  MAX_IMPORT_BYTES,
   MAX_POINTS,
   parseImport,
   sharedFromQuery,
   shareQuery,
-  uniqueIds,
 } from "./lib/constellations.js";
-import { formatMonthDay } from "./lib/format.js";
+import { formatMonthDay, plural } from "./lib/format.js";
 import { highlightTest } from "./lib/highlights.js";
 import { completeSky, skyFromQuery, skyTitle, skyToQuery } from "./lib/sky.js";
 import ChartTip from "./ui/ChartTip.jsx";
@@ -38,25 +40,7 @@ const TABS = [
   { id: "mine", label: "Constellations" },
 ];
 
-// Drawing this many stars or more makes Cancel ask first.
-const CONFIRM_CANCEL_STARS = 3;
 const NO_ASTEROIDS = [];
-
-/** The catalog total, for "312 asteroids of 33,511". Optional: the chart works without it. */
-function useCatalogTotal() {
-  const [total, setTotal] = useState(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    api
-      .stats({ signal: controller.signal })
-      .then((stats) => setTotal(stats.total))
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
-
-  return total;
-}
 
 function initialState() {
   const { sky, selected } = skyFromQuery(window.location.search);
@@ -85,8 +69,6 @@ function downloadJson(text, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 /** What to say about a shared link whose stars didn't all load. */
 function sharedProblem(viewing) {
   const { missing, total, retryable } = viewing;
@@ -100,93 +82,99 @@ function sharedProblem(viewing) {
     : `${missing} of ${plural(total, "star")} in this link ${missing === 1 ? "isn't" : "aren't"} in the AegisNEO catalog.`;
 }
 
+/** What a history entry keeps of the view, so Back can return to it. */
+function viewingSnapshot(viewing) {
+  if (!viewing) return null;
+  const { status, constellation, pending, source } = viewing;
+  // Anything not fully loaded is fetched again (from the cache, usually) on the way back.
+  return status === "ready" ? { status, constellation, source } : { status: "loading", pending, source };
+}
+
 export default function App() {
   const [initial] = useState(initialState);
   const [tab, setTab] = useState("chart");
   const [mineOpened, setMineOpened] = useState(false);
   const [sky, setSkyState] = useState(initial.sky);
   const [selected, setSelected] = useState(initial.selected);
-  // A constellation on the chart, or null for the plain sky:
-  //   { status: "loading" | "failed", pending, source }            a shared link that hasn't loaded
-  //   { status: "partial", constellation, pending, missing, ... }   a shared link with stars missing
-  //   { status: "ready", constellation, source }
-  const [viewing, setViewing] = useState(initial.viewing);
-  // The constellation being drawn: the tap order of star IDs, or null when not drawing.
-  const [draft, setDraft] = useState(null);
-  const [drawSession, setDrawSession] = useState(0);
   const [highlight, setHighlight] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const sheetRef = useRef(null);
+  // Set once a discard is confirmed and Back is about to close the drawing, so it isn't asked twice.
+  const discarding = useRef(false);
 
+  const { viewing, setViewing, retry: retryShared } = useViewing(initial.viewing);
+  const draft = useDraft(setConfirm);
   const result = useSky(sky);
   const catalogTotal = useCatalogTotal();
   const { saved, persisted, add, remove, restore, importMany } = useSaved();
   const featured = useFeatured(mineOpened);
-  const { toast, show: showToast, dismiss: dismissToast } = useToast();
+  const { toast, show: showToast, dismiss: dismissToast, pause, resume } = useToast();
 
   const constellation = viewing?.constellation ?? null;
-  const drawing = draft !== null;
   const mode = constellation ? constellation.mode : (viewing?.pending.mode ?? sky.mode);
   const shown = constellation ? constellation.asteroids : viewing ? NO_ASTEROIDS : result.asteroids;
   const stars = useMemo(() => shown.map((a) => placeStar(a, mode)), [shown, mode]);
-  const selectedAsteroid = shown.find((a) => a.neo_reference_id === selected) ?? null;
   const title = constellation ? constellation.name : viewing ? viewing.pending.name : skyTitle(sky);
   const isSaved = constellation ? saved.some((s) => s.id === constellation.id) : false;
 
-  // The address bar always opens the same view: a constellation's share link, or the sky and selected star.
-  // A shared link that hasn't fully loaded is left as it is, so reloading tries the whole link again.
-  useEffect(() => {
-    if (viewing && viewing.status !== "ready") return;
-    const query = constellation ? shareQuery(constellation) : skyToQuery(sky, selected);
-    window.history.replaceState(null, "", `${window.location.pathname}${query}`);
-  }, [constellation, viewing, sky, selected]);
+  // A star picked in the address bar that isn't in this sky is dropped once the sky has loaded.
+  const selectedAsteroid = shown.find((a) => a.neo_reference_id === selected) ?? null;
+  const settled = viewing ? viewing.status !== "loading" : result.status !== "loading";
+  const selectedId = selected && (selectedAsteroid || !settled) ? selected : null;
 
-  // A shared link holds only asteroid IDs, so fetch each one from the API.
-  const loading = viewing?.status === "loading" ? viewing : null;
-  useEffect(() => {
-    if (!loading) return undefined;
-    const controller = new AbortController();
-    const { pending, source } = loading;
-    loadShared(pending, (id) => api.get(id, { signal: controller.signal })).then((r) => {
-      if (controller.signal.aborted) return;
-      const { constellation: c, missing, total, retryable } = r;
-      if (!c) setViewing({ status: "failed", pending, source, missing, total, retryable });
-      else if (missing > 0) setViewing({ status: "partial", constellation: c, pending, source, missing, total, retryable });
-      else setViewing({ status: "ready", constellation: c, source });
+  // A highlight with nothing to pick out in this sky is set aside (not lost) instead of dimming every star.
+  const shownHighlight = highlight && shown.some(highlightTest(highlight)) ? highlight : null;
+
+  // ---------- Address bar and Back button ----------
+
+  const layers = [
+    viewing && "viewing",
+    selectedId && !draft.drawing && "sheet",
+    draft.drawing && "drawing",
+  ].filter(Boolean);
+  // A shared link that hasn't fully loaded is left in the address bar, so reloading tries the whole link again.
+  const url = viewing ? (viewing.status === "ready" ? shareQuery(constellation) : null) : skyToQuery(sky, selectedId);
+  const snapshot = useMemo(
+    () => ({ selected: selectedId, viewing: viewingSnapshot(viewing) }),
+    [selectedId, viewing],
+  );
+
+  const onBack = (entry) => {
+    if (draft.drawing && !entry.layers.includes("drawing")) {
+      if (draft.hasStars && !discarding.current) {
+        draft.askDiscard(() => {
+          discarding.current = true;
+          window.history.back();
+        });
+        return false;
+      }
+      discarding.current = false;
+      draft.stop();
+    }
+    setViewing(entry.viewing ?? null);
+    if (!entry.viewing) setSkyState(completeSky(skyFromQuery(window.location.search).sky));
+    setSelected(entry.layers.includes("sheet") ? (entry.selected ?? null) : null);
+    return true;
+  };
+
+  useHistorySync({ url, layers, snapshot, onBack });
+
+  const without = (...names) => layers.filter((l) => !names.includes(l));
+  const closeSheet = () => closeLayer(layers, without("sheet"), () => setSelected(null));
+  const exitViewing = () =>
+    closeLayer(layers, without("viewing", "sheet"), () => {
+      setViewing(null);
+      setSelected(null);
     });
-    return () => controller.abort();
-  }, [loading]);
+  const discardDraft = () => {
+    discarding.current = true;
+    closeLayer(layers, without("drawing"), () => {
+      discarding.current = false;
+      draft.stop();
+    });
+  };
 
-  const retryShared = useCallback(
-    () => setViewing((v) => ({ status: "loading", pending: v.pending, source: v.source })),
-    [],
-  );
-
-  // Leaving the page mid-drawing would lose the stars joined so far.
-  const hasDraft = drawing && draft.length > 0;
-  useEffect(() => {
-    if (!hasDraft) return undefined;
-    const warn = (e) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [hasDraft]);
-
-  /** Runs `action` now, or after asking, if it would throw away a constellation being drawn. */
-  const guardDraft = useCallback(
-    (action) => {
-      if (!draft || draft.length === 0) return action();
-      const count = uniqueIds(draft).length;
-      setConfirm({
-        title: "Discard your constellation?",
-        body: `You've joined ${plural(count, "star")}. ${count === 1 ? "It" : "They"} will be lost.`,
-        confirmLabel: "Discard",
-        cancelLabel: "Keep drawing",
-        onConfirm: action,
-        onCancel: () => setTab("chart"),
-      });
-    },
-    [draft],
-  );
+  // ---------- Navigation ----------
 
   const openTab = useCallback((id) => {
     setTab(id);
@@ -198,22 +186,24 @@ export default function App() {
     setSelected(null);
   }, []);
 
+  const backToChart = () => setTab("chart");
+
   // ---------- Constellations ----------
 
   const share = useCallback(
     async (c) => {
-      const url = `${window.location.origin}${window.location.pathname}${shareQuery(c)}`;
+      const link = `${window.location.origin}${window.location.pathname}${shareQuery(c)}`;
       const touch = window.matchMedia?.("(pointer: coarse)").matches;
       if (touch && navigator.share) {
         try {
-          await navigator.share({ title: `${c.name} · NEO Atlas`, url });
+          await navigator.share({ title: `${c.name} · NEO Atlas`, url: link });
           return;
         } catch (err) {
           if (err?.name === "AbortError") return;
         }
       }
       try {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(link);
         showToast(`Link to “${c.name}” copied. Paste it anywhere to share.`);
       } catch {
         showToast("Couldn't copy the link. View the constellation and copy the address bar instead.");
@@ -223,54 +213,36 @@ export default function App() {
   );
 
   const view = (c, source) =>
-    guardDraft(() => {
-      setDraft(null);
+    draft.guard(() => {
+      draft.stop();
       setSelected(null);
       setHighlight(null);
       setViewing({ status: "ready", constellation: c, source });
       setTab("chart");
-    });
-
-  const exitViewing = useCallback(() => {
-    setViewing(null);
-    setSelected(null);
-  }, []);
+    }, backToChart);
 
   const startDrawing = (firstId = null) =>
-    guardDraft(() => {
+    draft.guard(() => {
       setViewing(null);
       setSelected(null);
-      setDraft(firstId ? [firstId] : []);
-      setDrawSession((n) => n + 1);
+      draft.start(firstId);
       setTab("chart");
-    });
-
-  const cancelDrawing = () => {
-    const count = uniqueIds(draft).length;
-    if (count < CONFIRM_CANCEL_STARS) return setDraft(null);
-    setConfirm({
-      title: "Discard your constellation?",
-      body: `You've joined ${plural(count, "star")}. They will be lost.`,
-      confirmLabel: "Discard",
-      cancelLabel: "Keep drawing",
-      onConfirm: () => setDraft(null),
-    });
-  };
+    }, backToChart);
 
   const onStarTap = (id) => {
-    if (!drawing) return setSelected(id);
-    if (!id || draft[draft.length - 1] === id) return;
-    if (draft.length >= MAX_POINTS) {
-      showToast(`A constellation can have up to ${MAX_POINTS} points. Tap Done to save it.`);
-      return;
-    }
-    setDraft([...draft, id]);
+    if (!draft.drawing) return id ? setSelected(id) : closeSheet();
+    if (!draft.tap(id)) showToast(`A constellation can have up to ${MAX_POINTS} points. Tap Done to save it.`);
+  };
+
+  const onListSelect = (id) => {
+    if (draft.drawing) return showToast("You're drawing a constellation. Tap stars on the Chart, then Done.");
+    setSelected(id);
   };
 
   const saveDraft = (name) => {
-    const c = makeConstellation({ name, mode: sky.mode, path: draft, asteroids: result.asteroids });
+    const c = makeConstellation({ name, mode: sky.mode, path: draft.draft, asteroids: result.asteroids });
     add(c);
-    setDraft(null);
+    draft.stop();
     setViewing({ status: "ready", constellation: c, source: "saved" });
     showToast(`Saved “${c.name}” to Constellations.`, { label: "Share", run: () => share(c) });
   };
@@ -292,6 +264,7 @@ export default function App() {
   };
 
   const importFile = async (file) => {
+    if (file.size > MAX_IMPORT_BYTES) return showToast("That file is too big to be a NEO Atlas export.");
     try {
       const added = importMany(parseImport(await file.text()));
       showToast(
@@ -335,7 +308,7 @@ export default function App() {
       onExit={exitViewing}
     />
   ) : (
-    <SkyControls sky={sky} onChange={setSky} disabled={drawing} />
+    <SkyControls sky={sky} onChange={setSky} disabled={draft.drawing} />
   );
 
   // When the chart has no stars yet, the chart itself says why: still loading, or what went wrong.
@@ -369,9 +342,9 @@ export default function App() {
 
   const description = `Star chart of ${shown.length} asteroids${
     constellation ? ` in the constellation ${constellation.name}` : ` that passed Earth in ${title}`
-  }. ${drawing ? "Use the arrow keys to move between stars and Enter to add one." : "Use the arrow keys to step through them."}`;
+  }. ${draft.drawing ? "Use the arrow keys to move between stars and Enter to add one." : "Use the arrow keys to step through them."}`;
 
-  const sheetOpen = tab !== "mine" && !drawing && selectedAsteroid !== null;
+  const sheetOpen = tab !== "mine" && !draft.drawing && selectedAsteroid !== null;
 
   return (
     <div className="app">
@@ -398,18 +371,18 @@ export default function App() {
           hidden={tab !== "chart"}
         >
           <div className="chart-toolbar">{toolbar}</div>
-          {!drawing && !viewing && <ChartTip />}
+          {!draft.drawing && !viewing && <ChartTip />}
           <div className="chart-area">
             <StarChart
               stars={stars}
               mode={mode}
               viewKey={constellation ? `c:${constellation.id}` : sky.mode}
-              selectedId={selected}
+              selectedId={selectedId}
               onSelect={onStarTap}
               description={description}
-              path={drawing ? draft : (constellation?.path ?? undefined)}
-              highlight={highlightTest(highlight)}
-              drawing={drawing}
+              path={draft.drawing ? draft.draft : (constellation?.path ?? undefined)}
+              highlight={highlightTest(shownHighlight)}
+              drawing={draft.drawing}
               coverRef={sheetRef}
               covered={sheetOpen}
             >
@@ -417,14 +390,14 @@ export default function App() {
               {chartStatus}
             </StarChart>
           </div>
-          {drawing ? (
+          {draft.drawing ? (
             <DrawBar
-              key={drawSession}
-              count={uniqueIds(draft).length}
-              points={draft.length}
+              key={draft.session}
+              count={draft.count}
+              points={draft.draft.length}
               defaultName={draftName(sky)}
-              onUndo={() => setDraft(draft.slice(0, -1))}
-              onCancel={cancelDrawing}
+              onUndo={draft.undo}
+              onCancel={() => draft.cancel(discardDraft)}
               onSave={saveDraft}
             />
           ) : (
@@ -432,7 +405,7 @@ export default function App() {
               title={title}
               result={shownResult}
               catalogTotal={viewing ? null : catalogTotal}
-              highlight={highlight}
+              highlight={shownHighlight}
               onHighlight={setHighlight}
               notice={notice}
               onMake={viewing ? null : () => startDrawing()}
@@ -452,10 +425,10 @@ export default function App() {
             toolbar={toolbar}
             title={title}
             result={shownResult}
-            highlight={highlight}
+            highlight={shownHighlight}
             onHighlight={setHighlight}
-            selectedId={selected}
-            onSelect={setSelected}
+            selectedId={selectedId}
+            onSelect={onListSelect}
           />
         </section>
 
@@ -476,21 +449,21 @@ export default function App() {
             onDelete={deleteSaved}
             onExport={exportSaved}
             onImport={importFile}
-            drawing={drawing}
-            onBackToDrawing={() => setTab("chart")}
+            drawing={draft.drawing}
+            onBackToDrawing={backToChart}
             catalogTotal={catalogTotal}
           />
         </section>
 
         {sheetOpen && (
-          <DetailSheet asteroid={selectedAsteroid} onClose={() => setSelected(null)} sheetRef={sheetRef}>
+          <DetailSheet asteroid={selectedAsteroid} onClose={closeSheet} sheetRef={sheetRef}>
             {tab === "list" && (
-              <button type="button" className="btn btn-small btn-solid" onClick={() => setTab("chart")}>
+              <button type="button" className="btn btn-small btn-solid" onClick={backToChart}>
                 Show on chart
               </button>
             )}
             {!viewing && result.status === "ready" && (
-              <button type="button" className="btn btn-small" onClick={() => startDrawing(selected)}>
+              <button type="button" className="btn btn-small" onClick={() => startDrawing(selectedId)}>
                 <span aria-hidden="true">✦</span> Start a constellation here
               </button>
             )}
@@ -506,7 +479,7 @@ export default function App() {
         · NASA NeoWs records via Kaggle · close-approach dates simulated
       </footer>
 
-      <Toast toast={toast} onDismiss={dismissToast} />
+      <Toast toast={toast} onDismiss={dismissToast} onPause={pause} onResume={resume} />
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
     </div>
   );

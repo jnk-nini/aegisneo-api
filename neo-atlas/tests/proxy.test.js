@@ -24,15 +24,19 @@ describe("api/neo proxy", () => {
 
   it("forwards allowed paths and params with the key attached", async () => {
     const res = mockRes();
-    await handler(
-      { method: "GET", query: { path: "asteroids", search: "1987-", limit: "100", evil: "x" } },
-      res,
-    );
+    await handler({ method: "GET", query: { path: "asteroids", search: "1987-", limit: "100" } }, res);
     expect(res.statusCode).toBe(200);
     const [url, init] = globalThis.fetch.mock.calls[0];
     expect(url.toString()).toBe("https://api.example.test/api/v1/asteroids?search=1987-&limit=100");
     expect(init.headers["x-api-key"]).toBe("test-key");
     expect(res.headers["Cache-Control"]).toContain("s-maxage");
+  });
+
+  it("rejects unknown parameters, so they can't be used to skip the edge cache", async () => {
+    const res = mockRes();
+    await handler({ method: "GET", query: { path: "asteroids", search: "1987-", nocache: "123" } }, res);
+    expect(res.statusCode).toBe(400);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("allows a single asteroid and stats", async () => {

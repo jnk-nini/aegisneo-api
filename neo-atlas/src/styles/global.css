@@ -1482,6 +1482,38 @@ form.draw-bar .text-input {
   color: var(--paper);
 }
 
+/* Shown in place of the app if it crashes. */
+.crash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 100%;
+  padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+  text-align: center;
+}
+.crash .wordmark {
+  margin-bottom: 12px;
+}
+.crash p {
+  margin: 0;
+}
+.crash-note {
+  color: var(--paper-muted);
+  font-size: 0.9rem;
+}
+.crash-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.crash-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 /* ---------- Wide screens and phones on their side: tabs move up beside the title ---------- */
 
 @media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {

@@ -6,14 +6,23 @@ const R_BAND_OUT = 100;
 const R_BAND_IN = 86;
 const R_LABEL = 93;
 
+// Smallest on-screen sizes, in pixels, for the ring labels and "Earth".
+const RING_LABEL_PX = 8.5;
+const EARTH_LABEL_PX = 10;
+
 const polar = (r, angle) => [r * Math.cos(angle), r * Math.sin(angle)];
 
 /**
  * The fixed engraving of the planisphere: the labelled band (months or
  * decades), distance rings in lunar distances, and Earth at the center.
+ * `unitPx` is screen pixels per dial unit; on a phone the small labels are
+ * drawn larger so they stay readable. They grow more slowly than the zoom `k`,
+ * so zooming in doesn't blow them up across the stars.
  */
-function AtlasFrame({ segments, ticks }) {
+function AtlasFrame({ segments, ticks, unitPx = 2, k = 1 }) {
   const boundaries = new Set(segments.map((s) => Math.round(s.from * ticks)));
+  const ringLabelSize = Math.max(3, RING_LABEL_PX / unitPx) / Math.sqrt(k);
+  const earthLabelSize = Math.max(4.6, EARTH_LABEL_PX / unitPx) / Math.sqrt(k);
 
   return (
     <g className="atlas-frame" aria-hidden="true">
@@ -63,14 +72,19 @@ function AtlasFrame({ segments, ticks }) {
       {DISTANCE_RINGS.map((ring) => (
         <g key={ring.ld}>
           <circle r={ring.r} className={ring.ld === 1 ? "frame-guide moon" : "frame-guide"} />
-          <text x="1.4" y={-ring.r - 1.2} className="frame-ring-label">
+          <text x="1.4" y={-ring.r - 1.2} className="frame-ring-label" style={{ fontSize: ringLabelSize }}>
             {ring.label}
           </text>
         </g>
       ))}
 
       <circle r="3.2" className="frame-earth" />
-      <text y="8.5" className="frame-earth-label" textAnchor="middle">
+      <text
+        y={3.2 + earthLabelSize}
+        className="frame-earth-label"
+        textAnchor="middle"
+        style={{ fontSize: earthLabelSize }}
+      >
         Earth
       </text>
     </g>

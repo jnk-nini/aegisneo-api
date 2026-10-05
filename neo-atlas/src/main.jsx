@@ -5,9 +5,12 @@ import "@fontsource-variable/manrope";
 import "@fontsource-variable/jetbrains-mono";
 import "./styles/global.css";
 import App from "./App.jsx";
+import ErrorBoundary from "./ui/ErrorBoundary.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
