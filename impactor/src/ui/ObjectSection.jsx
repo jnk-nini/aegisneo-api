@@ -3,7 +3,7 @@ import { useSim } from "../store.js";
 import { api } from "../lib/api.js";
 import { FAMOUS_ASTEROIDS } from "../data/presets.js";
 import { formatDiameter } from "../lib/format.js";
-import { KM_PER_LD } from "../scene/Flyby.jsx";
+import { KM_PER_LD } from "../lib/geo.js";
 
 const QUICK = [
   { key: "random", label: "Random", pick: true, load: (opts) => api.random({}, opts) },
@@ -84,9 +84,18 @@ export default function ObjectSection() {
       const data = await load(c.signal);
       if (c.signal.aborted) return;
       const list = data.asteroids ?? (data.neo_reference_id ? [data] : []);
-      if (pickFirst && list[0]) {
-        selectAsteroid(list[0]);
+      if (pickFirst) {
+        // Quick picks have no search terms, so "no matches" advice would make no sense.
         setResults(null);
+        if (!list[0]) {
+          setStatus({
+            loading: false,
+            error: "The catalog didn't send an asteroid back. Try again.",
+            label: "",
+          });
+          return;
+        }
+        selectAsteroid(list[0]);
       } else {
         setResults({ label, list, matched: data.matched });
       }

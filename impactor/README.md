@@ -81,6 +81,11 @@ Tunguska, Meteor Crater and Chicxulub.
 - Layout: bottom sheet with tabs below 1100 px; side panels on desktop.
 - Graphics: device pixel ratio capped (1.75 on phones), quality lowered automatically
   if the frame rate drops, 2048 px textures on phones.
+- Loading: the globe's textures are painted in a Web Worker (`src/lib/earth.worker.js`)
+  so the page never freezes, falling back to the page on browsers without
+  OffscreenCanvas. three.js only downloads with the 3D view, so the 2D map stays light.
+  Lighthouse (mobile preset) on the production build: total blocking time fell from
+  about 10.5 s to under 1.5 s, accessibility 100.
 - Robustness: if WebGL is missing, crashes, or the GPU context isn't restored after
   4 seconds, the app switches to a 2D map that still runs full simulations.
 - Touch: 16 px inputs (no iOS zoom on focus), ≥40 px touch targets, `dvh` units and
@@ -91,6 +96,7 @@ Tunguska, Meteor Crater and Chicxulub.
 
 ```
 api/neo.js            Vercel serverless proxy to the AegisNEO API
+tests/                Proxy tests (kept out of api/, where every file becomes a function)
 src/physics/          Impact model, tests, damage-zone styling, reference events
 src/scene/            React Three Fiber scene: globe, impact effects, camera, flyby
 src/ui/               Panels, results, HUD, 2D fallback map, dialogs
@@ -111,7 +117,8 @@ src/data/             City list, famous asteroid IDs
    npm run dev
    ```
 
-Other scripts: `npm test` (unit tests), `npm run lint`, `npm run build`.
+Other scripts: `npm test` (unit tests), `npm run lint`, `npm run build`. GitHub Actions
+runs all three for Impactor and NEO Atlas on every push (`.github/workflows/ci.yml`).
 
 ## Deploying (Vercel)
 
@@ -124,9 +131,14 @@ Impactor deploys as its **own Vercel project**, separate from the AegisNEO API p
    - `AEGISNEO_API_URL`: `https://aegisneo-api.vercel.app` (the default if unset)
 4. Deploy.
 
-To give each website its own key, set `AEGISNEO_API_KEYS` on the **API** project,
-e.g. `aegisneo-web:<key1>,impactor:<key2>`. Without it, the API keeps accepting its
-original demo key.
+Each website has its own key, listed in `AEGISNEO_API_KEYS` on the **API** project,
+e.g. `aegisneo-web:<key1>,impactor:<key2>`, so one can be revoked without breaking
+the others. The API also always accepts the public demo key, which is enough for
+local development.
+
+The proxy keeps the key out of the browser, but it is not access control: anyone
+can call this site's `/api/neo/*` endpoints, and there is no rate limit. The key
+identifies which site is asking; it doesn't keep anyone out.
 
 ## Credits
 

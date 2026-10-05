@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useSim } from "./store.js";
 import { useIsMobile } from "./ui/hooks.js";
-import { useEarthTextures } from "./scene/useEarthTextures.js";
+import { loadEarthImages, loadLandMask } from "./lib/world.js";
 import { applyScenarioQuery } from "./lib/scenario.js";
 import TopBar from "./ui/TopBar.jsx";
 import Hud from "./ui/Hud.jsx";
@@ -38,16 +38,24 @@ export default function App() {
   const reducedMotion = useSim((s) => s.reducedMotion);
   const [aboutOpen, setAboutOpen] = useState(false);
   const fallbackReason = useSim((s) => s.fallbackReason);
-  const { textures, error: textureError } = useEarthTextures();
+  const globeReady = useSim((s) => s.globeReady);
   const restored = useRef(false);
+  const show3d = view3d && !webglFailed;
 
-  // Restore a shared scenario from the URL once the globe is ready to show it.
+  // Start painting the globe (in a worker) while the 3D code downloads; the
+  // 2D map only needs the land/water mask.
+  useEffect(() => {
+    if (show3d) loadEarthImages().catch(() => {});
+    else loadLandMask();
+  }, [show3d]);
+
+  // Restore a shared scenario from the URL once the view is ready to show it.
   useEffect(() => {
     if (restored.current || !location.search) return;
-    if (!textures && !webglFailed && !textureError) return;
+    if (show3d && !globeReady) return;
     restored.current = true;
     applyScenarioQuery(location.search, { launch: true }).catch(() => {});
-  }, [textures, webglFailed, textureError]);
+  }, [show3d, globeReady]);
 
   // On phones, after choosing an asteroid, guide the user to pick a target on the globe.
   useEffect(() => {
@@ -57,8 +65,6 @@ export default function App() {
   }, [asteroid, isMobile]);
 
   const failTo2d = (reason) => useSim.setState({ webglFailed: true, view3d: false, fallbackReason: reason });
-
-  const show3d = view3d && !webglFailed && !textureError;
 
   return (
     <div
@@ -70,31 +76,26 @@ export default function App() {
       <TopBar onAbout={() => setAboutOpen(true)} />
       <main className="stage" aria-label="Simulation view">
         {show3d ? (
-          textures ? (
-            <ErrorBoundary
-              fallback={
-                <FallbackMap reason="The 3D view hit a problem, so you're seeing the 2D map instead." />
-              }
-              onError={() => failTo2d("The 3D view hit a problem, so you're seeing the 2D map instead.")}
-            >
-              <Suspense fallback={<Loading text="Loading 3D engine…" />}>
-                <Scene
-                  textures={textures}
-                  onContextLost={() =>
-                    failTo2d("The graphics driver reset, so you're seeing the 2D map instead.")
-                  }
-                />
-              </Suspense>
-            </ErrorBoundary>
-          ) : (
-            <Loading text="Painting the globe…" />
-          )
-        ) : (
-          <FallbackMap
-            reason={
-              textureError ? "The globe couldn't load, so you're seeing the 2D map instead." : fallbackReason
+          <ErrorBoundary
+            fallback={
+              <FallbackMap reason="The 3D view hit a problem, so you're seeing the 2D map instead." />
             }
-          />
+            onError={() => failTo2d("The 3D view hit a problem, so you're seeing the 2D map instead.")}
+          >
+            <Suspense fallback={<Loading text="Loading 3D engine…" />}>
+              <Scene
+                loading={<Loading text="Painting the globe…" />}
+                onContextLost={() =>
+                  failTo2d("The graphics driver reset, so you're seeing the 2D map instead.")
+                }
+                onTextureError={() =>
+                  failTo2d("The globe couldn't load, so you're seeing the 2D map instead.")
+                }
+              />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <FallbackMap reason={fallbackReason} />
         )}
         <ScreenFlash />
         <FlybyCaption />

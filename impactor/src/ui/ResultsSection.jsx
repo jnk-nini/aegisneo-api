@@ -3,8 +3,9 @@ import { useSim } from "../store.js";
 import { zonesFor } from "../physics/zones.js";
 import { compareToEvents, globalConsequence } from "../physics/events.js";
 import { COMPOSITIONS, blastArrivalSeconds } from "../physics/impact.js";
+import { formatLatLon } from "../lib/geo.js";
+import { citiesInRange } from "../lib/cityRange.js";
 import { CITIES } from "../data/cities.js";
-import { distanceKm, formatLatLon } from "../lib/geo.js";
 import {
   formatBig,
   formatClock,
@@ -16,19 +17,7 @@ import {
 import { savedScenarios } from "../lib/storage.js";
 import { applyScenarioQuery } from "../lib/scenario.js";
 
-function citiesInRange(run, zones) {
-  if (!zones.length) return [];
-  const outer = zones[0].radiusM / 1000;
-  const hits = [];
-  for (const [name, country, lat, lon] of CITIES) {
-    const d = distanceKm(run.target, { lat, lon });
-    if (d > outer) continue;
-    // Strongest (smallest) zone that still reaches the city.
-    const zone = [...zones].reverse().find((z) => z.radiusM / 1000 >= d);
-    hits.push({ name, country, distance: d, zone });
-  }
-  return hits.sort((a, b) => a.distance - b.distance).slice(0, 8);
-}
+const CITY_COUNT = CITIES.length;
 
 function regimeText(result, surface) {
   const { entry } = result;
@@ -136,7 +125,7 @@ export default function ResultsSection() {
   const run = useSim((s) => s.run);
   const phase = useSim((s) => s.phase);
   const zones = useMemo(() => zonesFor(run?.result), [run]);
-  const cities = useMemo(() => (run ? citiesInRange(run, zones) : []), [run, zones]);
+  const cities = useMemo(() => (run ? citiesInRange(run.target, zones) : { list: [] }), [run, zones]);
 
   if (!run) {
     return (
@@ -261,11 +250,17 @@ export default function ResultsSection() {
         </p>
       )}
 
-      {cities.length > 0 && (
+      {cities.list.length > 0 && (
         <>
           <h3>Major cities in range</h3>
+          {cities.byPopulation && (
+            <p className="muted">
+              {cities.total === CITY_COUNT ? "All" : `${cities.total} of the`} {CITY_COUNT} major cities in
+              this simulator are in range. The largest:
+            </p>
+          )}
           <ul className="city-list">
-            {cities.map((c) => (
+            {cities.list.map((c) => (
               <li key={`${c.name}-${c.country}`}>
                 <span className="swatch" style={{ background: c.zone?.line }} aria-hidden="true" />
                 <span>{c.name}</span>

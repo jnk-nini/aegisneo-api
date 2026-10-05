@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 import { CanvasTexture, LinearMipmapLinearFilter, NoColorSpace, SRGBColorSpace } from "three";
-import { buildEarthTextures } from "../lib/world.js";
+import { loadEarthImages } from "../lib/world.js";
 
 let texturePromise = null;
 
-function pickSize() {
-  const mobile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 900;
-  return mobile ? 2048 : 4096;
-}
-
-function toTexture(canvas, srgb) {
+function toTexture(image, srgb) {
+  // WebGL ignores flipY for ImageBitmaps, so worker output goes through a
+  // canvas (a fast GPU copy) to upload the same way as the page fallback.
+  let canvas = image;
+  if (typeof ImageBitmap !== "undefined" && image instanceof ImageBitmap) {
+    canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    canvas.getContext("2d").drawImage(image, 0, 0);
+    image.close();
+  }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
   texture.minFilter = LinearMipmapLinearFilter;
@@ -18,13 +23,13 @@ function toTexture(canvas, srgb) {
   return texture;
 }
 
-/** Builds the procedural Earth textures once per page load. */
+/** The procedural Earth textures, painted once per page load (see lib/world.js). */
 export function useEarthTextures() {
   const [state, setState] = useState({ textures: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    texturePromise ??= buildEarthTextures(pickSize()).then((c) => ({
+    texturePromise ??= loadEarthImages().then((c) => ({
       day: toTexture(c.day, true),
       night: toTexture(c.night, true),
       mask: toTexture(c.mask, false),

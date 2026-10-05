@@ -3,33 +3,28 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Vector3 } from "three";
 import { useSim } from "../store.js";
-import { latLonToVector, localFrame } from "../lib/geo.js";
+import { latLonToVector, localFrame } from "./sphereMath.js";
 import { simulateImpact } from "../physics/impact.js";
 import { outermostRadiusM } from "../physics/zones.js";
 import { APPROACH_SECONDS, clock } from "./timeline.js";
-import { focusPose, runGeometry } from "./effects.js";
+import { blendPose, focusPose, newPose, runGeometry } from "./effects.js";
 
 const ORIGIN = new Vector3();
 const WORLD_UP = new Vector3(0, 1, 0);
-const MIN_ALTITUDE = 0.00004;
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/**
- * Interpolates between two poses by moving around the look-at point on a
- * sphere (slerp direction, log-lerp distance) so the camera never cuts through Earth.
- */
-function blendPose(from, to, t, out) {
-  out.target.lerpVectors(from.target, to.target, t);
-  const fromOffset = from.position.clone().sub(from.target);
-  const toOffset = to.position.clone().sub(to.target);
-  const fromDist = fromOffset.length();
-  const toDist = toOffset.length();
-  const dir = fromOffset.normalize().lerp(toOffset.normalize(), t).normalize();
-  const dist = Math.exp(Math.log(fromDist) + (Math.log(toDist) - Math.log(fromDist)) * t);
-  out.position.copy(out.target).addScaledVector(dir, dist);
-  if (out.position.length() < 1 + MIN_ALTITUDE) out.position.setLength(1 + MIN_ALTITUDE);
-  out.up.lerpVectors(from.up, to.up, t).normalize();
-  return out;
+/** Wide opening shot of a run: side-on to the incoming path, both ends in view. */
+function widePose(geo) {
+  const sideways = geo.frame.up.clone().cross(geo.horizontal).normalize();
+  const target = geo.center
+    .clone()
+    .multiplyScalar(0.35)
+    .add(geo.start.clone().sub(geo.center).multiplyScalar(0.3));
+  return {
+    target,
+    position: target.clone().add(sideways.multiplyScalar(3.4).addScaledVector(geo.frame.up, 1.2)),
+    up: geo.frame.up.clone(),
+  };
 }
 
 function currentPose(camera, controls) {
@@ -55,8 +50,10 @@ export default function CameraRig() {
   const reducedMotion = useSim((s) => s.reducedMotion);
   const [control, setControl] = useState({ kind: "globe", center: null, key: 0 });
   const flight = useRef(null);
-  const scratch = useMemo(() => ({ position: new Vector3(), target: new Vector3(), up: new Vector3() }), []);
+  // Reused every frame so the cinematic allocates nothing (less GC stutter on phones).
+  const scratch = useMemo(() => ({ out: newPose(), intro: newPose(), focus: newPose() }), []);
   const geo = useMemo(() => (run ? runGeometry(run) : null), [run]);
+  const wide = useMemo(() => (geo ? widePose(geo) : null), [geo]);
   const cinematic = Boolean(run) && (phase === "approach" || phase === "impact");
 
   const applyPose = (pose) => {
@@ -129,40 +126,26 @@ export default function CameraRig() {
     if (cinematic && geo && wideStart.current) {
       // Start from a wide shot showing the incoming path, end framed on the impact site.
       const t = clock.t;
-      const focus = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal);
-      const sideways = geo.frame.up.clone().cross(geo.horizontal).normalize();
-      const wideTarget = geo.center
-        .clone()
-        .multiplyScalar(0.35)
-        .add(geo.start.clone().sub(geo.center).multiplyScalar(0.3));
-      const wide = {
-        target: wideTarget,
-        position: wideTarget.clone().add(sideways.multiplyScalar(3.4).addScaledVector(geo.frame.up, 1.2)),
-        up: geo.frame.up.clone(),
-      };
-      const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), {
-        position: new Vector3(),
-        target: new Vector3(),
-        up: new Vector3(),
-      });
+      const focus = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal, scratch.focus);
+      const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), scratch.intro);
       const u = Math.min(1, t / APPROACH_SECONDS);
       const k = u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7);
-      blendPose(intro, focus, k, scratch);
+      const pose = blendPose(intro, focus, k, scratch.out);
       // Camera shake right after impact.
       const tau = t - APPROACH_SECONDS;
       if (tau > 0 && tau < 1.2) {
-        const amp = scratch.position.distanceTo(scratch.target) * 0.012 * (1 - tau / 1.2);
-        scratch.position.x += (Math.random() - 0.5) * amp;
-        scratch.position.y += (Math.random() - 0.5) * amp;
-        scratch.position.z += (Math.random() - 0.5) * amp;
+        const amp = pose.position.distanceTo(pose.target) * 0.012 * (1 - tau / 1.2);
+        pose.position.x += (Math.random() - 0.5) * amp;
+        pose.position.y += (Math.random() - 0.5) * amp;
+        pose.position.z += (Math.random() - 0.5) * amp;
       }
-      applyPose(scratch);
+      applyPose(pose);
       return;
     }
     const f = flight.current;
     if (f) {
       const t = Math.min(1, (performance.now() - f.start) / f.duration);
-      applyPose(blendPose(f.from, f.to, easeInOut(t), scratch));
+      applyPose(blendPose(f.from, f.to, easeInOut(t), scratch.out));
       if (t >= 1) {
         flight.current = null;
         if (controlsRef.current) controlsRef.current.enabled = !cinematic;

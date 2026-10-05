@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { PerformanceMonitor, Stars } from "@react-three/drei";
 import { useSim } from "../store.js";
-import { latLonToVector, subsolarPoint, vectorToLatLon } from "../lib/geo.js";
+import { subsolarPoint } from "../lib/geo.js";
 import { pickTarget } from "../lib/target.js";
+import { latLonToVector, vectorToLatLon } from "./sphereMath.js";
+import { useEarthTextures } from "./useEarthTextures.js";
 import Earth from "./Earth.jsx";
 import CameraRig from "./CameraRig.jsx";
 import Flyby from "./Flyby.jsx";
@@ -71,7 +73,25 @@ function ImpactWorld({ textures, sunDir }) {
   );
 }
 
-export default function Scene({ textures, onContextLost }) {
+/**
+ * The 3D view. Loaded lazily with three.js, so people who only see the 2D map
+ * never download either; shows `loading` while the globe is being painted.
+ */
+export default function Scene({ loading, onContextLost, onTextureError }) {
+  const { textures, error } = useEarthTextures();
+  useEffect(() => {
+    if (error) onTextureError();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+  useEffect(() => {
+    useSim.setState({ globeReady: Boolean(textures) });
+    return () => useSim.setState({ globeReady: false });
+  }, [textures]);
+  if (!textures) return loading;
+  return <SceneCanvas textures={textures} onContextLost={onContextLost} />;
+}
+
+function SceneCanvas({ textures, onContextLost }) {
   const mode = useSim((s) => s.mode);
   const asteroid = useSim((s) => s.asteroid);
   const [dpr, setDpr] = useState(() => Math.min(window.devicePixelRatio || 1, isCoarse() ? 1.75 : 2));
@@ -83,6 +103,19 @@ export default function Scene({ textures, onContextLost }) {
   }, []);
   const flyby = mode === "flyby" && asteroid;
   const starRadius = flyby ? Math.max(asteroid.miss_distance_km / 384400, 1) * 60 : 300;
+
+  // React Three Fiber deliberately drops the WebGL context when the 3D view
+  // unmounts (e.g. switching to the 2D map). That isn't a driver reset, so the
+  // fallback timer must not outlive the view.
+  const contextLoss = useRef({ mounted: true, timer: null });
+  useEffect(() => {
+    const state = contextLoss.current;
+    state.mounted = true;
+    return () => {
+      state.mounted = false;
+      clearTimeout(state.timer);
+    };
+  }, []);
 
   return (
     <Canvas
@@ -97,12 +130,13 @@ export default function Scene({ textures, onContextLost }) {
       onCreated={({ gl }) => {
         // Phones drop the GPU context under memory pressure. three.js rebuilds it
         // when the browser restores it; only fall back to 2D if that doesn't happen.
-        let fallbackTimer = null;
+        const state = contextLoss.current;
         gl.domElement.addEventListener("webglcontextlost", (e) => {
           e.preventDefault();
-          fallbackTimer = setTimeout(onContextLost, 4000);
+          if (!state.mounted) return;
+          state.timer = setTimeout(() => state.mounted && onContextLost(), 4000);
         });
-        gl.domElement.addEventListener("webglcontextrestored", () => clearTimeout(fallbackTimer));
+        gl.domElement.addEventListener("webglcontextrestored", () => clearTimeout(state.timer));
       }}
       aria-label="3D view of Earth. Choose a target with the panel or by tapping the globe."
       role="img"

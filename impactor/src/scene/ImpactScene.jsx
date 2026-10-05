@@ -5,7 +5,7 @@ import { AdditiveBlending, Color, Quaternion, Vector3 } from "three";
 import { useSim } from "../store.js";
 import { simulateImpact } from "../physics/impact.js";
 import { zonesFor } from "../physics/zones.js";
-import { latLonToVector, localFrame } from "../lib/geo.js";
+import { latLonToVector, localFrame } from "./sphereMath.js";
 import { clearZones, setShock, setZoneOpacity, setZones } from "./zoneOverlay.js";
 import { APPROACH_SECONDS, TOTAL_SECONDS, clock, phaseAt, shockRadiusM } from "./timeline.js";
 import { glowTexture, rockGeometry, runGeometry } from "./effects.js";
@@ -266,7 +266,15 @@ function ImpactEffects({ geo, run }) {
     return { dirs, params, up, g: spread * 4, positions: new Float32Array(count * 3) };
   }, [geo, crater, outerM, isMobile]);
 
-  const debrisColor = useMemo(() => new Color(), []);
+  // Hot ejecta cooling to dust (or spray settling to sea), mixed into one reused colour.
+  const debrisColors = useMemo(() => {
+    const water = run.target.surface === "water";
+    return {
+      hot: new Color(water ? "#d8f0ff" : "#ffb35c"),
+      cool: new Color(water ? "#7fb6d9" : "#5a3a28"),
+      now: new Color(),
+    };
+  }, [run]);
   const tmp = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
@@ -320,11 +328,8 @@ function ImpactEffects({ geo, run }) {
         }
         const attr = debris.current.geometry.getAttribute("position");
         attr.needsUpdate = true;
-        const cool = smooth(0, 2.5, tau);
-        debrisColor
-          .set(run.target.surface === "water" ? "#d8f0ff" : "#ffb35c")
-          .lerp(new Color(run.target.surface === "water" ? "#7fb6d9" : "#5a3a28"), cool);
-        debris.current.material.color.copy(debrisColor);
+        const { hot, cool, now } = debrisColors;
+        debris.current.material.color.copy(now.lerpColors(hot, cool, smooth(0, 2.5, tau)));
         debris.current.material.opacity = 1 - smooth(3.5, 5, tau);
       }
     }

@@ -65,6 +65,7 @@ export const useSim = create((set, get) => ({
   sheet: "half", // peek | half | full (mobile only)
   sheetHeight: 0, // px the mobile sheet covers at the bottom of the view; 0 on desktop
   capture: null, // function returning a PNG blob of the 3D view
+  globeReady: false, // the 3D globe's textures are painted and on screen
 
   selectAsteroid(asteroid) {
     set({ asteroid, ...realParamsFor(asteroid), run: null, phase: "idle" });

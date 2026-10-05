@@ -2,7 +2,7 @@
 // the 2D map, a city search or a shared link.
 import { useSim } from "../store.js";
 import { CITIES } from "../data/cities.js";
-import { countryAt, surfaceAt } from "./world.js";
+import { countryAt, loadLandMask, surfaceAt } from "./world.js";
 import { distanceKm } from "./geo.js";
 
 export function nearestCity(lat, lon, maxKm = 400) {
@@ -19,9 +19,12 @@ let requestId = 0;
 export async function pickTarget(lat, lon, { label = null } = {}) {
   // The running impact is tied to the old target; changing it now would leave
   // the results describing one place and the marker sitting on another.
-  const { phase } = useSim.getState();
-  if (phase === "approach" || phase === "impact") return;
+  const locked = () => ["approach", "impact"].includes(useSim.getState().phase);
+  if (locked()) return;
   const id = ++requestId;
+  // The mask is painted in the background at startup; usually it's already here.
+  await loadLandMask();
+  if (id !== requestId || locked()) return;
   const surface = surfaceAt(lat, lon);
   const nearest = nearestCity(lat, lon);
   // A point within a city counts as that city (e.g. when restoring a shared link).

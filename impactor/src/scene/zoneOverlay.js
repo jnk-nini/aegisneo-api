@@ -4,8 +4,7 @@
 // in and out in a regular grid. Per pixel, the shader measures the distance to
 // the impact site and colours fills and outlines from the uniforms below.
 import { Color, SRGBColorSpace, Vector3, Vector4 } from "three";
-import { localFrame } from "../lib/geo.js";
-import { metersToAngle } from "./sphereMath.js";
+import { localFrame, metersToAngle } from "./sphereMath.js";
 
 export const MAX_ZONES = 8;
 

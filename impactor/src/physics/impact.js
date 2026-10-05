@@ -29,10 +29,8 @@ export const COMPOSITIONS = {
   iron: { label: "Iron", density: 8000 },
 };
 
-export const TARGETS = {
-  sedimentary: { label: "Sedimentary rock", density: 2500 },
-  crystalline: { label: "Crystalline rock", density: 2750 },
-};
+// Target rock is sedimentary everywhere (the paper's default); the UI has no choice for it.
+export const SEDIMENTARY_DENSITY = 2500;
 
 // Table 1 — thermal exposure (J/m²) needed for each effect during a 1 Mt event.
 const THERMAL_THRESHOLDS = [
@@ -305,7 +303,7 @@ export function simulateImpact({
   angleDeg = 45,
   surface = "land",
   waterDepthM = 3700,
-  targetDensity = TARGETS.sedimentary.density,
+  targetDensity = SEDIMENTARY_DENSITY,
 }) {
   const velocityMs = velocityKms * 1000;
   const initialEnergy = kineticEnergy(diameterM, density, velocityMs);

@@ -5,9 +5,9 @@ import { AdditiveBlending, Vector3 } from "three";
 import { useSim } from "../store.js";
 import Earth from "./Earth.jsx";
 import { glowTexture, rockGeometry } from "./effects.js";
+import { KM_PER_LD } from "../lib/geo.js";
 
 // Units here are lunar distances (LD): 1 = 384,400 km.
-export const KM_PER_LD = 384400;
 const EARTH_RADIUS_LD = 6371 / KM_PER_LD;
 const MOON_RADIUS_LD = 1737 / KM_PER_LD;
 
@@ -35,6 +35,8 @@ export default function Flyby({ textures, sunDir }) {
   const missLD = asteroid ? asteroid.miss_distance_km / KM_PER_LD : 1;
   const span = Math.max(missLD, 1);
   // Straight-line pass: closest point on +X, moving along Z, slightly inclined.
+  // Only the miss distance is real; the catalog has no orbit, so the direction
+  // and inclination are invented (FlybyCaption says so).
   const closest = useMemo(() => new Vector3(missLD, 0, 0), [missLD]);
   const direction = useMemo(() => new Vector3(0, 0.18, 1).normalize(), []);
   const pathPoints = useMemo(
@@ -61,9 +63,11 @@ export default function Flyby({ textures, sunDir }) {
     };
   }, [camera, missLD, span]);
 
+  const pos = useMemo(() => new Vector3(), []);
+
   useFrame(({ camera, clock }) => {
     const t = (clock.elapsedTime * 0.08) % 1;
-    const pos = closest.clone().addScaledVector(direction, (t * 2 - 1) * span * 3);
+    pos.copy(closest).addScaledVector(direction, (t * 2 - 1) * span * 3);
     const size = camera.position.distanceTo(pos) * 0.008;
     rock.current.position.copy(pos);
     rock.current.scale.setScalar(size);

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { distanceKm, latLonToVector, localFrame, subsolarPoint, vectorToLatLon } from "./geo.js";
+import { distanceKm, subsolarPoint } from "./geo.js";
+import { latLonToVector, localFrame, vectorToLatLon } from "../scene/sphereMath.js";
 import { queryToScenario, scenarioToQuery } from "./share.js";
 import { COMPOSITIONS } from "../physics/impact.js";
+import { citiesInRange } from "./cityRange.js";
 
 describe("lat/lon ↔ globe vector", () => {
   it("round-trips points all over the globe", () => {
@@ -101,5 +103,32 @@ describe("share links", () => {
 
   it("ignores links without a scenario", () => {
     expect(queryToScenario("?utm_source=x", COMPOSITIONS)).toBeNull();
+  });
+});
+
+describe("cities in range", () => {
+  const zone = (radiusKm, label) => ({ radiusM: radiusKm * 1000, label });
+
+  it("lists the closest cities for a local event, each with the strongest zone reaching it", () => {
+    const manila = { lat: 14.6, lon: 121 };
+    const { list, total, byPopulation } = citiesInRange(manila, [zone(60, "windows"), zone(10, "masonry")]);
+    expect(byPopulation).toBe(false);
+    expect(total).toBe(list.length);
+    expect(list[0].name).toBe("Manila");
+    expect(list[0].zone.label).toBe("masonry");
+    for (let i = 1; i < list.length; i++)
+      expect(list[i].distance).toBeGreaterThanOrEqual(list[i - 1].distance);
+  });
+
+  it("lists the largest cities, not the nearest, when a global event reaches dozens", () => {
+    const { list, total, byPopulation } = citiesInRange({ lat: 14.6, lon: 121 }, [zone(20015, "windows")]);
+    expect(byPopulation).toBe(true);
+    expect(total).toBeGreaterThan(8);
+    expect(list).toHaveLength(8);
+    for (let i = 1; i < list.length; i++) expect(list[i].pop).toBeLessThanOrEqual(list[i - 1].pop);
+  });
+
+  it("is empty when there are no zones", () => {
+    expect(citiesInRange({ lat: 0, lon: 0 }, []).list).toEqual([]);
   });
 });

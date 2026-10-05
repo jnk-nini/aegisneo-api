@@ -1,7 +1,7 @@
 // Small shared assets for the impact effects.
 import { CanvasTexture, IcosahedronGeometry, SRGBColorSpace, Vector3 } from "three";
 import { EARTH_RADIUS_M } from "../physics/impact.js";
-import { latLonToVector, localFrame } from "../lib/geo.js";
+import { latLonToVector, localFrame } from "./sphereMath.js";
 import { outermostRadiusM } from "../physics/zones.js";
 import { PATH_LENGTH_RE } from "./timeline.js";
 
@@ -84,21 +84,82 @@ export function runGeometry(run) {
   };
 }
 
-/** Camera pose that frames `viewRadiusRE` around a surface point, tilted for depth. */
-export function focusPose(center, frame, viewRadiusRE, camera, horizontal = frame.north) {
+export const newPose = () => ({ position: new Vector3(), target: new Vector3(), up: new Vector3() });
+
+// Scratch vectors so the per-frame camera maths allocates nothing.
+const _a = new Vector3();
+const _b = new Vector3();
+const _c = new Vector3();
+
+/**
+ * Camera pose that frames `viewRadiusRE` around a surface point, tilted for
+ * depth. Writes into `out` (reuse one per caller to avoid per-frame garbage).
+ */
+export function focusPose(center, frame, viewRadiusRE, camera, horizontal = frame.north, out = newPose()) {
   const vfov = (camera.fov * Math.PI) / 180;
   const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
   const distance = Math.min(Math.max(viewRadiusRE / Math.tan(Math.min(vfov, hfov) / 2), 0.0005), 3.6);
   const tilt = (38 * Math.PI) / 180;
-  const side = horizontal
-    .clone()
-    .multiplyScalar(-0.55)
-    .addScaledVector(frame.up.clone().cross(horizontal), 0.83)
+  const side = _a
+    .crossVectors(frame.up, horizontal)
+    .multiplyScalar(0.83)
+    .addScaledVector(horizontal, -0.55)
     .normalize();
-  const offset = frame.up.clone().multiplyScalar(Math.cos(tilt)).addScaledVector(side, Math.sin(tilt));
-  return {
-    position: center.clone().addScaledVector(offset, distance),
-    target: center.clone(),
-    up: frame.up.clone(),
-  };
+  const offset = _b.copy(frame.up).multiplyScalar(Math.cos(tilt)).addScaledVector(side, Math.sin(tilt));
+  out.position.copy(center).addScaledVector(offset, distance);
+  out.target.copy(center);
+  out.up.copy(frame.up);
+  return out;
+}
+
+/**
+ * Spherical interpolation between unit vectors `a` and `b`, into `out`. When
+ * they point (nearly) opposite ways there is no unique shortest arc, so it
+ * turns about an arbitrary perpendicular axis instead of passing through zero.
+ */
+export function slerpUnit(a, b, t, out) {
+  const dot = Math.min(1, Math.max(-1, a.dot(b)));
+  if (dot > 0.9995) return out.lerpVectors(a, b, t).normalize();
+  if (dot < -0.9995) {
+    const perp = _c
+      .set(Math.abs(a.x) < 0.9 ? 1 : 0, Math.abs(a.x) < 0.9 ? 0 : 1, 0)
+      .cross(a)
+      .normalize();
+    const angle = Math.PI * t;
+    return out.copy(a).multiplyScalar(Math.cos(angle)).addScaledVector(perp, Math.sin(angle));
+  }
+  const angle = Math.acos(dot);
+  const s = Math.sin(angle);
+  const wa = Math.sin((1 - t) * angle) / s;
+  const wb = Math.sin(t * angle) / s;
+  return out.set(a.x * wa + b.x * wb, a.y * wa + b.y * wb, a.z * wa + b.z * wb);
+}
+
+export const MIN_ALTITUDE = 0.00004; // Earth radii (~250 m)
+
+/**
+ * Interpolates between two camera poses by swinging around the look-at point
+ * (slerp direction, log-lerp distance). The camera's height above the surface
+ * never drops below a log-blend of the two end heights, so a flight to the far
+ * side of the globe arcs over it instead of skimming (or cutting through) Earth.
+ * `out` must not be `from` or `to`.
+ */
+export function blendPose(from, to, t, out) {
+  out.target.lerpVectors(from.target, to.target, t);
+  const fromOffset = _a.subVectors(from.position, from.target);
+  const toOffset = _b.subVectors(to.position, to.target);
+  const fromDist = fromOffset.length();
+  const toDist = toOffset.length();
+  const logLerp = (x, y) => Math.exp(Math.log(x) + (Math.log(y) - Math.log(x)) * t);
+  slerpUnit(fromOffset.divideScalar(fromDist), toOffset.divideScalar(toDist), t, out.position);
+  out.position.multiplyScalar(logLerp(fromDist, toDist)).add(out.target);
+  const floor =
+    1 +
+    logLerp(
+      Math.max(from.position.length() - 1, MIN_ALTITUDE),
+      Math.max(to.position.length() - 1, MIN_ALTITUDE),
+    );
+  if (out.position.length() < floor) out.position.setLength(floor);
+  slerpUnit(from.up, to.up, t, out.up);
+  return out;
 }

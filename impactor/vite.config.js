@@ -25,12 +25,16 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 1200,
+      // three.js is one big module (~700 KB raw). It only loads with the lazy 3D
+      // scene, never on the 2D map, so its size doesn't block the first paint.
+      chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
+          // Only three.js gets a fixed chunk. Grouping the React Three Fiber
+          // packages by hand pulled React itself into the 3D chunk, which made
+          // the entry depend on it and download it on every page load.
           manualChunks(id) {
             if (id.includes("node_modules/three/")) return "three";
-            if (id.includes("@react-three")) return "r3f";
           },
         },
       },

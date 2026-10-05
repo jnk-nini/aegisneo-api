@@ -14,6 +14,8 @@ export default function TargetSection() {
   const phase = useSim((s) => s.phase);
   const locked = phase === "approach" || phase === "impact";
   const [query, setQuery] = useState("");
+  const [listOpen, setListOpen] = useState(false);
+  const [active, setActive] = useState(0); // highlighted suggestion
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [coordError, setCoordError] = useState("");
@@ -29,6 +31,31 @@ export default function TargetSection() {
   const chooseCity = ([name, country, cLat, cLon]) => {
     pickTarget(cLat, cLon, { label: `${name}, ${country}` });
     setQuery("");
+    setListOpen(false);
+  };
+
+  const expanded = listOpen && matches.length > 0 && !locked;
+  const optionId = (i) => `city-option-${i}`;
+
+  // ARIA combobox keys: arrows move through suggestions, Enter picks, Escape closes.
+  const onSearchKey = (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (!matches.length) return;
+      e.preventDefault();
+      if (!expanded) {
+        setListOpen(true);
+        setActive(e.key === "ArrowDown" ? 0 : matches.length - 1);
+        return;
+      }
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setActive((i) => (i + step + matches.length) % matches.length);
+    } else if (e.key === "Enter" && expanded) {
+      e.preventDefault();
+      chooseCity(matches[Math.min(active, matches.length - 1)]);
+    } else if (e.key === "Escape" && expanded) {
+      e.preventDefault();
+      setListOpen(false);
+    }
   };
 
   const onCoords = (e) => {
@@ -80,27 +107,45 @@ export default function TargetSection() {
         <input
           id="city-search"
           type="search"
+          role="combobox"
           placeholder="Search a city (e.g. Manila)"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && matches[0]) {
-              e.preventDefault();
-              chooseCity(matches[0]);
-            }
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setListOpen(true);
+            setActive(0);
           }}
+          onKeyDown={onSearchKey}
+          onFocus={() => setListOpen(true)}
+          onBlur={() => setListOpen(false)}
           autoComplete="off"
           disabled={locked}
+          aria-autocomplete="list"
+          aria-expanded={expanded}
           aria-controls="city-results"
+          aria-activedescendant={expanded ? optionId(active) : undefined}
         />
-        {matches.length > 0 && !locked && (
-          <ul id="city-results" className="result-list result-list--floating">
-            {matches.map((c) => (
-              <li key={`${c[0]}-${c[1]}`}>
-                <button type="button" className="result-item" onClick={() => chooseCity(c)}>
-                  <span className="result-name">{c[0]}</span>
-                  <span className="result-meta">{c[1]}</span>
-                </button>
+        {expanded && (
+          <ul
+            id="city-results"
+            role="listbox"
+            aria-label="Matching cities"
+            className="result-list result-list--floating"
+          >
+            {matches.map((c, i) => (
+              <li
+                key={`${c[0]}-${c[1]}`}
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === active}
+                className={`result-item ${i === active ? "is-selected" : ""}`}
+                // Keep focus in the input so the list doesn't close before the click lands.
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => chooseCity(c)}
+              >
+                <span className="result-name">{c[0]}</span>
+                <span className="result-meta">{c[1]}</span>
               </li>
             ))}
           </ul>

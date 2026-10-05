@@ -1101,7 +1101,7 @@ input[type="range"] {
 .sheet-handle {
   display: grid;
   place-items: center;
-  height: 22px;
+  height: 28px; /* at least 24 px tall so it's an easy touch target */
   flex-shrink: 0;
   border: 0;
   background: transparent;

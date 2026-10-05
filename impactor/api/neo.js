@@ -1,9 +1,11 @@
 // Serverless proxy to the AegisNEO API (runs on Vercel, not in the browser).
 // The browser calls /api/neo/<path>; vercel.json rewrites that to
 // /api/neo?path=<path>. This function adds the API key from an environment
-// variable so the key is never shipped in the client bundle.
+// variable so the key is never shipped in the client bundle. That keeps the key
+// private, but it isn't access control: anyone can call /api/neo/* and there is
+// no rate limit, so the key only tells the API which site is asking.
 
-const ALLOWED_PATH = /^(asteroids(\/random|\/[A-Za-z0-9_-]{1,32})?|stats)$/;
+const ALLOWED_PATH = /^asteroids(\/random|\/[A-Za-z0-9_-]{1,32})?$/;
 const ALLOWED_PARAMS = new Set([
   "search",
   "hazardous",

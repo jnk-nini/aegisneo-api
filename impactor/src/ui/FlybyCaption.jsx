@@ -1,5 +1,5 @@
 import { useSim } from "../store.js";
-import { KM_PER_LD } from "../scene/Flyby.jsx";
+import { KM_PER_LD } from "../lib/geo.js";
 
 /** Plain-language summary of the real close approach, shown over the flyby view. */
 export default function FlybyCaption() {
@@ -16,7 +16,8 @@ export default function FlybyCaption() {
       {millionKm < 1
         ? `${Math.round(asteroid.miss_distance_km).toLocaleString()} km`
         : `${millionKm.toFixed(1)} million km`}{" "}
-      — {comparison}. Drawn to scale. Drag to rotate, scroll or pinch to zoom.
+      — {comparison}. Distances are to scale, but the catalog has no orbit, so the direction of the pass is
+      illustrative. Drag to rotate, scroll or pinch to zoom.
     </div>
   );
 }

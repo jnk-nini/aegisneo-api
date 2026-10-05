@@ -67,5 +67,4 @@ export const api = {
   random: (params = {}, opts) =>
     request("asteroids/random", { count: 1, ...params }, { ...opts, useCache: false }),
   get: (id, opts) => request(`asteroids/${encodeURIComponent(id)}`, {}, opts),
-  stats: (opts) => request("stats", {}, opts),
 };

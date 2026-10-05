@@ -32,7 +32,7 @@ export default [
     },
   },
   {
-    files: ["api/**/*.js", "*.config.js"],
+    files: ["api/**/*.js", "tests/**/*.js", "*.config.js"],
     languageOptions: { globals: globals.node, sourceType: "module" },
   },
 ];
