@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import handler from "./neo.js";
+import handler from "../api/neo.js";
+
+// Lives outside api/ because Vercel turns every file in api/ into a function.
 
 function mockRes() {
   const res = { statusCode: 200, headers: {}, body: undefined };
