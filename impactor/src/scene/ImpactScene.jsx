@@ -19,11 +19,14 @@ import {
 } from "./timeline.js";
 import { glowTexture, rockGeometry, runGeometry } from "./effects.js";
 import { craterVisual } from "./craterShape.js";
+import { fireballDrawn } from "./framing.js";
 import { damageRadii, reentrySeconds, severity, tsunamiSpeed } from "./impactVisuals.js";
 import CraterPatch from "./CraterPatch.jsx";
 import Plume from "./Plume.jsx";
 import { EjectaCurtain, EjectaRocks, Reentry } from "./Ejecta.jsx";
 import ShockFront from "./ShockFront.jsx";
+import Debris from "./Debris.jsx";
+import Fires from "./Fires.jsx";
 
 const Y_AXIS = new Vector3(0, 1, 0);
 const smooth = (a, b, x) => {
@@ -72,8 +75,9 @@ export function TargetMarker() {
     if (!group.current || !center) return;
     const size = camera.position.distanceTo(center) * 0.018;
     group.current.scale.setScalar(size);
-    const phase = useSim.getState().phase;
-    group.current.visible = phase === "idle" || phase === "done";
+    // Hidden over a finished impact's own crater, so it doesn't cover it.
+    const { phase, run } = useSim.getState();
+    group.current.visible = phase === "idle" || (phase === "done" && run?.target !== target);
     if (pulse.current) {
       const k = (c.elapsedTime * 0.8) % 1;
       pulse.current.scale.setScalar(1 + k * 1.6);
@@ -362,10 +366,11 @@ export function ImpactSequence({ textures, sunDir }) {
   const visual = useMemo(() => (run ? craterVisual(run.result) : null), [run]);
   if (!run || !geo) return null;
   const level = severity(run.result);
-  // Fireball radius from Eq. 32 when the model gives one; airbursts get a glow
-  // scaled to their blast so they still read clearly.
-  const outerM = zonesFor(run.result)[0]?.radiusM ?? 0;
-  const plumeM = Math.max(run.result.fireballRadiusM ?? 0, Math.min(outerM * 0.08, 40000), 300);
+  // Fireball radius from Eq. 32, enlarged where it would be too small to see
+  // (the HUD says so); airbursts get one scaled to their blast.
+  const plumeM = fireballDrawn(run.result).radiusM;
+  const firesM = damageRadii(run.result).fires;
+  const firesFromM = visual ? visual.radiusM * 1.4 : plumeM * 0.5;
   return (
     <group key={run.id}>
       <Trajectory geo={geo} />
@@ -376,6 +381,8 @@ export function ImpactSequence({ textures, sunDir }) {
       {visual && visual.kind !== "water" && <EjectaRocks run={run} geo={geo} visual={visual} sunDir={sunDir} />}
       <Plume run={run} geo={geo} radiusM={plumeM} sunDir={sunDir} />
       <ShockFront run={run} geo={geo} sunDir={sunDir} />
+      {visual && <Debris run={run} geo={geo} visual={visual} severity={level} sunDir={sunDir} />}
+      {firesM > 0 && <Fires run={run} geo={geo} firesM={firesM} innerM={firesFromM} sunDir={sunDir} />}
       {level > 0.3 && <Reentry run={run} geo={geo} strength={level} />}
     </group>
   );

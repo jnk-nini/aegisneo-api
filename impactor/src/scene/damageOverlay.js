@@ -2,18 +2,22 @@
 // land, fires, flattened forest, cities gone dark, the tsunami ring and the
 // planet-wide dust veil. Every radius is a model output (thermal, blast and
 // wind ranges) passed in as a chord, like the zone rings in zoneOverlay.js.
-// The look (char colour, fire flicker, streaks) is illustrative.
+// The look (char and ash, embers, fire fronts, rubble) is illustrative.
 import { Vector4 } from "three";
 import { chordFor } from "./zoneOverlay.js";
 
+// All zero: `new Vector4()` starts with w = 1, which would cut a crater hole
+// ~6,000 km wide at the north pole before any impact.
+const off = () => new Vector4(0, 0, 0, 0);
+
 export function createDamageUniforms() {
   return {
-    dmgChordA: { value: new Vector4() }, // scorched, fires, flattened, lights out
-    dmgChordB: { value: new Vector4() }, // wrecked, tsunami front, tsunami width, crater hole
-    dmgLevel: { value: new Vector4() }, // scorched, fires, flattened, wrecked (0..1)
-    dmgFx: { value: new Vector4() }, // tsunami strength, dust veil, time (s), lights-out level
-    dmgLight: { value: new Vector4() }, // fireball light: world position, reach (Earth radii)
-    dmgLightColor: { value: new Vector4() }, // its colour, brightness
+    dmgChordA: { value: off() }, // scorched, fires, flattened, lights out
+    dmgChordB: { value: off() }, // wrecked, tsunami front, tsunami width, crater hole
+    dmgLevel: { value: off() }, // scorched, fires, flattened, wrecked (0..1)
+    dmgFx: { value: off() }, // tsunami strength, dust veil, time (s), lights-out level
+    dmgLight: { value: off() }, // fireball light: world position, reach (Earth radii)
+    dmgLightColor: { value: off() }, // its colour, brightness
   };
 }
 
@@ -75,7 +79,22 @@ export const impactLightShader = /* glsl */ `
   }
 `;
 
-/** Needs noiseShader and zoneShader (for zoneCenter/East/North) included first. */
+/**
+ * The shared 3D noise texture (noiseVolume.js) for the ground damage and the
+ * crater: a texture lookup is far cheaper than evaluating noise in the shader.
+ * Kept apart from damageUniforms, whose values are all vectors.
+ */
+export const damageNoise = { dmgNoise: { value: null } };
+
+/** Noise lookups: billows (0..1, mostly bright) and cellular (dark at cell edges). */
+export const texNoiseShader = /* glsl */ `
+  precision highp sampler3D;
+  uniform sampler3D dmgNoise;
+  float nb(vec3 p) { return texture(dmgNoise, p).r; }
+  float nc(vec3 p) { return texture(dmgNoise, p).g; }
+`;
+
+/** Needs texNoiseShader, surfaceShader (sunDir) and zoneShader included first. */
 export const damageShader = /* glsl */ `
   uniform vec4 dmgChordA;
   uniform vec4 dmgChordB;
@@ -87,8 +106,16 @@ export const damageShader = /* glsl */ `
     return chord > 0.0 ? 1.0 - smoothstep(chord * (1.0 - soft), chord, c) : 0.0;
   }
 
-  // Changes the surface colours in place and returns light it emits (fires).
-  // Every layer checks its radius first: a zero radius would divide by zero.
+  // Shading from small relief: compares a height field here and a step toward
+  // the sun, so ridges and pits catch light on one side and shadow on the other.
+  float relief(vec3 q, vec3 sunT, float scale, float step_, float strength) {
+    float h0 = nb(q * scale);
+    float h1 = nb((q + sunT * step_) * scale);
+    return 1.0 + clamp((h1 - h0) * strength, -0.5, 0.5);
+  }
+
+  // Changes the surface colours in place and returns light it emits (fires,
+  // embers). Every layer checks its radius first: a zero radius would divide by zero.
   vec3 applyDamage(inout vec3 day, inout vec3 night, float land, vec3 n) {
     vec3 q = n - zoneCenter;
     float c = length(q);
@@ -96,45 +123,69 @@ export const damageShader = /* glsl */ `
     if (c > max(max(dmgChordA.x, dmgChordA.y), max(max(dmgChordA.z, dmgChordA.w), max(dmgChordB.x, dmgChordB.y + 3.0 * dmgChordB.z)))) {
       return glow;
     }
+    float t = dmgFx.z;
+    // Toward the sun along the ground, for the relief shading.
+    vec3 sunT = sunDir - n * dot(sunDir, n);
+    sunT /= max(length(sunT), 1e-6);
+    // Ground detail at a fixed size (~500 m cells), shown once the camera is close.
+    vec3 pa = n * 3000.0;
+    float metresPerPx = fwidth(c) * 6.371e6;
+    float close = 1.0 - smoothstep(250.0, 2500.0, metresPerPx);
 
-    // Flattened forest: land browned in streaks pointing away from the impact.
+    // Flattened forest: trees down in streaks pointing away from the impact, dead and brown.
     if (dmgLevel.z > 0.0 && dmgChordA.z > 0.0) {
       float r = dmgChordA.z;
       vec2 radial = vec2(dot(q, zoneEast), dot(q, zoneNorth)) / max(c, 1e-9);
-      float streak = vnoise(vec3(radial * 9.0, c / r * 1.5));
+      float streak = nb(vec3(radial * 2.2, c / r * 0.4));
       float flat_ = dmgLevel.z * land * dmgInside(c, r, 0.08);
-      day = mix(day, day * vec3(0.78, 0.62, 0.42), flat_ * (0.45 + 0.55 * streak));
-    }
-
-    // Wrecked ground (masonry collapses): a grey-brown wash.
-    if (dmgLevel.w > 0.0 && dmgChordB.x > 0.0) {
-      float w = dmgLevel.w * land * dmgInside(c, dmgChordB.x, 0.1);
       float grey = dot(day, vec3(0.3, 0.59, 0.11));
-      day = mix(day, vec3(grey) * vec3(0.62, 0.56, 0.5), w * 0.75);
+      vec3 dead = mix(vec3(grey) * vec3(0.95, 0.78, 0.55), day * vec3(0.7, 0.55, 0.38), streak);
+      day = mix(day, dead, flat_ * (0.55 + 0.45 * streak));
     }
 
-    // Scorched land, with an uneven edge and patchy char.
+    // Wrecked ground: rubble, grey-brown and uneven.
+    if (dmgLevel.w > 0.0 && dmgChordB.x > 0.0) {
+      float r = dmgChordB.x;
+      float w = dmgLevel.w * land * dmgInside(c, r, 0.1);
+      float rubble = mix(nb(q / r * 5.0), nb(pa * 0.8), close * 0.7);
+      vec3 rubbleColor = mix(vec3(0.17, 0.15, 0.13), vec3(0.36, 0.33, 0.3), rubble);
+      day = mix(day, rubbleColor * relief(q / r, sunT, 9.0, r * 0.01, 3.0), w * 0.85);
+    }
+
+    // Scorched land: black char and grey ash (more ash farther out), with
+    // embers still smouldering in it.
     if (dmgLevel.x > 0.0 && dmgChordA.x > 0.0) {
       float r = dmgChordA.x;
-      float edge = fbm(q / r * 3.0);
-      float s = dmgLevel.x * land * (1.0 - smoothstep(r * (0.55 + 0.4 * edge), r * (1.0 + 0.12 * edge), c));
-      float patchy = 0.55 + 0.45 * fbm(q / r * 11.0 + 3.7);
-      day = mix(day, vec3(0.05, 0.04, 0.035), s * patchy * 0.9);
+      float edge = nb(q / r * 0.9);
+      float s = dmgLevel.x * land * (1.0 - smoothstep(r * (0.5 + 0.45 * edge), r * (1.0 + 0.1 * edge), c));
+      if (s > 0.0) {
+        float ashy = smoothstep(0.55, 0.9, nb(q / r * 3.0 + 3.7)) * (0.35 + 0.65 * c / r);
+        float grain = mix(nc(q / r * 14.0), nc(pa * 0.6), close);
+        vec3 burnt = mix(vec3(0.03, 0.026, 0.024), vec3(0.3, 0.29, 0.28) * (0.8 + 0.4 * grain), ashy);
+        day = mix(day, burnt * relief(q / r, sunT, 8.0, r * 0.012, 3.5), s * 0.95);
+        float specks = smoothstep(0.08, 0.0, mix(nc(q / r * 30.0 + vec3(0.0, 0.0, t * 0.01)), nc(pa * 1.4), close));
+        float pulse = 0.55 + 0.45 * sin(t * 2.7 + grain * 25.0);
+        glow += vec3(1.0, 0.26, 0.03) * specks * pulse * s * (1.0 - ashy) * 1.4;
+      }
     }
 
-    // Fires: burning patches across the zone, broken into individual flames
-    // (~1 km) once the camera is close enough to see them.
+    // Fires: burning fronts and patches across the zone, and, close up,
+    // individual flames.
     if (dmgLevel.y > 0.0 && dmgChordA.y > 0.0) {
       float r = dmgChordA.y;
       float zone = dmgLevel.y * land * (1.0 - smoothstep(r * 0.8, r, c));
       if (zone > 0.0) {
-        float patches = smoothstep(0.6, 0.88, fbm(q / r * 14.0)) * (0.5 + 0.5 * fbm(q / r * 55.0 + 9.1));
-        vec3 pf = q * 5300.0;
-        float metresPerPx = fwidth(c) * 6.371e6;
-        float detail = 1.0 - smoothstep(150.0, 1200.0, metresPerPx);
-        float flames = smoothstep(0.55, 0.85, vnoise(pf + vec3(0.0, 0.0, dmgFx.z * 0.6)));
-        float flicker = 0.75 + 0.25 * sin(dmgFx.z * 9.0 + hash13(floor(pf)) * 6.283);
-        glow += vec3(1.0, 0.34, 0.06) * patches * mix(0.4, flames * 1.4, detail) * flicker * zone;
+        float field = nb(q / r * 4.0 - vec3(0.0, 0.0, t * 0.004));
+        // Thin, broken lines of flame where the fire is advancing, a few
+        // patches still fully ablaze, and black ground it has already burnt.
+        float lineWidth = max(0.012, fwidth(field) * 0.8);
+        float front = (1.0 - smoothstep(0.0, lineWidth, abs(field - 0.74))) * smoothstep(0.45, 0.8, nb(q / r * 13.0 + 1.7));
+        float patches = smoothstep(0.9, 0.98, field) * smoothstep(0.5, 0.85, nb(q / r * 20.0));
+        float flames = smoothstep(0.55, 0.9, nb(pa * 0.5 + vec3(0.0, 0.0, t * 0.3)));
+        float flicker = 0.7 + 0.3 * sin(t * 9.0 + field * 40.0);
+        float fire = (front * 1.3 + patches * 0.8) * mix(1.0, 0.4 + flames * 1.4, close);
+        glow += vec3(1.0, 0.3, 0.04) * fire * flicker * zone;
+        day = mix(day, vec3(0.04, 0.035, 0.03), zone * smoothstep(0.6, 0.74, field) * 0.85);
       }
     }
 

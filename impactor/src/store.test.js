@@ -84,4 +84,21 @@ describe("simulation store", () => {
     useSim.getState().setShowZoneRings(true); // no localStorage here; must not throw
     expect(useSim.getState().showZoneRings).toBe(true);
   });
+
+  it("starting over clears the asteroid, target and run", () => {
+    useSim.getState().selectAsteroid(BENNU);
+    useSim.getState().setTarget(MANILA);
+    useSim.getState().setParam("angleDeg", 70);
+    useSim.getState().launch();
+    const before = useSim.getState().globeRequest;
+    useSim.getState().reset(); // no history API here; must not throw
+    const s = useSim.getState();
+    expect(s.asteroid).toBeNull();
+    expect(s.target).toBeNull();
+    expect(s.run).toBeNull();
+    expect(s.phase).toBe("idle");
+    expect(s.angleDeg).toBe(45);
+    expect(s.diameterM).toBe(100);
+    expect(s.globeRequest).toBe(before + 1);
+  });
 });

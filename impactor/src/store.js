@@ -45,8 +45,7 @@ export function realParamsFor(asteroid) {
   };
 }
 
-export const useSim = create((set, get) => ({
-  // --- inputs ---
+const DEFAULT_INPUTS = {
   asteroid: null, // record from the AegisNEO API
   diameterM: 100,
   velocityKms: 20,
@@ -54,6 +53,11 @@ export const useSim = create((set, get) => ({
   angleDeg: 45,
   azimuthDeg: 90, // direction the asteroid comes from, clockwise from north
   target: null, // { lat, lon, surface, country, nearest }
+};
+
+export const useSim = create((set, get) => ({
+  // --- inputs ---
+  ...DEFAULT_INPUTS,
 
   // --- simulation ---
   run: null, // { id, result, params, target }
@@ -170,6 +174,25 @@ export const useSim = create((set, get) => ({
   },
   clearRun() {
     set({ run: null, phase: "idle" });
+  },
+  /** Start over: no asteroid, no target, no run, and a clean address bar. */
+  reset() {
+    try {
+      history.replaceState(null, "", location.pathname);
+    } catch {
+      /* some embedded browsers block history changes */
+    }
+    set((s) => ({
+      ...DEFAULT_INPUTS,
+      run: null,
+      phase: "idle",
+      paused: false,
+      timeScale: 1,
+      mode: "impact",
+      mobileTab: "object",
+      sheet: "half",
+      globeRequest: s.globeRequest + 1,
+    }));
   },
   setPhase(phase) {
     if (get().phase !== phase) {

@@ -9,8 +9,9 @@
 //
 // EjectaRocks: the larger blocks in that curtain as real 3D rocks, tumbling
 // on their own arcs (launch angles 30-65 degrees), lit by the sun and the
-// fireball and glowing white-hot to dull red as they cool. Drawn far larger
-// than real blocks so they read at crater scale.
+// fireball and glowing white-hot to dull red as they cool, then lying as
+// boulders around the crater. Drawn far larger than real blocks so they read
+// at crater scale.
 //
 // Reentry: after the largest impacts, ejecta thrown above the atmosphere falls
 // back all around the planet as glowing streaks (the heat pulse thought to
@@ -29,7 +30,7 @@ import {
 import { useSim } from "../store.js";
 import { EARTH_RADIUS_M } from "../physics/impact.js";
 import { G, reentrySeconds } from "./impactVisuals.js";
-import { APPROACH_SECONDS, clock, simulatedSeconds } from "./timeline.js";
+import { APPROACH_SECONDS, aftermathRealSeconds, clock, simulatedSeconds } from "./timeline.js";
 import { damageUniforms, impactLightShader } from "./damageOverlay.js";
 import { ROCK_LAYER, rockDistancePass } from "./plumeModel.js";
 
@@ -245,9 +246,11 @@ const rockVertex = /* glsl */ `
     float dr = d / re;
     vec3 centre = radial * dr + uUp * (z / re - 0.5 * dr * dr);
 
-    // Hidden until thrown; after landing it settles into the blanket.
-    float landed = smoothstep(flight, flight * 1.5 + uE * 0.4, t);
-    float size = t < 0.0 ? 0.0 : uSize * aP.w * (1.0 - landed) / re;
+    // Hidden until thrown; after landing it stays where it fell, a boulder
+    // half-buried in the ejecta blanket.
+    float landed = step(flight, t);
+    float size = t < 0.0 ? 0.0 : uSize * aP.w / re;
+    centre -= uUp * landed * size * 0.35;
     float spin = aSpin.w * tt + aR.y;
     vec3 world = centre + rotateAxis(position, aSpin.xyz, spin) * size;
     // The mesh is only translated, so model-space directions are world directions.
@@ -348,18 +351,14 @@ export function EjectaRocks({ run, geo, visual, sunDir }) {
     }),
     [geo, visual, rt, maxRange, sunDir],
   );
-  const lastsUntil = useMemo(() => {
-    const vmax = Math.sqrt(G * maxRange);
-    return Math.max(visual.excavationSeconds, 0.05) * 1.6 + (2.6 * vmax) / G;
-  }, [visual, maxRange]);
+  const endS = useMemo(() => aftermathRealSeconds(run), [run]);
 
   useFrame(() => {
     if (!mesh.current) return;
     const done = useSim.getState().phase === "done";
-    const s = simulatedSeconds(clock.t, run);
-    const show = !done && clock.t >= APPROACH_SECONDS && s < lastsUntil;
+    const show = done || clock.t >= APPROACH_SECONDS;
     mesh.current.visible = show;
-    if (show) uniforms.uTime.value = s;
+    if (show) uniforms.uTime.value = done ? endS : simulatedSeconds(clock.t, run);
   });
 
   return (

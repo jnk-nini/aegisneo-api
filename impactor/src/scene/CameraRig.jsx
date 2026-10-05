@@ -4,9 +4,9 @@ import { OrbitControls } from "@react-three/drei";
 import { Vector3 } from "three";
 import { useSim } from "../store.js";
 import { latLonToVector, localFrame } from "./sphereMath.js";
-import { simulateImpact } from "../physics/impact.js";
+import { EARTH_RADIUS_M, simulateImpact } from "../physics/impact.js";
 import { outermostRadiusM } from "../physics/zones.js";
-import { APPROACH_SECONDS, clock, playbackAt } from "./timeline.js";
+import { AFTERMATH_SECONDS, APPROACH_SECONDS, clock, playbackAt } from "./timeline.js";
 import { blendPose, focusPose, newPose, runGeometry } from "./effects.js";
 import { severity } from "./impactVisuals.js";
 import { collapseWindow, craterVisual } from "./craterShape.js";
@@ -17,6 +17,16 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const ramp = (a, b, x) => easeInOut(Math.min(1, Math.max(0, (x - a) / (b - a))));
 const CRATER_TILT = 55; // lower than the usual 38° so the crater's depth reads
 const ORBIT_RADIANS = 0.55; // how far the camera circles the site during the aftermath
+const AIRBURST_TILT = 68; // nearly side-on, so the burst shows above the ground
+const FINALE_TILT = 50;
+// The run ends back over the crater, so it is in view once the animation stops.
+const FINALE = [AFTERMATH_SECONDS - 2.6, AFTERMATH_SECONDS - 0.3];
+
+/** Radius (Earth radii) of the closing shot over the finished crater, or null for an airburst. */
+function finaleRadiusRE(run, geo) {
+  const crater = run ? craterVisual(run.result) : null;
+  return crater ? Math.min(geo.viewRadiusRE, (crater.radiusM * 3.6) / EARTH_RADIUS_M) : null;
+}
 
 /** Whole-planet view centred on the impact, for the largest impacts. */
 function planetPose(geo) {
@@ -73,6 +83,8 @@ export default function CameraRig() {
       focus: newPose(),
       close: newPose(),
       mid: newPose(),
+      late: newPose(),
+      finale: newPose(),
       orbit: new Vector3(),
     }),
     [],
@@ -86,8 +98,10 @@ export default function CameraRig() {
     const crater = run ? craterVisual(run.result) : null;
     if (!crater) return 2.2;
     const settled = playbackAt(collapseWindow(crater)[1], run) - APPROACH_SECONDS;
-    return Math.min(5, Math.max(2.2, settled + 0.4));
-  }, [run]);
+    // Leave room for the pull-back to the whole planet before the closing shot.
+    return Math.min(planet ? 3.4 : 5, Math.max(2.2, settled + 0.4));
+  }, [run, planet]);
+  const finaleRE = useMemo(() => (geo ? finaleRadiusRE(run, geo) : null), [run, geo]);
   const cinematic = Boolean(run) && (phase === "approach" || phase === "impact");
 
   const applyPose = (pose) => {
@@ -116,7 +130,13 @@ export default function CameraRig() {
   useEffect(() => {
     if (!geo || phase !== "done") return;
     flight.current = null;
-    if (reducedMotion) applyPose(focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal));
+    if (reducedMotion) {
+      applyPose(
+        finaleRE
+          ? focusPose(geo.center, geo.frame, finaleRE, camera, geo.horizontal, newPose(), FINALE_TILT)
+          : focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, geo.horizontal),
+      );
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     settle("focus", geo.center);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,16 +195,32 @@ export default function CameraRig() {
       // the crater, cloud and debris in depth instead of as a flat picture.
       const drift = tau > 0 ? ORBIT_RADIANS * easeInOut(Math.min(1, tau / (holdUntil + 6))) : 0;
       const around = scratch.orbit.copy(geo.horizontal).applyAxisAngle(geo.frame.up, drift);
-      const close = focusPose(geo.center, geo.frame, geo.closeRadiusRE, camera, around, scratch.close, CRATER_TILT);
+      const close = focusPose(
+        geo.closeTarget,
+        geo.frame,
+        geo.closeRadiusRE,
+        camera,
+        around,
+        scratch.close,
+        geo.airburst ? AIRBURST_TILT : CRATER_TILT,
+      );
       let pose;
       if (tau < 0) {
         const intro = blendPose(wideStart.current, wide, easeInOut(Math.min(1, t / 1.2)), scratch.intro);
         const u = Math.min(1, t / APPROACH_SECONDS);
         pose = blendPose(intro, close, u < 0.3 ? 0 : easeInOut((u - 0.3) / 0.7), scratch.out);
       } else {
+        // Close-up, then out over the spreading damage (and the whole planet
+        // after the largest impacts), then back down over the finished crater.
         const region = focusPose(geo.center, geo.frame, geo.viewRadiusRE, camera, around, scratch.focus);
-        pose = blendPose(close, region, ramp(holdUntil, holdUntil + 2.4, tau), planet ? scratch.mid : scratch.out);
-        if (planet) pose = blendPose(scratch.mid, planet, ramp(holdUntil + 3, holdUntil + 6, tau), scratch.out);
+        pose = blendPose(close, region, ramp(holdUntil, holdUntil + 2.2, tau), scratch.mid);
+        if (planet) {
+          pose = blendPose(pose, planet, ramp(holdUntil + 2.3, FINALE[0] - 0.3, tau), scratch.late);
+        }
+        if (finaleRE) {
+          const finale = focusPose(geo.center, geo.frame, finaleRE, camera, around, scratch.finale, FINALE_TILT);
+          pose = blendPose(pose, finale, ramp(FINALE[0], FINALE[1], tau), scratch.out);
+        }
       }
       // Camera shake right after impact.
       if (tau > 0 && tau < 1.2) {

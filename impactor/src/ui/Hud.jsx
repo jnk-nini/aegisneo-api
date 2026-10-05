@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useSim } from "../store.js";
 import { TOTAL_SECONDS, clock, isTimeLapse, simulatedSeconds } from "../scene/timeline.js";
 import { craterVisual } from "../scene/craterShape.js";
+import { fireballDrawn } from "../scene/framing.js";
 import { formatClock } from "../lib/format.js";
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4];
@@ -23,6 +24,15 @@ export default function Hud() {
     const list = [];
     if (crater && crater.kind !== "water" && crater.exaggeration > 1) {
       list.push({ text: `Crater depth ×${crater.exaggeration}`, title: "Depth exaggerated so the crater is visible" });
+    }
+    const { boost } = fireballDrawn(run.result);
+    if (boost === null) {
+      list.push({ text: "Fireball size illustrative", title: "The model gives no fireball size for an airburst" });
+    } else if (boost >= 1.5) {
+      list.push({
+        text: `Fireball ×${boost < 10 ? boost.toFixed(1) : Math.round(boost)}`,
+        title: "Fireball drawn larger than the model's so it is visible",
+      });
     }
     if (isTimeLapse(run)) {
       list.push({ text: "Time-lapse", title: "The clock speeds up as it runs; the time shown is real" });

@@ -4,6 +4,7 @@ import { PerformanceMonitor, Stars } from "@react-three/drei";
 import { useSim } from "../store.js";
 import { subsolarPoint } from "../lib/geo.js";
 import { pickTarget } from "../lib/target.js";
+import { isWeakRenderer, rendererName } from "../lib/gpu.js";
 import { latLonToVector, vectorToLatLon } from "./sphereMath.js";
 import { useEarthTextures } from "./useEarthTextures.js";
 import Earth from "./Earth.jsx";
@@ -84,6 +85,17 @@ function SceneCanvas({ textures, onContextLost }) {
   useEffect(() => {
     if (coarse) useSim.setState({ quality: "low" });
   }, [coarse]);
+  // Switching quality rebuilds every shader, a visible freeze, so a drop asked
+  // for during an impact waits until it has finished.
+  const phase = useSim((s) => s.phase);
+  const busy = phase === "approach" || phase === "impact";
+  const lowerLater = useRef(false);
+  useEffect(() => {
+    if (!busy && lowerLater.current) {
+      lowerLater.current = false;
+      useSim.setState({ quality: "low" });
+    }
+  }, [busy]);
   // Real day/night for the moment the page was opened.
   const sunDir = useMemo(() => {
     const { lat, lon } = subsolarPoint(new Date());
@@ -118,6 +130,11 @@ function SceneCanvas({ textures, onContextLost }) {
         powerPreference: "high-performance",
       }}
       onCreated={({ gl }) => {
+        // Integrated and phone GPUs start in the lighter mode, at a modest resolution.
+        if (isWeakRenderer(rendererName(gl.getContext()))) {
+          useSim.setState({ quality: "low" });
+          setDpr((d) => Math.min(d, 1.25));
+        }
         // Phones drop the GPU context under memory pressure. three.js rebuilds it
         // when the browser restores it; only fall back to 2D if that doesn't happen.
         const state = contextLoss.current;
@@ -134,7 +151,11 @@ function SceneCanvas({ textures, onContextLost }) {
       <PerformanceMonitor
         onDecline={() => {
           // Lower the resolution first; once it's at 1×, simplify the effects too.
-          if (dpr <= 1) useSim.setState({ quality: "low" });
+          if (dpr <= 1) {
+            const { phase: now } = useSim.getState();
+            if (now === "approach" || now === "impact") lowerLater.current = true;
+            else useSim.setState({ quality: "low" });
+          }
           setDpr((d) => Math.max(1, d * 0.75));
         }}
       />

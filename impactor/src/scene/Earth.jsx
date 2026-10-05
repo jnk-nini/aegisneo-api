@@ -1,10 +1,10 @@
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { AdditiveBlending, BackSide, Vector3 } from "three";
-import { useSim } from "../store.js";
 import { createZoneUniforms, zoneShader, zoneUniforms } from "./zoneOverlay.js";
-import { createDamageUniforms, damageShader, damageUniforms } from "./damageOverlay.js";
-import { noiseShader, surfaceShader } from "./surfaceShader.js";
+import { createDamageUniforms, damageNoise, damageShader, damageUniforms, texNoiseShader } from "./damageOverlay.js";
+import { surfaceShader } from "./surfaceShader.js";
+import { noiseVolume } from "./noiseVolume.js";
 
 const earthVertex = /* glsl */ `
   #include <common>
@@ -25,7 +25,7 @@ const earthVertex = /* glsl */ `
 const earthFragment = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_fragment>
-  ${noiseShader}
+  ${texNoiseShader}
   ${surfaceShader}
   varying vec2 vUv;
   varying vec3 vNormalW;
@@ -135,25 +135,24 @@ export default function Earth({
   showZones = false,
 }) {
   const cloudsRef = useRef();
-  const lowQuality = useSim((s) => s.quality === "low");
+  const gl = useThree((s) => s.gl);
   const sun = useMemo(() => sunDir.clone().normalize(), [sunDir]);
   const tmp = useMemo(() => new Vector3(), []);
 
   const zones = useMemo(() => (showZones ? zoneUniforms : createZoneUniforms()), [showZones]);
   const damage = useMemo(() => (showZones ? damageUniforms : createDamageUniforms()), [showZones]);
-  // Fixed when the material is built; phones get cheaper noise.
-  const defines = useMemo(() => ({ NOISE_OCTAVES: lowQuality ? 2 : 4 }), [lowQuality]);
-  const earthUniforms = useMemo(
-    () => ({
+  const earthUniforms = useMemo(() => {
+    damageNoise.dmgNoise.value = noiseVolume(gl);
+    return {
       ...zones,
       ...damage,
+      dmgNoise: damageNoise.dmgNoise,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
       maskMap: { value: textures.mask },
       sunDir: { value: sun },
-    }),
-    [textures, sun, zones, damage],
-  );
+    };
+  }, [gl, textures, sun, zones, damage]);
   const cloudUniforms = useMemo(
     () => ({
       cloudMap: { value: textures.clouds },
@@ -186,8 +185,7 @@ export default function Earth({
         {/* Uniforms go through args: a `uniforms` prop is copied entry by entry, so
             numbers updated in place later (zone count, cloud fade) would never arrive. */}
         <shaderMaterial
-          key={lowQuality ? "low" : "high"}
-          args={[{ vertexShader: earthVertex, fragmentShader: earthFragment, uniforms: earthUniforms, defines }]}
+          args={[{ vertexShader: earthVertex, fragmentShader: earthFragment, uniforms: earthUniforms }]}
         />
       </mesh>
       <mesh ref={cloudsRef} raycast={() => null}>

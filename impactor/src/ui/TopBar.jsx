@@ -7,6 +7,8 @@ export default function TopBar({ onAbout }) {
   const webglFailed = useSim((s) => s.webglFailed);
   const phase = useSim((s) => s.phase);
   const busy = phase === "approach" || phase === "impact";
+  const target = useSim((s) => s.target);
+  const reset = useSim((s) => s.reset);
 
   return (
     <header className="topbar">
@@ -54,6 +56,16 @@ export default function TopBar({ onAbout }) {
             aria-pressed={!view3d}
           >
             {view3d ? "2D map" : "3D globe"}
+          </button>
+        )}
+        {(asteroid || target) && (
+          <button
+            type="button"
+            className="btn btn--small btn--glass"
+            onClick={reset}
+            title="Clear the asteroid, target and impact and start again"
+          >
+            Start over
           </button>
         )}
         <button type="button" className="btn btn--small btn--glass" onClick={onAbout}>

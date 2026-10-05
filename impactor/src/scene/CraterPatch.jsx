@@ -11,9 +11,9 @@ import { EARTH_RADIUS_M } from "../physics/impact.js";
 import { G } from "./impactVisuals.js";
 import { collapseWindow } from "./craterShape.js";
 import { APPROACH_SECONDS, aftermathRealSeconds, clock, simulatedSeconds } from "./timeline.js";
-import { noiseShader, surfaceShader } from "./surfaceShader.js";
+import { surfaceShader } from "./surfaceShader.js";
 import { zoneShader, zoneUniforms } from "./zoneOverlay.js";
-import { damageShader, damageUniforms } from "./damageOverlay.js";
+import { damageNoise, damageShader, damageUniforms, texNoiseShader } from "./damageOverlay.js";
 
 const KIND = { simple: 0, complex: 1, melt: 2, water: 3 };
 // Depth of the skirt hung from the patch edge (Earth radii). The globe's flat
@@ -168,7 +168,7 @@ const vertexShader = /* glsl */ `
 const fragmentShader = /* glsl */ `
   #include <common>
   #include <logdepthbuf_pars_fragment>
-  ${noiseShader}
+  ${texNoiseShader}
   ${surfaceShader}
   ${craterGlsl}
   ${zoneShader}
@@ -204,16 +204,18 @@ const fragmentShader = /* glsl */ `
 
     // Ejecta blanket: thick by the rim, thinning outward in rays, laid down as it lands.
     float reach = 1.0 + (cShape2.y - 1.0) * cWave.w;
-    float rays = vnoise(vec3(flat2 / max(length(flat2), 1e-6) * 7.0, 0.0));
+    float rays = nb(vec3(flat2 / max(length(flat2), 1e-6) * 1.6, 0.5));
     float blanket = (1.0 - smoothstep(reach * 0.9, reach, x)) * clamp(1.5 * pow(max(x, 1.0), -1.6) - 0.1, 0.0, 1.0);
-    blanket *= 0.5 + 0.5 * smoothstep(0.3, 0.75, rays);
-    vec3 ejecta = vec3(0.36, 0.3, 0.25) * (0.8 + 0.4 * fbm(p * 14.0 + 5.0));
+    blanket *= 0.5 + 0.5 * smoothstep(0.45, 0.85, rays);
+    vec3 sunT = sunDir - dir * dot(sunDir, dir);
+    sunT /= max(length(sunT), 1e-6);
+    vec3 ejecta = vec3(0.36, 0.3, 0.25) * (0.75 + 0.45 * nb(p * 2.4 + 5.0)) * relief(p, sunT, 3.0, 0.02, 3.0);
     day = mix(day, ejecta, blanket * 0.85 * rock * step(1.0, x));
 
     // Exposed rock wherever the ground was dug out.
     float below = (1.0 - smoothstep(-0.06 * max(cShape.y, 1.0), 0.0, vH)) * step(x, 1.05);
     float bowl = max(below, (1.0 - smoothstep(0.98, 1.04, x)) * cAnim.y);
-    vec3 bedrock = vec3(0.17, 0.14, 0.12) * (0.75 + 0.5 * fbm(p * 6.0));
+    vec3 bedrock = vec3(0.17, 0.14, 0.12) * (0.7 + 0.5 * nb(p * 1.2)) * relief(p, sunT, 2.0, 0.03, 2.5);
     day = mix(day, bedrock, bowl * rock);
     night *= 1.0 - max(bowl, blanket) * rock;
 
@@ -221,9 +223,16 @@ const fragmentShader = /* glsl */ `
     // rock, its cracks glowing longest.
     float floorZone = 1.0 - smoothstep(cAnim.w > 0.5 ? 0.55 : 0.4, 0.85, x);
     float meltZone = mix(bowl, floorZone, cAnim.y) * rock;
-    float cracks = 1.0 - smoothstep(0.0, 0.07, abs(fbm(p * 9.0) - 0.5));
+    float cracks = smoothstep(0.16, 0.02, nc(p * 1.8));
     float hot = meltZone * cMelt * mix(cracks, 1.0, smoothstep(0.45, 0.9, cMelt));
     day = mix(day, vec3(0.07, 0.055, 0.05), meltZone * 0.6);
+
+    // Just outside the rim, molten ejecta: dark crust broken into plates with
+    // glowing seams, cooling with the melt sheet.
+    float moltenRing = rock * step(1.0, x) * (1.0 - smoothstep(1.15, 1.9, x + 0.25 * nb(p * 1.5)));
+    float seams = smoothstep(0.14, 0.02, nc(p * 2.6));
+    day = mix(day, vec3(0.06, 0.05, 0.045), moltenRing * 0.8);
+    float ringHeat = max(cMelt - 0.12, 0.0) * moltenRing;
 
     // Water: whitecaps where the surface is steep.
     float foam = smoothstep(0.2, 0.7, abs(vSlope)) * water;
@@ -232,14 +241,15 @@ const fragmentShader = /* glsl */ `
     // Nothing burns in the crater or under fresh ejecta.
     glow *= 1.0 - max(bowl, blanket) * rock;
     glow += meltColor(cMelt) * hot * 3.0;
+    glow += meltColor(ringHeat) * seams * ringHeat * 3.5;
 
     vec3 color = shadeSurface(day, night, (1.0 - land) * (1.0 - bowl * rock), dir, nL, viewDir) + glow;
     color += impactLight(vPosW, nL, day);
     // A faint fill light so the crater's shape still reads on the night side.
     // It fades out well inside the patch, so the join with the globe doesn't show.
     float nightSide = 1.0 - smoothstep(-0.12, 0.2, dot(dir, sunDir));
-    float relief = 1.0 - smoothstep(0.45 * cShape2.y, 0.85 * cShape2.y, x);
-    color += day * 0.16 * max(dot(nL, normalize(viewDir + dir)), 0.0) * nightSide * relief;
+    float fill = 1.0 - smoothstep(0.45 * cShape2.y, 0.85 * cShape2.y, x);
+    color += day * 0.16 * max(dot(nL, normalize(viewDir + dir)), 0.0) * nightSide * fill;
     gl_FragColor = vec4(applyDust(color), 1.0);
     #include <colorspace_fragment>
     gl_FragColor.rgb = drawZones(gl_FragColor.rgb, dir);
@@ -260,6 +270,7 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
     return {
       ...zoneUniforms,
       ...damageUniforms,
+      ...damageNoise,
       dayMap: { value: textures.day },
       nightMap: { value: textures.night },
       maskMap: { value: textures.mask },
@@ -282,7 +293,6 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
       cMelt: { value: 0 },
     };
   }, [geo, visual, textures, sunDir]);
-  const defines = useMemo(() => ({ NOISE_OCTAVES: lowQuality ? 2 : 4 }), [lowQuality]);
 
   // Real timings: excavation ≈ 0.8·√(D/g), then (complex craters) collapse;
   // ballistic ejecta lands farther out the later it is.
@@ -336,7 +346,7 @@ export default function CraterPatch({ run, geo, visual, textures, sunDir }) {
     >
       <shaderMaterial
         key={lowQuality ? "low" : "high"}
-        args={[{ vertexShader, fragmentShader, uniforms, defines }]}
+        args={[{ vertexShader, fragmentShader, uniforms }]}
       />
     </mesh>
   );

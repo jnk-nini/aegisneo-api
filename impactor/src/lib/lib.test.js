@@ -3,6 +3,7 @@ import { distanceKm, subsolarPoint } from "./geo.js";
 import { latLonToVector, localFrame, vectorToLatLon } from "../scene/sphereMath.js";
 import { queryToScenario, scenarioToQuery } from "./share.js";
 import { COMPOSITIONS } from "../physics/impact.js";
+import { isWeakRenderer } from "./gpu.js";
 import { citiesInRange } from "./cityRange.js";
 
 describe("lat/lon ↔ globe vector", () => {
@@ -130,5 +131,17 @@ describe("cities in range", () => {
 
   it("is empty when there are no zones", () => {
     expect(citiesInRange({ lat: 0, lon: 0 }, []).list).toEqual([]);
+  });
+});
+
+describe("graphics chip check", () => {
+  it("treats integrated, phone and software GPUs as weak", () => {
+    expect(isWeakRenderer("ANGLE (Intel, Intel(R) UHD Graphics (0x00008A56) Direct3D11 vs_5_0 ps_5_0, D3D11)")).toBe(true);
+    expect(isWeakRenderer("Mali-G57")).toBe(true);
+    expect(isWeakRenderer("Adreno (TM) 610")).toBe(true);
+    expect(isWeakRenderer("ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device), SwiftShader driver)")).toBe(true);
+    expect(isWeakRenderer("ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Laptop GPU Direct3D11 vs_5_0 ps_5_0, D3D11)")).toBe(false);
+    expect(isWeakRenderer("Apple M2")).toBe(false);
+    expect(isWeakRenderer("")).toBe(false);
   });
 });

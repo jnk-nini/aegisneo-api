@@ -1,7 +1,7 @@
 // Numbers that drive the impact visuals: how violent an impact is overall,
 // how long its crater takes to form, how far its ejecta reaches. They are
 // derived from the simulation result so the picture matches the results panel.
-import { JOULES_PER_MEGATON } from "../physics/impact.js";
+import { EARTH_RADIUS_M, JOULES_PER_MEGATON } from "../physics/impact.js";
 import { GLOBAL_RANGE_M } from "../physics/zones.js";
 
 export const G = 9.81; // m/s²
@@ -71,5 +71,21 @@ export function damageRadii(result) {
     flattened: pick(result?.wind, "trees90"),
     lightsOut: pick(result?.blast, "wood"),
     wrecked: pick(result?.blast, "masonry"),
+  };
+}
+
+/**
+ * Farthest range (m) the debris is drawn reaching: around the crater for small
+ * impacts, up to most of the way round the planet for the largest.
+ */
+export function debrisReachM(patchRadiusM, severity) {
+  return Math.max(patchRadiusM * 1.6, severity ** 1.5 * Math.PI * 0.9 * EARTH_RADIUS_M);
+}
+
+/** Flight time (s) and apex height (m) of a 45° arc covering `rangeM`, capped at half an Earth radius. */
+export function arc(rangeM) {
+  return {
+    seconds: Math.SQRT2 * Math.sqrt(rangeM / G),
+    apexM: Math.min(rangeM / 4, EARTH_RADIUS_M * 0.5),
   };
 }

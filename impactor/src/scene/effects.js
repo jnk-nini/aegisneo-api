@@ -4,7 +4,7 @@ import { EARTH_RADIUS_M } from "../physics/impact.js";
 import { latLonToVector, localFrame } from "./sphereMath.js";
 import { outermostRadiusM } from "../physics/zones.js";
 import { PATH_LENGTH_RE } from "./timeline.js";
-import { craterVisual } from "./craterShape.js";
+import { closeUpRadiusM } from "./framing.js";
 
 let glow = null;
 /** Soft radial glow used for the flash, fireball and entry glow. */
@@ -72,14 +72,12 @@ export function runGeometry(run) {
   const end = center.clone().addScaledVector(incoming, burstRE / Math.max(Math.sin(theta), 0.05));
   const outer = Math.max(outermostRadiusM(run.result), (run.result.crater?.finalDiameterM ?? 0) * 3, 4000);
   const viewRadiusRE = (outer * 1.3) / EARTH_RADIUS_M;
-  // Close-up right after impact: the crater and its ejecta (or, for an
-  // airburst, the fireball), so the forming crater fills the view.
-  const crater = craterVisual(run.result);
-  const fireballM = run.result.fireballRadiusM ?? 0;
-  const closeM = crater
-    ? Math.max(crater.radiusM * 2.6, fireballM * 1.5, 800)
-    : Math.max(fireballM * 3, outer * 0.3, 2000);
-  const closeRadiusRE = Math.min(closeM / EARTH_RADIUS_M, viewRadiusRE);
+  // Close-up right after impact: the crater and its ejecta, or for an airburst
+  // the burst itself, high above the ground, so whatever happens fills the view.
+  const airburst = run.result.entry.regime === "airburst";
+  const closeM = closeUpRadiusM(run.result) / EARTH_RADIUS_M;
+  const closeRadiusRE = airburst ? closeM : Math.min(closeM, viewRadiusRE);
+  const closeTarget = airburst ? end.clone() : center.clone();
   return {
     center,
     frame,
@@ -90,7 +88,8 @@ export function runGeometry(run) {
     burstRE,
     viewRadiusRE,
     closeRadiusRE,
-    airburst: run.result.entry.regime === "airburst",
+    closeTarget,
+    airburst,
   };
 }
 
