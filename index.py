@@ -18,8 +18,9 @@ API_VERSION = "1.1"
 # Each client website gets its own key so usage can be told apart (and one
 # key revoked without breaking the others). Keys are read from the
 # AEGISNEO_API_KEYS environment variable as "client:key" pairs separated by
-# commas, e.g. "aegisneo-web:abc123,impactor:def456". When it is not set we
-# fall back to the original public demo key so existing deployments keep working.
+# commas, e.g. "aegisneo-web:abc123,impactor:def456". The public demo key is
+# always accepted too, as its own "demo" client, so anyone can try the API
+# from /docs; the websites themselves use their own keys.
 LEGACY_DEMO_KEY = "student-api-key-123"
 
 
@@ -31,8 +32,7 @@ def load_api_keys() -> dict:
         client, key = pair.split(":", 1)
         if client.strip() and key.strip():
             keys[key.strip()] = client.strip()
-    if not keys:
-        keys[LEGACY_DEMO_KEY] = "demo"
+    keys.setdefault(LEGACY_DEMO_KEY, "demo")
     return keys
 
 
