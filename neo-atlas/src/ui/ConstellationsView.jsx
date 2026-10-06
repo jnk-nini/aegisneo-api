@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { starCount } from "../lib/constellations.js";
 import ConstellationPreview from "./ConstellationPreview.jsx";
+import Menu from "./Menu.jsx";
 
 function yearsOf(c) {
   const years = c.asteroids.map((a) => Number(a.close_approach_date.slice(0, 4)));
@@ -45,7 +46,7 @@ export default function ConstellationsView({
 
   return (
     <div className="constellations">
-      <header className="intro">
+      <header className="mine-intro">
         <h2>Constellations</h2>
         <p>
           Join asteroids into a shape of your own — your birthday sky, a year that matters to you — then send
@@ -60,7 +61,7 @@ export default function ConstellationsView({
           </div>
         ) : (
           <button type="button" className="btn btn-solid btn-make" onClick={onMake}>
-            <span aria-hidden="true">✦</span> Make a constellation
+            <span aria-hidden="true">✎</span> Draw my own constellation
           </button>
         )}
       </header>
@@ -70,14 +71,20 @@ export default function ConstellationsView({
         {saved.length === 0 ? (
           <ol className="how-to">
             <li>
-              <strong>Pick a sky.</strong> Choose a year, or your birthday across every year, on the Chart.
+              <span>
+                <strong>Pick a sky.</strong> On the Chart, tap the sky button to choose a year or your birthday.
+              </span>
             </li>
             <li>
-              <strong>Join the stars.</strong> Tap <em>Make a constellation</em>, then tap stars one after
-              another.
+              <span>
+                <strong>Join the stars.</strong> Tap <em>Draw my own constellation</em>, then tap stars one
+                after another.
+              </span>
             </li>
             <li>
-              <strong>Name it and save.</strong> It appears here, ready to view again or share as a link.
+              <span>
+                <strong>Name it and save.</strong> It appears here, ready to view again or send as a postcard.
+              </span>
             </li>
           </ol>
         ) : (
@@ -90,17 +97,13 @@ export default function ConstellationsView({
                 <button type="button" className="btn btn-small" onClick={() => onPostcard(c, "saved")}>
                   Postcard
                 </button>
-                <button type="button" className="btn btn-small" onClick={() => onShare(c)}>
-                  Share
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-small btn-quiet"
-                  onClick={() => onDelete(c)}
-                  aria-label={`Delete ${c.name}`}
-                >
-                  Delete
-                </button>
+                <Menu
+                  label={`More for ${c.name}`}
+                  items={[
+                    { key: "share", icon: "↗", label: "Share a link", onSelect: () => onShare(c) },
+                    { key: "delete", icon: "🗑", label: "Delete", onSelect: () => onDelete(c) },
+                  ]}
+                />
               </Card>
             ))}
           </ul>
@@ -181,9 +184,10 @@ export default function ConstellationsView({
                 >
                   Postcard
                 </button>
-                <button type="button" className="btn btn-small" onClick={() => onShare(constellation)}>
-                  Share
-                </button>
+                <Menu
+                  label={`More for ${constellation.name}`}
+                  items={[{ key: "share", icon: "↗", label: "Share a link", onSelect: () => onShare(constellation) }]}
+                />
               </Card>
             ))}
           </ul>

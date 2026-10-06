@@ -1,35 +1,31 @@
-import HighlightChips from "./HighlightChips.jsx";
+import { HIGHLIGHTS, highlightCounts } from "../lib/highlights.js";
 
 /**
- * What the chart is showing, with loading progress and a retry on failure.
- * Once loaded, the counts underneath highlight those asteroids when tapped.
+ * Under the chart: what it shows in one line, a hint on what to do, and one big
+ * button, "Make a postcard". Everything else waits in the ⋯ menu. A highlight
+ * picked there shows here as a chip, so it is easy to see and to turn off.
  * When the chart is empty, the chart itself says why, so this stays short.
  *
- * `notice` is a warning about the view (e.g. stars a shared link couldn't load);
- * `onPostcard` and `onMake` add the "Make a postcard" and "Draw my own" buttons.
+ * `when` finishes "… passed Earth" (e.g. "in 2024"); with `heading` (a shared
+ * constellation still loading) that name is shown instead. `notice` is a
+ * warning about the view, such as stars a shared link couldn't load.
  */
 export default function SkySummary({
-  title,
+  when,
+  heading = null,
   result,
-  catalogTotal,
   highlight,
   onHighlight,
   notice = null,
-  onMake = null,
   onPostcard = null,
   canMake = false,
 }) {
   const { status, asteroids, matched, error, retry } = result;
 
-  const make = onMake && (
-    <div className="sky-make">
-      <button type="button" className="btn btn-solid btn-make" onClick={onPostcard} disabled={!canMake}>
-        <span aria-hidden="true">✦</span> Make a postcard
-      </button>
-      <button type="button" className="btn" onClick={onMake} disabled={!canMake}>
-        Draw my own
-      </button>
-    </div>
+  const make = onPostcard && (
+    <button type="button" className="btn btn-solid btn-make main-go" onClick={onPostcard} disabled={!canMake}>
+      <span aria-hidden="true">✦</span> Make a postcard
+    </button>
   );
 
   if (status === "error" && asteroids.length > 0) {
@@ -47,15 +43,14 @@ export default function SkySummary({
     );
   }
 
+  // While nothing has arrived yet, the chart itself says it is loading; this only shows progress.
   if (status !== "ready") {
     return (
       <div className="sky-summary">
-        <p className="sky-line" role="status">
-          {status === "loading" && <span className="pulse" aria-hidden="true" />}
-          {status === "loading" ? "Charting " : ""}
-          <strong className="sky-title">{title}</strong>
-          {status === "loading" && "…"}
-          {status === "loading" && matched > 0 && (
+        <p className="sky-line" role="status" hidden={matched === 0}>
+          <span className="pulse" aria-hidden="true" />
+          {heading ? `Loading ${heading}…` : `Finding the asteroids that passed Earth ${when}…`}
+          {matched > 0 && (
             <span className="num">
               {" "}
               {asteroids.length} of {matched}
@@ -67,19 +62,24 @@ export default function SkySummary({
     );
   }
 
+  const on = HIGHLIGHTS.find((h) => h.key === highlight);
+
   return (
     <div className="sky-summary">
       <p className="sky-line" role="status">
-        <strong className="sky-title">{title}</strong>
-        <span className="sky-sep" aria-hidden="true">
-          {" "}
-          ·{" "}
-        </span>
-        <span className="nowrap">
-          <strong className="num">{asteroids.length}</strong> asteroids
-          {catalogTotal ? ` of ${catalogTotal.toLocaleString("en-US")}` : ""}
-        </span>
-        <span className="sky-sim"> · dates simulated</span>
+        {heading ? (
+          <>
+            <strong className="sky-title">{heading}</strong> ·{" "}
+            <strong className="num">{asteroids.length}</strong> asteroids
+          </>
+        ) : (
+          <>
+            <strong className="num">{asteroids.length}</strong> real asteroids passed Earth {when}.
+          </>
+        )}
+      </p>
+      <p className="sky-hint">
+        Tap a star to meet it<span className="sky-sim"> · dates simulated</span>
       </p>
       {notice && (
         <p className="sky-notice" role="alert">
@@ -91,7 +91,21 @@ export default function SkySummary({
           )}
         </p>
       )}
-      <HighlightChips asteroids={asteroids} value={highlight} onChange={onHighlight} />
+      {on && (
+        <button
+          type="button"
+          className={`chip chip-${on.key} chip-on`}
+          aria-pressed="true"
+          onClick={() => onHighlight(null)}
+          aria-label={`Showing ${on.label}. Show all asteroids`}
+        >
+          <span className="chip-mark" aria-hidden="true" />
+          <span className="num">{highlightCounts(asteroids)[on.key]}</span> {on.label}
+          <span className="chip-x" aria-hidden="true">
+            ×
+          </span>
+        </button>
+      )}
       {make}
     </div>
   );

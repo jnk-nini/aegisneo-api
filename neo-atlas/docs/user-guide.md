@@ -13,6 +13,10 @@ Live site: **https://neo-atlas-pearl.vercel.app**
 A first visit asks one thing: **"When's your birthday?"** Pick the day and month and tap **Reveal my
 stars**. Nothing else is on screen, so there is only one thing to do.
 
+Above the question, a small **step trail** shows the whole journey: **① Your stars → ② Postcard → ③ Send**.
+It comes back on each of those screens, with the current step lit and the steps behind it ticked, so you
+always know where you are and what comes next.
+
 - Only the day and month are used. The year is never asked for.
 - **Just explore the sky** skips the question and opens the full star chart (see [§ 7](#7-exploring-the-sky)).
 - The question only appears on a first visit to the plain address. Links to a postcard or a
@@ -32,17 +36,17 @@ The chart then **reveals** your birthday's sky in about three seconds:
 
 The name is made up from the stars, e.g. _The Iron Crown_. The same birthday always gets the same first shape.
 
-Under the chart there is one line about it (for example _"Made from 7 real asteroids that passed Earth on
-6 Oct. The biggest is as tall as 2 Burj Khalifas."_), one big button and a few small extras:
+Under the chart there is the step trail, one line about it (for example _"Made from 7 real asteroids that
+passed Earth on 6 Oct. The biggest is as tall as 2 Burj Khalifas."_), one big button and two small extras.
+Everything else waits in the **⋯** menu, so the screen never has more than one main thing to do:
 
 | Control                  | What it does                                                                |
 | ------------------------ | --------------------------------------------------------------------------- |
 | **Make it a postcard**   | Opens the postcard maker ([§ 4](#4-making-a-postcard)).                     |
 | **You're The …**         | Your asteroid sign ([§ 3](#3-your-asteroid-sign)).                          |
 | **Shuffle**              | A different shape from the same sky, revealed again.                        |
-| **Draw my own**          | Join stars yourself by tapping them ([§ 7](#7-exploring-the-sky)).          |
-| **Save** (top right)     | Keeps the constellation in _Constellations_ on this device.                 |
 | **‹** (top left)         | Back to the plain sky (also the phone's Back button).                       |
+| **⋯** (top right)        | **Save to Constellations**, **Share a link**, **Draw my own constellation** ([§ 7](#7-exploring-the-sky)) and **How to read the chart**. |
 
 ---
 
@@ -66,19 +70,23 @@ The card says it plainly: **real asteroid, made-up meaning, just for fun.** The 
 
 ![The postcard maker on a phone](images/04-postcard.jpg)
 
-The card fills the screen. Everything else is a single tap:
+The card fills the screen. Under it there are two tabs, **🎨 Look** and **💬 Words**, and only one of
+them is open at a time, so the buttons have room and are easy to hit. Then one big **Send**, with a **⋯**
+beside it for the other ways to send:
 
 | To…                       | Do this                                                                                                     |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| change the look           | **swipe the card** sideways, or tap a coloured dot / the ‹ › arrows. Six looks: Midnight, Dusk, Neon, Aurora, Bubblegum, Parchment. |
-| add a message             | tap a **ready-made message** (e.g. _"Happy birthday! 🎂 These are your stars."_). Tap it again to remove it. |
-| write your own            | tap **Your own words & name**, or tap the message or the title on the card itself.                          |
+| change the look           | **Look**: tap one of the six colours (Midnight, Dusk, Neon, Aurora, Bubblegum, Parchment), or **swipe the card** sideways. |
+| add a message             | **Words**: tap the message bar. Each tap puts the next ready-made message on the card (e.g. _"Happy birthday! 🎂 These are your stars."_). |
+| write your own            | **Words** → **Write my own & add my name**, or tap the message or the title on the card itself.             |
 | sign it                   | type your name in **From**. It is remembered on this device for your next postcard.                        |
-| seal it until the birthday | tap **Seal it** (birthday postcards only, see below).                                                       |
 | send it                   | **Send** (phones) opens the share sheet with the picture and a link. On a computer: **Copy link to send**.  |
-| keep a copy               | **Save picture** downloads the card as a PNG.                                                               |
+| copy the link             | **⋯** → **Copy link** (phones).                                                                              |
+| keep a copy               | **⋯** → **Save picture** downloads the card as a PNG.                                                       |
+| seal it until the birthday | **⋯** → **Seal until …** (birthday postcards only, see below). Send then reads **Send sealed**.             |
 
-A burst of little stars (and a short buzz on Android phones) confirms it was sent.
+A burst of little stars (and a short buzz on Android phones) confirms it was sent, and the step trail
+ticks off **Send**.
 
 **Every postcard starts blank.** Only your name is kept, so you never have to delete an old message.
 
@@ -89,7 +97,7 @@ real and what isn't.
 
 ### Sealed postcards
 
-For a birthday constellation (not on the birthday itself), **Seal it** keeps the postcard shut until the
+For a birthday constellation (not on the birthday itself), **⋯ → Seal until …** keeps the postcard shut until the
 next time that birthday comes round. The person you send it to sees a sealed envelope with a countdown
 instead of the card, and the picture sent with the link is the envelope too. Use **Save picture** if you
 want the card itself.
@@ -134,25 +142,30 @@ When the original sender opens the reply, they see the match score and can **Sen
 
 ![The full chart on a laptop](images/07-laptop.jpg)
 
-**Just explore the sky** (or **‹** from a constellation) shows the full atlas:
+**Just explore the sky** (or **‹** from a constellation) shows the full atlas. On a phone the screen keeps
+to the essentials: the sky at the top left, the **⋯** menu at the top right, the chart, one line about it,
+and one big **Make a postcard** button.
 
-- **Year / Birthday** chooses a whole year (1910–2024) or one date across every year.
+- **The sky** (e.g. **Year 2024 ▾**) opens a short sheet: **Year / Birthday** chooses a whole year
+  (1910–2024) or one date across every year. On a laptop the full picker sits there instead.
 - **Each star is a real asteroid.** Tap one for its card: how close it came (in Moon distances), its size,
   speed and NASA's reference ID, with a link to NASA JPL's database.
 - **Pinch** or scroll to zoom, drag to move; a reset button appears once you've zoomed. On phones the
   zoom buttons are hidden because pinching does the job.
-- **How to read** (the **?**) explains the dial: around the dial is the date, distance from the centre is
-  the miss distance, star size is the asteroid's size, red diamonds are potentially hazardous.
-- The counts under the chart (_potentially hazardous_, _closer than the Moon_, _wider than 140 m_) highlight
-  those asteroids when tapped.
+- **⋯ → How to read the chart** (on a laptop, the **How to read** button on the chart) explains the dial:
+  around the dial is the date, distance from the centre is the miss distance, star size is the asteroid's
+  size, red diamonds are potentially hazardous.
+- **⋯ → Potentially hazardous / Closer than the Moon / Wider than 140 m** picks those asteroids out. A chip
+  under the chart shows which one is on; tap its **×** to show all again. (The List tab has them as chips.)
+- **⋯ → Find my birthday stars** asks the birthday question again.
 - **Make a postcard** makes and reveals a constellation from the current sky.
-- **Draw my own**: tap stars one after another, **Undo** removes the last, **Done** names and saves it.
+- **⋯ → Draw my own constellation** (or **Draw from this star** on a star's card): tap stars one after
+  another, **Undo** removes the last, **Done** names and saves it.
 - The **List** tab shows the same asteroids as a searchable, sortable list.
 - The **Constellations** tab keeps your saved constellations, four ready-made ones from the whole catalog
   (The Giants, Closest Shaves, Speed Demons, The Watch List), and **Export / Import** to a file.
 
-A one-line tip about tapping and pinching appears on the first explore, and fades away by itself after a
-few seconds.
+The line under the chart always says what to do next: _"Tap a star to meet it."_
 
 ---
 

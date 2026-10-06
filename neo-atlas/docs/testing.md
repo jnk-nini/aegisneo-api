@@ -59,12 +59,14 @@ The checks below were last run on 2026-10-06 against the local dev server.
 
 **Postcard maker**
 
-- [x] Fits one phone screen without scrolling; no sideways scrolling with the seal on.
-- [x] Swiping the card changes the look; the dots and arrows do too.
-- [x] A ready-made message appears on the card; tapping it again removes it.
-- [x] _Your own words & name_ opens the writing sheet with the cursor at the end; the card updates while typing.
+- [x] Fits one phone screen without scrolling; no sideways scrolling on either tab or with the ⋯ open.
+- [x] The step trail shows ✓ Your stars, ② Postcard; Send is ticked once the card is sent, copied or saved.
+- [x] _Look_ and _Words_ show one panel at a time and the card doesn't jump between them.
+- [x] Each of the six swatches is a 44 px target; swiping the card changes the look too.
+- [x] Each tap on the message bar puts the next ready-made message on the card.
+- [x] _Write my own_ opens the writing sheet with the cursor at the end; the card updates while typing.
 - [x] A new postcard starts blank; the name is remembered.
-- [x] _Seal it_ only appears for a birthday that isn't today; the note says when it opens.
+- [x] ⋯ holds Copy link, Save picture and _Seal until …_ (only for a birthday that isn't today); sealed, Send reads _Send sealed_ and the note says when it opens.
 - [x] The shared picture of a sealed postcard is the envelope.
 
 **Receiving**
@@ -73,6 +75,15 @@ The checks below were last run on 2026-10-06 against the local dev server.
 - [x] A sealed link shows the countdown; _Open it early_ needs two taps.
 - [x] _Add your birthday_ → _Join our stars_ joins both constellations in two colours with a bridge, a name from both halves and a match score.
 - [x] The reply postcard suggests a message using the sender's name; the reply link shows the match score and _Send one back_.
+
+**Phone layout (375 × 812)**
+
+- [x] The sky screen shows only the sky pill, ⋯, the chart, one line and _Make a postcard_.
+- [x] The sky pill opens a sheet with Year / Birthday; the chart changes behind it; _Show this sky_ closes it.
+- [x] ⋯ holds Find my birthday stars, Draw my own constellation, the three highlights (ticked when on) and How to read the chart.
+- [x] A highlight picked in ⋯ shows as a chip under the chart; its × turns it off.
+- [x] Every button, chip and menu row on the sky, reveal and postcard screens is at least 44 px tall.
+- [x] The Constellations tab's how-to steps read as normal sentences (not one word per line).
 
 **Everywhere**
 

@@ -22,10 +22,17 @@ import {
 import { rememberName, savedName } from "../lib/prefs.js";
 import Burst from "./Burst.jsx";
 import CardCanvas from "./CardCanvas.jsx";
+import Menu from "./Menu.jsx";
 import Modal from "./Modal.jsx";
+import StepTrail from "./StepTrail.jsx";
 
 const SWIPE_PX = 40;
 const TAP_PX = 10;
+// One panel of controls at a time under the card, so nothing is crowded.
+const PANELS = [
+  { id: "look", icon: "🎨", label: "Look" },
+  { id: "words", icon: "💬", label: "Words" },
+];
 
 /** Focuses a text field with the cursor after what's there, so typing carries on from the end. */
 function focusEnd(field) {
@@ -61,10 +68,11 @@ function presetsFor(c, replyTo) {
 }
 
 /**
- * Make a postcard of the constellation. The card fills the screen: swipe it (or
- * use the arrows) for another look, tap a ready-made message or write your own,
- * then Send. Every postcard starts blank, apart from the sender's name, which
- * is remembered on this device.
+ * Make a postcard of the constellation. The card fills the screen; under it, one
+ * panel at a time: Look (six colours; swiping the card works too) or Words (tap
+ * for a ready-made message, or write your own). Then one big Send, with Copy
+ * link, Save picture and Seal in the ⋯ beside it. Every postcard starts blank,
+ * apart from the sender's name, which is remembered on this device.
  *
  * A birthday postcard can be sealed until the birthday: the link then opens
  * on a countdown, and the picture sent with it is a sealed envelope.
@@ -87,6 +95,10 @@ export default function PostcardComposer({ constellation, backdrop, replyTo = ""
   const [theme, setTheme] = useState(DEFAULT_THEME);
   const [sealed, setSealed] = useState(false);
   const [editing, setEditing] = useState(null); // null, "message" or "title"
+  const [panel, setPanel] = useState("look");
+  // Sent, copied or saved at least once: the step trail ticks off "Send".
+  const [done, setDone] = useState(false);
+  const tabsId = useId();
   const [canShare] = useState(canShareImages);
   const [busy, setBusy] = useState(false);
   // What just happened, said inside the dialog: a toast would be hidden behind it.
@@ -174,6 +186,7 @@ export default function PostcardComposer({ constellation, backdrop, replyTo = ""
 
   const celebrate = (text) => {
     setStatus(text);
+    setDone(true);
     setBursts((n) => n + 1);
     buzz([10, 40, 14]);
   };
@@ -217,6 +230,9 @@ export default function PostcardComposer({ constellation, backdrop, replyTo = ""
     }
   };
 
+  // Each tap puts the next ready-made message on the card.
+  const nextPreset = () => setMessage((m) => presets[(presets.indexOf(m) + 1) % presets.length]);
+
   const step = (delta) =>
     setTheme((t) => THEME_ORDER[(THEME_ORDER.indexOf(t) + delta + THEME_ORDER.length) % THEME_ORDER.length]);
 
@@ -249,7 +265,10 @@ export default function PostcardComposer({ constellation, backdrop, replyTo = ""
     >
       <div className="composer">
         <header className="composer-top">
-          <h2 id={titleId}>Your postcard</h2>
+          <h2 id={titleId} className="sr-only">
+            Your postcard
+          </h2>
+          <StepTrail step={done ? 4 : 2} />
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close postcard">
             ×
           </button>
@@ -273,83 +292,102 @@ export default function PostcardComposer({ constellation, backdrop, replyTo = ""
         </div>
 
         <div className="composer-controls">
-          <div className="looks" role="group" aria-label="Look">
-            <button type="button" className="look-step" onClick={() => step(-1)} aria-label="Previous look">
-              ‹
-            </button>
-            {THEME_ORDER.map((id) => (
+          <div className="composer-tabs" role="tablist" aria-label="Change the postcard">
+            {PANELS.map((p) => (
               <button
-                key={id}
+                key={p.id}
                 type="button"
-                className="look-dot"
-                aria-pressed={id === theme}
-                aria-label={`${THEMES[id].label} look`}
-                onClick={() => setTheme(id)}
-                style={{ "--dot": THEMES[id].bg[1], "--dot-line": THEMES[id].line }}
-              />
-            ))}
-            <button type="button" className="look-step" onClick={() => step(1)} aria-label="Next look">
-              ›
-            </button>
-            <span className="look-name" aria-live="polite">
-              {THEMES[theme].label}
-            </span>
-          </div>
-
-          <div className="presets" role="group" aria-label="Quick messages">
-            {presets.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className="chip preset"
-                aria-pressed={message === p}
-                onClick={() => setMessage(message === p ? "" : p)}
+                role="tab"
+                id={`${tabsId}-${p.id}`}
+                aria-selected={panel === p.id}
+                aria-controls={`${tabsId}-panel`}
+                className="composer-tab"
+                onClick={() => setPanel(p.id)}
               >
-                {p}
+                <span aria-hidden="true">{p.icon}</span> {p.label}
               </button>
             ))}
           </div>
 
-          <div className="composer-row">
-            <button type="button" className="btn btn-small write-btn" onClick={() => setEditing("message")}>
-              <span aria-hidden="true">✎</span> {custom ? "Edit words" : "Your own words"}
-              {signed ? ` · ${signed}` : " & name"}
-            </button>
-            {canSeal && (
-              <button
-                type="button"
-                className="chip seal-chip"
-                aria-pressed={sealed}
-                onClick={() => setSealed((on) => !on)}
-              >
-                <span aria-hidden="true">{sealed ? "🔒" : "🔓"}</span>{" "}
-                {sealed ? `Sealed · ${sealDay}` : "Seal it"}
-              </button>
+          <div
+            id={`${tabsId}-panel`}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-${panel}`}
+            className="composer-panel"
+          >
+            {panel === "look" ? (
+              <>
+                <div className="looks" role="radiogroup" aria-label="Look">
+                  {THEME_ORDER.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      className="look-dot"
+                      aria-checked={id === theme}
+                      aria-label={THEMES[id].label}
+                      onClick={() => setTheme(id)}
+                      style={{ "--dot": THEMES[id].bg[1], "--dot-line": THEMES[id].line }}
+                    />
+                  ))}
+                </div>
+                <p className="look-name" aria-live="polite">
+                  {THEMES[theme].label}
+                  <span className="look-hint"> · or swipe the card</span>
+                </p>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="msg-cycle"
+                  onClick={nextPreset}
+                  aria-label={message ? `Message: ${message}. Tap for another` : "Add a ready-made message"}
+                >
+                  <span className={message ? "msg-text" : "msg-text msg-empty"}>
+                    {message || "Tap for a ready-made message"}
+                  </span>
+                  <span className="msg-next" aria-hidden="true">
+                    ↻
+                  </span>
+                </button>
+                <button type="button" className="btn write-btn" onClick={() => setEditing("message")}>
+                  <span aria-hidden="true">✎</span> {custom ? "Edit my words" : "Write my own"}
+                  {signed ? ` · from ${signed}` : " & add my name"}
+                </button>
+              </>
             )}
           </div>
 
           <div className="send-row">
-            {canShare ? (
-              <button type="button" className="btn btn-solid btn-make send-btn" onClick={share} disabled={busy}>
-                <span aria-hidden="true">✦</span> Send
-              </button>
-            ) : (
-              <button type="button" className="btn btn-solid btn-make send-btn" onClick={copyLink}>
-                <span aria-hidden="true">✦</span> Copy link to send
-              </button>
-            )}
-            {canShare && (
-              <button type="button" className="btn btn-small" onClick={copyLink}>
-                Copy link
-              </button>
-            )}
-            <button type="button" className="btn btn-small" onClick={download}>
-              Save picture
+            <button
+              type="button"
+              className="btn btn-solid btn-make send-btn"
+              onClick={canShare ? share : copyLink}
+              disabled={busy}
+            >
+              <span aria-hidden="true">{sealUntil ? "🔒" : "✦"}</span>{" "}
+              {canShare ? (sealUntil ? "Send sealed" : "Send") : "Copy link to send"}
             </button>
+            <Menu
+              label="More ways to send"
+              up
+              items={[
+                canShare && { key: "copy", icon: "🔗", label: "Copy link", onSelect: copyLink },
+                { key: "save", icon: "↓", label: "Save picture", onSelect: download },
+                canSeal && {
+                  key: "seal",
+                  icon: "🔒",
+                  label: `Seal until ${sealDay}`,
+                  checked: sealed,
+                  onSelect: () => setSealed((on) => !on),
+                },
+              ]}
+            />
           </div>
           <p className="postcard-status" role="status">
             {status ||
-              (sealUntil ? `They'll get a sealed envelope that opens on ${formatDate(sealUntil)}.` : "")}
+              (sealUntil ? `Sealed: they'll get an envelope that opens on ${formatDate(sealUntil)}.` : "")}
           </p>
         </div>
 

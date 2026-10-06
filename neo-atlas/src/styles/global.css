@@ -487,13 +487,67 @@ a {
 
 .chart-toolbar {
   position: relative;
-  z-index: 2;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 8px 10px 0;
+}
+
+/* The sky being charted on the left, the ⋯ menu on the right. */
+.sky-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: 44rem;
+}
+.sky-bar .sky-controls {
+  flex: 1;
+}
+
+/* Phones: the sky is one pill that opens a short sheet. */
+.sky-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 0 16px 0 18px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: rgba(7, 13, 34, 0.85);
+  cursor: pointer;
+}
+.sky-pill:hover:not(:disabled) {
+  background: rgba(201, 164, 92, 0.14);
+}
+.sky-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sky-pill-kind {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.sky-pill-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.sky-pill-caret {
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 2px;
+  border-right: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+  transform: rotate(45deg);
 }
 
 /* The mode switch and the picker share one row, and wrap onto two only on the narrowest phones. */
@@ -713,25 +767,28 @@ a {
   border: 1px solid rgba(239, 123, 95, 0.5);
   border-radius: var(--radius);
 }
-/* "Make a postcard" fills the row on phones, with "Draw my own" beside it. */
-.sky-make,
-.auto-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.sky-hint {
+  margin: -4px 0 0;
+  color: var(--paper-muted);
+  font-size: 0.82rem;
 }
-.sky-make .btn-make,
-.auto-actions .btn-make {
-  flex: 1 1 auto;
+/* The screen's one main action: big, centred, never crowded. */
+.main-go {
+  justify-self: center;
   justify-content: center;
+  width: min(26rem, 100%);
+  min-height: 52px;
+  margin-top: 4px;
+  font-size: 1.05rem;
 }
-@media (min-width: 640px) {
-  .sky-make .btn-make,
-  .auto-actions .btn-make {
-    flex: none;
-  }
+/* A highlight picked in the ⋯ menu, shown so it can be turned off. */
+.chip-on {
+  justify-self: center;
+}
+.chip-x {
+  margin-left: 2px;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 /* ---------- Highlight chips (the counts are toggles) ---------- */
@@ -747,12 +804,6 @@ a {
 }
 .chips::-webkit-scrollbar {
   display: none;
-}
-.sky-summary .chip:first-child {
-  margin-left: auto;
-}
-.sky-summary .chip:last-child {
-  margin-right: auto;
 }
 .chip {
   display: inline-flex;
@@ -801,27 +852,6 @@ a {
   height: 10px;
 }
 
-/* ---------- First-visit tip ---------- */
-
-.chart-tip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: calc(100% - 24px);
-  max-width: 44rem;
-  margin: 8px auto 0;
-  padding: 4px 4px 4px 12px;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  background: rgba(201, 164, 92, 0.1);
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
-.chart-tip p {
-  flex: 1;
-  margin: 4px 0;
-}
-.tip-close,
 .toast-close {
   flex: none;
   width: 32px;
@@ -1047,16 +1077,16 @@ form.draw-bar .text-input {
   margin: 0 auto;
   padding: 20px 16px 32px;
 }
-.intro h2,
+.mine-intro h2,
 .shelf h3 {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 600;
 }
-.intro h2 {
+.mine-intro h2 {
   font-size: 2rem;
 }
-.intro p {
+.mine-intro p {
   max-width: 38rem;
   margin: 6px 0 14px;
   color: var(--paper-muted);
@@ -1641,10 +1671,9 @@ form.draw-bar .text-input {
   .panel-chart {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "chart toolbar"
-      "chart tip"
       "chart summary";
   }
   .chart-area {
@@ -1657,11 +1686,6 @@ form.draw-bar .text-input {
   .chart-toolbar {
     grid-area: toolbar;
     padding: 8px 12px 0 4px;
-  }
-  .chart-tip {
-    grid-area: tip;
-    width: auto;
-    margin: 8px 12px 0 4px;
   }
   .panel-chart .sky-summary,
   .panel-chart .draw-bar {
@@ -1832,9 +1856,9 @@ form.draw-bar .text-input {
 .composer-top h2 {
   font-size: 1.35rem;
 }
-.composer-top .icon-btn {
-  width: 40px;
-  height: 40px;
+.composer-top .trail {
+  flex: 1;
+  justify-content: flex-start;
 }
 /* The card is as big as the space allows, at its own 4:5 shape. */
 .composer-stage {
@@ -1854,90 +1878,160 @@ form.draw-bar .text-input {
 }
 .composer-controls {
   display: grid;
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   width: 100%;
   max-width: 30rem;
-  margin: 10px auto 0;
+  margin: 12px auto 0;
 }
 
-.looks {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+/* Look | Words: one panel at a time. */
+.composer-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
 }
-.look-step {
-  width: 32px;
-  height: 32px;
+.composer-tab {
+  min-height: 40px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: none;
-  color: var(--gold-bright);
-  font-size: 1.3rem;
-  line-height: 1;
+  color: var(--paper-muted);
+  font-weight: 700;
   cursor: pointer;
 }
+.composer-tab[aria-selected="true"] {
+  background: rgba(201, 164, 92, 0.2);
+  color: var(--gold-bright);
+}
+/* Both panels take the same height, so the card above never jumps. */
+.composer-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 10px;
+  min-height: 104px;
+}
+
+/* Six swatches with room between them: each is a full 44px target. */
+.looks {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
 .look-dot {
-  width: 22px;
-  height: 22px;
+  position: relative;
+  width: var(--tap);
+  height: var(--tap);
   padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.look-dot::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
   border: 2px solid var(--dot-line);
   border-radius: 50%;
   background: var(--dot);
-  cursor: pointer;
   transition: transform 0.15s;
 }
-.look-dot[aria-pressed="true"] {
+.look-dot[aria-checked="true"]::before {
   outline: 2px solid var(--gold-bright);
-  outline-offset: 2px;
-  transform: scale(1.15);
+  outline-offset: 3px;
+  transform: scale(1.08);
+}
+.look-dot:focus-visible {
+  outline: none;
+}
+.look-dot:focus-visible::before {
+  outline: 2px solid var(--paper);
+  outline-offset: 3px;
 }
 .look-name {
-  min-width: 5.6em;
-  margin-left: 4px;
+  margin: 0;
   color: var(--gold-bright);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 700;
+  text-align: center;
+}
+.look-hint {
+  color: var(--paper-muted);
+  font-weight: 400;
 }
 
-/* Ready-made messages in one row that scrolls sideways. */
-.presets {
+/* Words: tap for the next ready-made message, or write your own. */
+.msg-cycle {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 8px 0 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(201, 164, 92, 0.08);
+  color: var(--paper);
+  text-align: left;
+  cursor: pointer;
 }
-.presets::-webkit-scrollbar {
-  display: none;
-}
-.composer-row {
-  display: flex;
-  gap: 8px;
-}
-.write-btn {
-  flex: 1 1 auto;
+.msg-text {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.seal-chip {
-  flex: none;
+.msg-empty {
+  color: var(--paper-muted);
 }
+.msg-next {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(201, 164, 92, 0.18);
+  color: var(--gold-bright);
+  font-size: 1.1rem;
+}
+.write-btn {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One big Send; the other ways to send wait in the ⋯ beside it. */
 .send-row {
   display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.send-btn {
+  flex: 1;
+  justify-content: center;
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+.send-row .menu-btn {
+  width: 52px;
+  height: 52px;
+}
+/* The asteroid sign's buttons still share one wrapping row. */
+.send-row:has(.btn-small) {
   flex-wrap: wrap;
-  gap: 8px;
+}
+.send-row:has(.btn-small) .send-btn {
+  flex: 1 1 100%;
 }
 .send-row .btn-small {
   flex: 1 1 0;
-}
-.send-btn {
-  flex: 1 1 100%;
-  justify-content: center;
-  min-height: 50px;
-  font-size: 1.05rem;
 }
 
 /* Writing: a sheet over the controls, with the card still in view above it. */
@@ -2037,8 +2131,14 @@ form.draw-bar .text-input {
 .intro-body > :nth-child(4) {
   animation-delay: 0.3s;
 }
-.intro-body > :nth-child(n + 5) {
-  animation-delay: 0.45s;
+.intro-body > :nth-child(5) {
+  animation-delay: 0.4s;
+}
+.intro-body > :nth-child(n + 6) {
+  animation-delay: 0.5s;
+}
+.intro-trail {
+  margin-top: -2px !important;
 }
 @keyframes rise {
   from {
@@ -2086,7 +2186,7 @@ form.draw-bar .text-input {
   font-size: 1.1rem;
 }
 .intro-skip {
-  min-height: 40px;
+  min-height: var(--tap);
 }
 .intro-fine {
   max-width: 18rem;
@@ -2155,19 +2255,15 @@ form.draw-bar .text-input {
   margin: 0;
   font-size: 0.92rem;
 }
-.auto-go {
-  justify-self: center;
-  justify-content: center;
-  width: min(26rem, 100%);
-  min-height: 52px;
-  font-size: 1.05rem;
+.auto-card:not(.reveal) {
+  animation: none;
 }
 .auto-more {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 4px 6px;
+  gap: 8px 12px;
 }
 .chip-sign {
   border-color: var(--gold);
@@ -2514,10 +2610,6 @@ form.draw-bar .text-input {
     align-content: center;
     margin: 0;
   }
-  .presets {
-    flex-wrap: wrap;
-    mask-image: none;
-  }
   .editor {
     left: auto;
     width: calc(24rem + 48px);
@@ -2581,10 +2673,24 @@ form.draw-bar .text-input {
   }
 }
 
-/* Phones pinch to zoom, so the zoom buttons only take up space there (Reset still appears when zoomed). */
+/* Phones pinch to zoom, so the zoom buttons only take up space there (Reset still appears when zoomed).
+   On touch screens every button and chip is at least a 44px target. */
 @media (pointer: coarse) {
   .zoom-controls {
     display: none;
+  }
+  .btn-small,
+  .chip,
+  .composer-tab {
+    min-height: var(--tap);
+  }
+  .toast-close {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .corner-btn {
+    width: var(--tap);
+    height: var(--tap);
   }
 }
 
@@ -2597,4 +2703,191 @@ form.draw-bar .text-input {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- The ⋯ menu: a screen's extra actions, one tap away ---------- */
+
+.menu {
+  position: relative;
+  flex: none;
+}
+.menu-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+.menu-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  width: max-content;
+  min-width: 15rem;
+  max-width: min(20rem, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: rgba(7, 13, 34, 0.98);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+  animation: menu-in 0.14s ease-out;
+}
+.menu-up .menu-list {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.menu-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--paper);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item + .menu-item {
+  border-top: 1px solid rgba(201, 164, 92, 0.1);
+}
+.menu-item:hover:not(:disabled),
+.menu-item:focus-visible {
+  background: rgba(201, 164, 92, 0.14);
+}
+.menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.menu-icon {
+  color: var(--gold-bright);
+  text-align: center;
+}
+.menu-check {
+  min-width: 1em;
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+
+/* ---------- Step trail: Your stars → Postcard → Send ---------- */
+
+.trail {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.trail-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--paper-muted);
+  white-space: nowrap;
+}
+.trail-step + .trail-step::before {
+  content: "";
+  width: 14px;
+  height: 1px;
+  margin-right: 2px;
+  background: var(--rule);
+}
+.trail-dot {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  font-size: 0.72rem;
+}
+.trail-step.now {
+  color: var(--gold-bright);
+}
+.trail-step.now .trail-dot {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: var(--ink-deep);
+  box-shadow: 0 0 12px rgba(226, 194, 127, 0.45);
+}
+.trail-step.done {
+  color: var(--paper);
+}
+.trail-step.done .trail-dot {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+/* ---------- Short sheets: choosing a sky ---------- */
+
+.sheet-modal {
+  width: 100%;
+  max-width: 100%;
+  margin: auto 0 0;
+  border-width: 1px 0 0;
+  border-radius: 18px 18px 0 0;
+  animation: sheet-in 0.2s ease-out;
+}
+.sheet-body {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 22px 16px calc(18px + var(--safe-bottom));
+  text-align: center;
+}
+.sheet-body h2 {
+  font-size: 1.6rem;
+}
+.sheet-note {
+  max-width: 20rem;
+  margin: -8px 0 0;
+  color: var(--paper-muted);
+  font-size: 0.88rem;
+}
+.sheet-body .sky-controls {
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.sheet-body .sky-controls .picker {
+  margin: 0;
+}
+.sheet-body .segmented span {
+  min-height: 40px;
+  padding: 0 22px;
+  font-size: 0.95rem;
+}
+.sheet-done {
+  width: min(22rem, 100%);
+  min-height: 50px;
+}
+@media (min-width: 640px) {
+  .sheet-modal {
+    width: min(26rem, calc(100vw - 32px));
+    margin: auto;
+    border-width: 1px;
+    border-radius: var(--radius);
+  }
+}
+
+/* The legend opened from the ⋯ menu (phones) closes with its own button. */
+.legend-close {
+  float: right;
+  width: var(--tap);
+  height: var(--tap);
+  margin: -4px -6px 6px 8px;
+  font-size: 1.2rem;
 }

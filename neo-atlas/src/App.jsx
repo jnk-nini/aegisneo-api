@@ -3,6 +3,7 @@ import { useCatalogTotal } from "./hooks/useCatalogTotal.js";
 import { useDraft } from "./hooks/useDraft.js";
 import { useFeatured } from "./hooks/useFeatured.js";
 import { closeLayer, useHistorySync } from "./hooks/useHistorySync.js";
+import { useMediaQuery } from "./hooks/useMediaQuery.js";
 import { useSaved } from "./hooks/useSaved.js";
 import { useSky } from "./hooks/useSky.js";
 import { useToast } from "./hooks/useToast.js";
@@ -20,13 +21,12 @@ import {
   shareQuery,
 } from "./lib/constellations.js";
 import { formatMonthDay, plural } from "./lib/format.js";
-import { highlightTest } from "./lib/highlights.js";
+import { HIGHLIGHTS, highlightCounts, highlightTest } from "./lib/highlights.js";
 import { bridgeIndex, matchConstellation } from "./lib/match.js";
 import { postcardFromQuery, postcardQuery } from "./lib/postcard.js";
 import { asteroidSign } from "./lib/sign.js";
 import { completeSky, skyFromQuery, skySearch, skyTitle, skyToQuery } from "./lib/sky.js";
 import AutoCard from "./ui/AutoCard.jsx";
-import ChartTip from "./ui/ChartTip.jsx";
 import ConfirmDialog from "./ui/ConfirmDialog.jsx";
 import ConstellationsView from "./ui/ConstellationsView.jsx";
 import DetailSheet from "./ui/DetailSheet.jsx";
@@ -34,10 +34,12 @@ import DrawBar from "./ui/DrawBar.jsx";
 import Intro from "./ui/Intro.jsx";
 import Legend from "./ui/Legend.jsx";
 import ListView from "./ui/ListView.jsx";
+import Menu from "./ui/Menu.jsx";
 import PostcardComposer from "./ui/PostcardComposer.jsx";
 import PostcardReceived from "./ui/PostcardReceived.jsx";
 import SignCard from "./ui/SignCard.jsx";
 import SkyControls from "./ui/SkyControls.jsx";
+import SkyPicker from "./ui/SkyPicker.jsx";
 import SkySummary from "./ui/SkySummary.jsx";
 import StarChart from "./ui/StarChart.jsx";
 import TabBar from "./ui/TabBar.jsx";
@@ -51,6 +53,9 @@ const TABS = [
 ];
 
 const NO_ASTEROIDS = [];
+// Wide enough for the full sky picker and the chart's own "How to read" button; phones get a pill and the ⋯ menu.
+const WIDE = "(min-width: 900px) and (min-height: 541px)";
+const MARKS = { hazardous: "◆", inside: "◌", large: "●" };
 const WELCOME_KEY = "neo-atlas:welcome-seen";
 
 function welcomeSeen() {
@@ -140,6 +145,8 @@ export default function App() {
   // Star Match: the receiver's birthday sky to load, and the constellation it joins: { search, base, from }.
   const [matchFor, setMatchFor] = useState(null);
   const [shuffle, setShuffle] = useState(0);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const wide = useMediaQuery(WIDE);
   const sheetRef = useRef(null);
   // Set once a discard is confirmed and Back is about to close the drawing, so it isn't asked twice.
   const discarding = useRef(false);
@@ -448,6 +455,66 @@ export default function App() {
         }
       : null;
 
+  // Stars the catalog doesn't have will never load, so what did load can be saved and sent.
+  const viewReady = viewing ? viewing.status === "ready" || (viewing.status === "partial" && !viewing.retryable) : false;
+
+  const readItem = {
+    key: "legend",
+    icon: "?",
+    label: "How to read the chart",
+    onSelect: () => {
+      setTab("chart");
+      setLegendOpen(true);
+    },
+  };
+  const counts = result.status === "ready" ? highlightCounts(result.asteroids) : null;
+  // The ⋯ menu: everything that isn't the screen's one main action. The highlights are toggles.
+  const skyItems = [
+    !draft.drawing && {
+      key: "birthday",
+      icon: "✦",
+      label: "Find my birthday stars",
+      onSelect: () => setIntro(true),
+    },
+    !draft.drawing && {
+      key: "draw",
+      icon: "✎",
+      label: "Draw my own constellation",
+      onSelect: () => startDrawing(),
+      disabled: result.status !== "ready",
+    },
+    ...(counts && !draft.drawing
+      ? HIGHLIGHTS.map((h) => ({
+          key: h.key,
+          icon: MARKS[h.key],
+          label: `${h.label[0].toUpperCase()}${h.label.slice(1)} · ${counts[h.key]}`,
+          checked: highlight === h.key,
+          disabled: highlight !== h.key && counts[h.key] === 0,
+          onSelect: () => setHighlight(highlight === h.key ? null : h.key),
+        }))
+      : []),
+    readItem,
+  ];
+  const viewItems = constellation
+    ? [
+        {
+          key: "save",
+          icon: isSaved ? "★" : "☆",
+          label: isSaved ? "Saved in Constellations" : "Save to Constellations",
+          disabled: isSaved || !viewReady,
+          onSelect: saveViewed,
+        },
+        { key: "share", icon: "↗", label: "Share a link", disabled: !viewReady, onSelect: () => share(constellation) },
+        viewing.source === "auto" && {
+          key: "draw",
+          icon: "✎",
+          label: "Draw my own constellation",
+          onSelect: () => startDrawing(),
+        },
+        readItem,
+      ]
+    : [readItem];
+
   const toolbar = viewing ? (
     <ViewingBar
       name={title}
@@ -456,15 +523,18 @@ export default function App() {
       }
       revealKey={reveal}
       status={viewing.status}
-      // Stars the catalog doesn't have will never load, so what did load can be saved.
-      ready={viewing.status === "ready" || (viewing.status === "partial" && !viewing.retryable)}
-      isSaved={isSaved}
-      onSave={saveViewed}
-      onPostcard={madeForYou ? null : () => setCard({ kind: "compose" })}
       onExit={exitViewing}
+      menu={<Menu label="More options" items={viewItems} />}
     />
   ) : (
-    <SkyControls sky={sky} onChange={setSky} disabled={draft.drawing} />
+    <div className="sky-bar">
+      {wide ? (
+        <SkyControls sky={sky} onChange={setSky} disabled={draft.drawing} />
+      ) : (
+        <SkyPicker sky={sky} onChange={setSky} disabled={draft.drawing} />
+      )}
+      <Menu label="More options" items={skyItems} />
+    </div>
   );
 
   // When the chart has no stars yet, the chart itself says why: still loading, or what went wrong.
@@ -527,7 +597,6 @@ export default function App() {
           hidden={tab !== "chart"}
         >
           <div className="chart-toolbar">{toolbar}</div>
-          {!draft.drawing && !viewing && <ChartTip />}
           <div className="chart-area">
             <StarChart
               stars={stars}
@@ -545,7 +614,7 @@ export default function App() {
               reveal={reveal}
               bridge={constellation ? bridgeIndex(constellation) : -1}
             >
-              {!madeForYou && <Legend mode={mode} />}
+              <Legend mode={mode} open={legendOpen} onOpenChange={setLegendOpen} toggle={wide && !madeForYou} />
               {chartStatus}
             </StarChart>
           </div>
@@ -559,27 +628,26 @@ export default function App() {
               onCancel={() => draft.cancel(discardDraft)}
               onSave={saveDraft}
             />
-          ) : madeForYou ? (
+          ) : viewing?.status === "ready" ? (
             <AutoCard
-              key={reveal}
+              key={constellation.id}
               constellation={constellation}
+              reveal={madeForYou}
               sign={sign}
               onSign={() => setCard({ kind: "sign" })}
               onPostcard={() => setCard({ kind: "compose", replyTo: viewing.replyTo ?? "" })}
               onShuffle={viewing.source === "auto" ? () => makeAuto(shuffle + 1) : null}
-              onDraw={viewing.source === "auto" ? () => startDrawing() : null}
             />
           ) : (
             <SkySummary
-              title={title}
+              when={`${sky.mode === "date" ? "on" : "in"} ${skyTitle(sky)}`}
+              heading={viewing ? title : null}
               result={shownResult}
-              catalogTotal={viewing ? null : catalogTotal}
               highlight={shownHighlight}
               onHighlight={setHighlight}
               notice={notice}
-              onMake={viewing ? null : () => startDrawing()}
-              onPostcard={() => makeAuto(0)}
-              canMake={result.status === "ready"}
+              onPostcard={viewing ? () => setCard({ kind: "compose" }) : () => makeAuto(0)}
+              canMake={viewing ? viewReady : result.status === "ready"}
             />
           )}
         </section>
@@ -635,7 +703,7 @@ export default function App() {
             )}
             {!viewing && result.status === "ready" && (
               <button type="button" className="btn btn-small" onClick={() => startDrawing(selectedId)}>
-                <span aria-hidden="true">✦</span> Start a constellation here
+                <span aria-hidden="true">✎</span> Draw from this star
               </button>
             )}
           </DetailSheet>

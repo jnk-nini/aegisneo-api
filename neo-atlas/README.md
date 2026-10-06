@@ -10,11 +10,14 @@ Live site: **https://neo-atlas-pearl.vercel.app**
 
 ## What it does
 
-- **One question first.** A first visit shows only "When's your birthday?" and one button.
+- **One question first.** A first visit shows only "When's your birthday?" and one button, with a step
+  trail (_Your stars → Postcard → Send_) that follows you through the next screens.
+- **Calm on phones.** Each screen has one big main button; everything else waits in a ⋯ menu, and every
+  button is at least 44 px so it is easy to tap.
 - **The reveal.** The sky fades in, the stars pop in and the constellation draws itself, with a made-up
   name such as _The Iron Crown_. _Shuffle_ tries another shape; _Draw my own_ joins stars by hand.
-- **Postcards in one tap.** The card fills the screen: swipe for six looks, tap a ready-made message or
-  write your own, then _Send_. Every postcard starts blank; your name is remembered. The card has a
+- **Postcards in one tap.** The card fills the screen; under it, one tab at a time: _Look_ (six colours,
+  or swipe the card) and _Words_ (tap for a ready-made message, or write your own), then _Send_. Every postcard starts blank; your name is remembered. The card has a
   postage stamp with the biggest asteroid's real size, a postmark and a line of fun facts
   (_"Biggest: as tall as 3 Burj Khalifas"_).
 - **Your asteroid sign.** A horoscope-style card from your birthday's biggest asteroid: real numbers,

@@ -1,12 +1,14 @@
 import { useId, useState } from "react";
 import { MONTH_LENGTHS, MONTHS } from "../lib/calendar.js";
 import Modal from "./Modal.jsx";
+import StepTrail from "./StepTrail.jsx";
 
 const pad = (n) => String(n).padStart(2, "0");
 
 /**
  * The first screen of a first visit: one question and one button, over a
- * starry sky, with nothing else to look at. Answering it reveals the birthday's
+ * starry sky, with nothing else to look at. The step trail shows the whole
+ * journey (stars, postcard, send) before it starts. Answering it reveals the birthday's
  * constellation; "Just explore" goes straight to the chart.
  */
 export default function Intro({ date, onShow, onClose }) {
@@ -29,6 +31,7 @@ export default function Intro({ date, onShow, onClose }) {
           <img src="/favicon.svg" alt="" width="22" height="22" />
           NEO Atlas
         </p>
+        <StepTrail step={1} className="intro-trail" />
         <h2 id={titleId}>When&rsquo;s your birthday?</h2>
         <p className="intro-lede">Real asteroids flew past Earth on your day. Let&rsquo;s find yours.</p>
         <div className="intro-picker">

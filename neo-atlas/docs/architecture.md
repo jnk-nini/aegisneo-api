@@ -66,11 +66,11 @@ neo-atlas/
 | Screen                      | Components                                                        |
 | --------------------------- | ----------------------------------------------------------------- |
 | First visit                 | `Intro` (full-screen question over a starry sky)                  |
-| Your constellation          | `ViewingBar` (name, Save), `StarChart` (reveal), `AutoCard`       |
-| Postcard maker              | `PostcardComposer`, `CardCanvas`, `Burst`                         |
+| Your constellation          | `ViewingBar` (name, ⋯ `Menu`), `StarChart` (reveal), `AutoCard`, `StepTrail` |
+| Postcard maker              | `PostcardComposer` (Look / Words tabs, Send + ⋯ `Menu`), `CardCanvas`, `Burst`, `StepTrail` |
 | Asteroid sign               | `SignCard`, `CardCanvas`                                          |
 | Receiving a postcard        | `PostcardReceived` (envelope, countdown, Star Match form)         |
-| Exploring                   | `SkyControls`, `ChartTip`, `Legend`, `SkySummary`, `HighlightChips`, `DetailSheet`, `DrawBar`, `ListView`, `ConstellationsView` |
+| Exploring                   | `SkyPicker` (phones: pill + sheet) or `SkyControls` (wide screens), `Menu`, `Legend`, `SkySummary`, `HighlightChips` (List tab), `DetailSheet`, `DrawBar`, `ListView`, `ConstellationsView` |
 
 `App.jsx` decides what is open. Overlays (postcards, the sign, the first-visit question) are `<dialog>`
 elements opened with `showModal()`, so focus stays inside them and the page behind can't be tapped.
@@ -200,7 +200,9 @@ gives up after 20 s; and turns errors into plain sentences. The browser never se
 - Every card canvas has a text description (`role="img"` with an `aria-label` that includes the message).
 - The chart can be used with the keyboard (arrow keys between stars, Enter to join while drawing) and
   announces stars to screen readers.
-- Look dots, ready-made messages and the seal button are real buttons with `aria-pressed`.
+- The Look / Words tabs are a real `tablist`; the six looks are a `radiogroup`; the ⋯ menus are `menu`s
+  (arrow keys move, Escape closes, toggles are `menuitemcheckbox`).
+- On touch screens every button, chip and swatch is at least 44 × 44 px.
 - The sealed countdown is a `role="timer"` with a readable label, so screen readers aren't flooded every second.
 
 ---

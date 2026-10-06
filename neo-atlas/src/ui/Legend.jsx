@@ -1,9 +1,13 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { FIRST_YEAR, LAST_YEAR } from "../lib/chart.js";
 
-/** "How to read this chart" — explains what every visual property encodes, and where the data comes from. */
-export default function Legend({ mode }) {
-  const [open, setOpen] = useState(false);
+/**
+ * "How to read this chart": explains what every visual property encodes, and where the data comes from.
+ * The app owns `open`, so the ⋯ menu can open it too. Without `toggle` (phones) there is no button on
+ * the chart: the menu is the way in, and the panel has its own close button.
+ */
+export default function Legend({ mode, open, onOpenChange, toggle = true }) {
+  const setOpen = onOpenChange;
   const panelId = useId();
   const rootRef = useRef(null);
 
@@ -18,24 +22,33 @@ export default function Legend({ mode }) {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onDown);
     };
-  }, [open]);
+  }, [open, setOpen]);
+
+  if (!toggle && !open) return null;
 
   return (
     <div className="legend" ref={rootRef}>
-      <button
-        type="button"
-        className="icon-btn corner-btn legend-toggle"
-        aria-expanded={open}
-        aria-controls={panelId}
-        aria-label="How to read this chart"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span aria-hidden="true">{open ? "×" : "?"}</span>
-        <span className="legend-toggle-text" aria-hidden="true">
-          {open ? "Close" : "How to read"}
-        </span>
-      </button>
+      {toggle && (
+        <button
+          type="button"
+          className="icon-btn corner-btn legend-toggle"
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label="How to read this chart"
+          onClick={() => setOpen(!open)}
+        >
+          <span aria-hidden="true">{open ? "×" : "?"}</span>
+          <span className="legend-toggle-text" aria-hidden="true">
+            {open ? "Close" : "How to read"}
+          </span>
+        </button>
+      )}
       <div id={panelId} className="legend-panel" hidden={!open}>
+        {!toggle && (
+          <button type="button" className="icon-btn legend-close" onClick={() => setOpen(false)} aria-label="Close">
+            ×
+          </button>
+        )}
         <ul>
           <li>
             <svg viewBox="0 0 24 24" aria-hidden="true" className="legend-icon">
