@@ -6,7 +6,7 @@ Last updated: 2026-10-05
 
 | Site | URL | Vercel project | Source folder |
 | --- | --- | --- | --- |
-| AegisNEO main site + API | https://aegisneo-api.vercel.app (docs: `/docs`) | `aegisneo-api` | repo root (`index.py`, `index.html`) |
+| AegisNEO API + main site | https://aegisneo-api.vercel.app (docs: `/docs`, site: `/frontend/`) | `aegisneo-api` | `api/index.py`, `frontend/` |
 | Impactor (impact simulator) | https://aegisneo-impactor.vercel.app | `aegisneo-impactor` (Root Directory: `impactor`) | `impactor/` |
 | NEO Atlas (constellation site) | https://neo-atlas-pearl.vercel.app | `neo-atlas` (Root Directory: `neo-atlas`) | `neo-atlas/` |
 
@@ -25,7 +25,7 @@ Pushing to `master` redeploys them.
 - `aegisneo-api` project: `AEGISNEO_API_KEYS` = `aegisneo-web:<key>,impactor:<key>,neo-atlas:<key>`,
   one key per site. The demo key `student-api-key-123` is always accepted as well (client "demo"), so
   /docs and the report's examples keep working; the sites themselves don't use it.
-- The main site's key (`aegisneo-web`) is written in `app.js`. A plain-JS page can't hide a key, so it
+- The main site's key (`aegisneo-web`) is written in `frontend/app.js`. A plain-JS page can't hide a key, so it
   only identifies the site; the companion sites keep theirs secret behind their `/api/neo` proxies.
 - `aegisneo-impactor` project: `AEGISNEO_API_KEY` (its own `impactor` key) and `AEGISNEO_API_URL`.
 - `neo-atlas` project: `AEGISNEO_API_KEY` (its own `neo-atlas` key) and `AEGISNEO_API_URL`.
@@ -41,7 +41,7 @@ Pushing to `master` redeploys them.
    git clone https://github.com/jnk-nini/aegisneo-api.git
    cd aegisneo-api
    pip install -r requirements.txt
-   python -m uvicorn index:app --port 8000
+   python -m uvicorn api.index:app --port 8000
    ```
 3. Impactor:
    ```bash

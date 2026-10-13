@@ -1,0 +1,2 @@
+# Only needed to rebuild data/asteroids.json; the API never reads it.
+data/raw/

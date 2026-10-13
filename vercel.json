@@ -1,18 +1,12 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.py", "use": "@vercel/python" },
-    { "src": "*.html", "use": "@vercel/static" },
-    { "src": "*.css", "use": "@vercel/static" },
-    { "src": "*.js", "use": "@vercel/static" },
-    { "src": "assets/**", "use": "@vercel/static" }
+    { "src": "api/index.py", "use": "@vercel/python" },
+    { "src": "frontend/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/health", "dest": "index.py" },
-    { "src": "/docs(.*)", "dest": "index.py" },
-    { "src": "/redoc(.*)", "dest": "index.py" },
-    { "src": "/openapi.json", "dest": "index.py" },
-    { "src": "/api(.*)", "dest": "index.py" },
-    { "src": "/(.*)", "dest": "/$1" }
+    { "src": "/frontend", "status": 308, "headers": { "Location": "/frontend/" } },
+    { "src": "/frontend/(.*)", "dest": "/frontend/$1" },
+    { "src": "/(.*)", "dest": "api/index.py" }
   ]
 }

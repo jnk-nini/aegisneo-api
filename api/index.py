@@ -65,8 +65,9 @@ class Asteroid(BaseModel):
     miss_distance_km: float = Field(ge=0)
     absolute_magnitude: float
 
-# ASTEROID DATA — loaded once at cold start, not per-request
-DATA_PATH = Path(__file__).parent / "data" / "asteroids.json"
+# ASTEROID DATA — loaded once at cold start, not per-request.
+# This file lives in api/, the data in data/ at the top of the repo.
+DATA_PATH = Path(__file__).parent.parent / "data" / "asteroids.json"
 with open(DATA_PATH, encoding="utf-8") as f:
     asteroids = json.load(f)
 

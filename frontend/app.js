@@ -1,12 +1,11 @@
-const IS_LOCAL = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-const API_URL = IS_LOCAL ? "http://127.0.0.1:8000" : "";
+const API_URL = "https://aegisneo-api.vercel.app";
 
-// This page calls the API straight from the browser, so its key is public by
-// design: it tells the API which site is asking and can be revoked on its own,
-// but it can't keep anyone out. The live site uses its own "aegisneo-web" key
-// (listed in AEGISNEO_API_KEYS on the API project); a local run uses the demo
-// key, which the API always accepts.
-const API_KEY = IS_LOCAL ? "student-api-key-123" : "web-b965bc029ea2ddaade9fc202";
+// This page calls the live API straight from the browser, whether it is opened
+// from the computer (double-click index.html) or from Vercel. Its key is public
+// by design: it tells the API which site is asking and can be revoked on its
+// own, but it can't keep anyone out. It is the "aegisneo-web" key, listed in
+// AEGISNEO_API_KEYS on the API project.
+const API_KEY = "web-b965bc029ea2ddaade9fc202";
 const API_HEADERS = { "x-api-key": API_KEY };
 
 const LUNAR_DISTANCE_KM = 384400;
