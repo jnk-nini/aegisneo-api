@@ -1,7 +1,7 @@
 """
 Builds data/asteroids.json for AegisNEO from the real Kaggle NEO dataset.
 
-Source: CONTEXT FILES/nearest-earth-objects(1910-2024).csv
+Source: data/raw/nearest-earth-objects(1910-2024).csv
   columns: neo_id, name, absolute_magnitude, estimated_diameter_min,
            estimated_diameter_max, orbiting_body, relative_velocity,
            miss_distance, is_hazardous
@@ -19,7 +19,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-SOURCE = Path(__file__).parent.parent / "CONTEXT FILES" / "nearest-earth-objects(1910-2024).csv"
+SOURCE = Path(__file__).parent.parent / "data" / "raw" / "nearest-earth-objects(1910-2024).csv"
 OUTPUT = Path(__file__).parent.parent / "data" / "asteroids.json"
 
 DATE_START = date(1910, 1, 1)

@@ -6,12 +6,12 @@ Last updated: 2026-10-05
 
 | Site | URL | Vercel project | Source folder |
 | --- | --- | --- | --- |
-| AegisNEO main site + API | https://aegisneo-api.vercel.app (docs: `/docs`) | `aegisneo-api` | repo root (`index.py`, `index.html`) |
-| Impactor (impact simulator) | https://aegisneo-impactor.vercel.app | `aegisneo-impactor` (Root Directory: `impactor`) | `impactor/` |
-| NEO Atlas (constellation site) | https://neo-atlas-pearl.vercel.app | `neo-atlas` (Root Directory: `neo-atlas`) | `neo-atlas/` |
+| AegisNEO API + main site | https://aegisneo-api.vercel.app (docs: `/docs`, site: `/frontend/`) | `aegisneo-api` | `api/index.py`, `frontend/` |
+| Impactor (impact simulator) | https://aegisneo-impactor.vercel.app | `aegisneo-impactor` | repo `jnk-nini/aegisneo-impactor` |
+| NEO Atlas (constellation site) | https://neo-atlas-pearl.vercel.app | `neo-atlas` | repo `jnk-nini/neo-atlas` |
 
-All three Vercel projects are connected to `github.com/jnk-nini/aegisneo-api`, branch `master`.
-Pushing to `master` redeploys them.
+Each site has its own GitHub repository and Vercel project, deployed from its `master` branch:
+`jnk-nini/aegisneo-api` (this one), `jnk-nini/aegisneo-impactor` and `jnk-nini/neo-atlas`.
 
 ## Professor's requirements for the companion sites
 
@@ -25,7 +25,7 @@ Pushing to `master` redeploys them.
 - `aegisneo-api` project: `AEGISNEO_API_KEYS` = `aegisneo-web:<key>,impactor:<key>,neo-atlas:<key>`,
   one key per site. The demo key `student-api-key-123` is always accepted as well (client "demo"), so
   /docs and the report's examples keep working; the sites themselves don't use it.
-- The main site's key (`aegisneo-web`) is written in `app.js`. A plain-JS page can't hide a key, so it
+- The main site's key (`aegisneo-web`) is written in `frontend/app.js`. A plain-JS page can't hide a key, so it
   only identifies the site; the companion sites keep theirs secret behind their `/api/neo` proxies.
 - `aegisneo-impactor` project: `AEGISNEO_API_KEY` (its own `impactor` key) and `AEGISNEO_API_URL`.
 - `neo-atlas` project: `AEGISNEO_API_KEY` (its own `neo-atlas` key) and `AEGISNEO_API_URL`.
@@ -41,31 +41,24 @@ Pushing to `master` redeploys them.
    git clone https://github.com/jnk-nini/aegisneo-api.git
    cd aegisneo-api
    pip install -r requirements.txt
-   python -m uvicorn index:app --port 8000
+   python -m uvicorn api.index:app --port 8000
    ```
-3. Impactor:
-   ```bash
-   cd impactor
-   cp .env.example .env.local   # then set AEGISNEO_API_KEY=student-api-key-123
-   npm install
-   npm run dev                  # http://localhost:5173
-   npm test                     # 53 unit tests
-   ```
-4. NEO Atlas works the same way inside `neo-atlas/` (see its README).
+3. Impactor and NEO Atlas each have their own repository. Clone it, copy `.env.example` to
+   `.env.local` (it already uses the live API and the demo key), then `npm install` and `npm run dev`.
 
 ## Status
 
 ### Done
 - API v1.1: filters, sorting, paging, `/asteroids/random`, `/stats`, per-client keys. Old clients still work.
-- Impactor built, tested and deployed. Details in `impactor/README.md`.
+- Impactor built, tested and deployed. Details in the Impactor repository's README.
 - Impactor review (`IMPACTOR_REVIEW.pdf`, 4 Oct 2026): all 8 bugs and the design points fixed. Textures
   are painted in a Web Worker, three.js loads only with the 3D view, unused code is removed, the
   city search is a keyboard combobox, and the store, API client and proxy have tests (53 in total).
 - Impactor round 3 (`fa7a24b`): real NASA globe imagery (Blue Marble, Black Marble night lights,
   sharper relief when zoomed in), free globe navigation on mouse and touch, seabed craters for ocean
   impacts, debris that lands mostly near the crater, and a cleaner phone layout.
-- GitHub Actions (`.github/workflows/ci.yml`) runs tests, lint and build for Impactor and NEO Atlas
-  on every push. Vercel still deploys on its own; turn on Vercel's "wait for checks" if you want
+- Impactor and NEO Atlas moved to their own repositories (with their history). Each runs its own
+  GitHub Actions check (tests, lint and build) on every push. Vercel still deploys on its own; turn on Vercel's "wait for checks" if you want
   failing checks to block a deploy.
 - Old `impact-simulator/` and `constellation-explorer/` folders removed from the main site.
 - NEO Atlas deployed. Its review (18 points plus polish) is fixed except the dates (below): phone and
@@ -74,21 +67,21 @@ Pushing to `master` redeploys them.
   screen-reader announcements, readable chart text on phones, smoother zooming, and a link preview image.
 - NEO Atlas birthday postcards: a first-visit birthday welcome, a constellation drawn automatically from the
   sky's biggest asteroids (with Shuffle), and postcards made in the browser in three looks, shared as a
-  picture plus a link that opens the same postcard. Still no database. Details in `neo-atlas/README.md`.
+  picture plus a link that opens the same postcard. Still no database. Details in the NEO Atlas repository's README.
 - NEO Atlas phone-first round (after real-phone testing): a calm first screen with only the birthday
   question, a reveal animation, a card-first postcard maker (swipe for six looks, ready-made messages,
   one Send button, every postcard starts blank but remembers the name), stamp, postmark and fun facts on
   the card, the asteroid sign, Star Match (the receiver adds their birthday and the two constellations are
-  joined), sealed birthday postcards with a countdown, and `neo-atlas/docs/` (user guide, architecture,
+  joined), sealed birthday postcards with a countdown, and the NEO Atlas `docs/` folder (user guide, architecture,
   data and limits, testing).
 
 ### Next steps
 - Test Impactor on real phones (iPhone Safari and Android Chrome). A Lighthouse mobile audit of the
-  production build is done (see `impactor/README.md`).
+  production build is done (see the Impactor README).
 - NEO Atlas: test the new flow on real phones: the reveal, Send (share sheet), sealed links and Star Match
   between two phones (iPhone Safari and Android Chrome).
 - Idea on hold: a "What if it hit?" button in NEO Atlas that opens Impactor with that asteroid loaded.
-- NEO Atlas: add a Vercel Firewall rate-limit rule for `/api/neo` (see `neo-atlas/README.md`).
+- NEO Atlas: add a Vercel Firewall rate-limit rule for `/api/neo` (see the NEO Atlas README).
 - NEO Atlas dates are simulated: the Kaggle data has no dates, so `scripts/build_dataset.py` makes them
   up, and the site says so. Real dates would mean rebuilding the dataset from NASA JPL's close-approach
   API, which changes the main API's data too. Decided on 5 Oct 2026 to leave it for now.
