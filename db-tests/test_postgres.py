@@ -27,6 +27,15 @@ TEST_ROW = {
 results = []
 
 
+def server_reason(error):
+    """psycopg may try several addresses (IPv6 and IPv4); keep the server's own answer."""
+    lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+    for line in lines:
+        if "FATAL" in line or "ERROR" in line:
+            return line[line.find("FATAL") if "FATAL" in line else line.find("ERROR"):]
+    return " ".join(lines)[-160:]
+
+
 def check(label, passed, detail):
     results.append(passed)
     print(f"[{'PASS' if passed else 'FAIL'}] {label}")
@@ -131,9 +140,7 @@ def main():
         psycopg.connect(make_conninfo(**bad), connect_timeout=10).close()
         check("Unauthorized: connect with a wrong password", False, "connection was accepted")
     except psycopg.OperationalError as e:
-        msg = [line for line in str(e).splitlines() if "password" in line.lower() or "auth" in line.lower()]
-        check("Unauthorized: connect with a wrong password", True,
-              f"rejected: {(msg or str(e).splitlines())[0].strip()[:140]}")
+        check("Unauthorized: connect with a wrong password", True, f"rejected: {server_reason(e)}")
 
     plain = dict(info, sslmode="disable")
     plain.pop("channel_binding", None)
@@ -142,8 +149,10 @@ def main():
         check("Unencrypted connection (sslmode=disable)", False,
               "accepted: this service does not force TLS for this endpoint")
     except psycopg.OperationalError as e:
-        check("Unencrypted connection (sslmode=disable)", True,
-              f"rejected: {' '.join(str(e).split())[-160:]}")
+        reason = server_reason(e)
+        refused = "FATAL" in reason or "closed the connection" in reason
+        check("Unencrypted connection (sslmode=disable)", refused,
+              f"{'rejected' if refused else 'inconclusive (network error, not a server answer)'}: {reason}")
 
     conn.close()
 
