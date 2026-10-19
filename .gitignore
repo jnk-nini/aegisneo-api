@@ -11,3 +11,7 @@ env/
 *.log
 node_modules/
 report/
+
+# Service-account key files
+*-key.json
+.aegis-api-key.json

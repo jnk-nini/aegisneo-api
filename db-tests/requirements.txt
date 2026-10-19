@@ -1,0 +1,4 @@
+psycopg[binary]==3.3.6
+supabase==2.33.0
+firebase-admin==7.7.0
+requests
