@@ -8,6 +8,7 @@ Usage:
 """
 import argparse
 import os
+import socket
 import sys
 import time
 from datetime import datetime, timezone
@@ -135,14 +136,17 @@ def main():
     expect_error(cur, "Unauthorized: application role tries to CREATE a new table",
                  "create table public.not_allowed (id int)", None, errors.InsufficientPrivilege)
 
-    bad = dict(info, password="wrong-password-123")
+    # The negative checks below use the host's IPv4 address, so the answer shown is the
+    # server's own and not an IPv6 "network unreachable" from the test machine.
+    ipv4 = socket.getaddrinfo(info["host"], int(info.get("port", 5432)), socket.AF_INET)[0][4][0]
+    bad = dict(info, password="wrong-password-123", hostaddr=ipv4)
     try:
         psycopg.connect(make_conninfo(**bad), connect_timeout=10).close()
         check("Unauthorized: connect with a wrong password", False, "connection was accepted")
     except psycopg.OperationalError as e:
         check("Unauthorized: connect with a wrong password", True, f"rejected: {server_reason(e)}")
 
-    plain = dict(info, sslmode="disable")
+    plain = dict(info, sslmode="disable", hostaddr=ipv4)
     plain.pop("channel_binding", None)
     try:
         psycopg.connect(make_conninfo(**plain), connect_timeout=10).close()
