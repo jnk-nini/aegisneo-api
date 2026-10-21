@@ -154,7 +154,9 @@ def main():
               "accepted: this service does not force TLS for this endpoint")
     except psycopg.OperationalError as e:
         reason = server_reason(e)
-        refused = "FATAL" in reason or "closed the connection" in reason
+        # Servers answer with FATAL (Supabase), ERROR (Neon: "connection is insecure")
+        # or by closing the connection.
+        refused = any(s in reason for s in ("FATAL", "ERROR", "closed the connection"))
         check("Unencrypted connection (sslmode=disable)", refused,
               f"{'rejected' if refused else 'inconclusive (network error, not a server answer)'}: {reason}")
 
