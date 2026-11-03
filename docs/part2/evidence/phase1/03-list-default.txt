@@ -1,0 +1,34 @@
+$ curl -H 'x-api-key: student-api-key-123' http://localhost:8000/api/v1/asteroids
+
+{
+  "count": 100,
+  "matched": 33511,
+  "total": 33511,
+  "offset": 0,
+  "limit": 100,
+  "asteroids": [
+    {
+      "neo_reference_id": "2162117",
+      "name": "162117 (1998 SD15)",
+      "estimated_diameter_km": 0.6391,
+      "is_potentially_hazardous": false,
+      "close_approach_date": "1925-01-22",
+      "relative_velocity_km_h": 71745.401,
+      "miss_distance_km": 58143623.319,
+      "absolute_magnitude": 19.14
+    },
+    {
+      "neo_reference_id": "2349507",
+      "name": "349507 (2008 QY)",
+      "estimated_diameter_km": 0.8581,
+      "is_potentially_hazardous": true,
+      "close_approach_date": "2008-03-02",
+      "relative_velocity_km_h": 109949.757,
+      "miss_distance_km": 55801047.818,
+      "absolute_magnitude": 18.5
+    },
+    # 98 more asteroid objects not shown in this figure
+  ]
+}
+
+HTTP status: 200

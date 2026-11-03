@@ -1,0 +1,7 @@
+$ curl -X POST -H 'x-api-key: student-api-key-123' -H 'content-type: application/json' -d '{"name":"x"}' http://localhost:8000/api/v1/asteroids
+
+{
+  "detail": "Method Not Allowed"
+}
+
+HTTP status: 405

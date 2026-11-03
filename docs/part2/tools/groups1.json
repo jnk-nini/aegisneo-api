@@ -1,0 +1,11 @@
+[
+ {"out":"docs/part2/screenshots/phase1/p1-home-health.png","title":"Local run of the current API (v1.1) · GET / and GET /health · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/01-home.txt","docs/part2/evidence/phase1/02-health.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-list.png","title":"Current API · GET /api/v1/asteroids · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/03-list-default.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-search-filter.png","title":"Current API · search and filters · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/04-list-filtered.txt","docs/part2/evidence/phase1/05-list-hazardous-sorted.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-random.png","title":"Current API · GET /api/v1/asteroids/random · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/06-random.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-get-one.png","title":"Current API · GET /api/v1/asteroids/{neo_reference_id} · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/07-get-one.txt","docs/part2/evidence/phase1/08-get-missing.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-stats.png","title":"Current API · GET /api/v1/stats · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/09-stats.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-auth.png","title":"Current API · requests without a valid x-api-key · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/10-no-key.txt","docs/part2/evidence/phase1/11-wrong-key.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-validation.png","title":"Current API · invalid query parameters · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/12-bad-range.txt","docs/part2/evidence/phase1/13-bad-type.txt"]},
+ {"out":"docs/part2/screenshots/phase1/p1-no-write.png","title":"Current API · create, update and delete are not available · 2026-11-03 10:07 UTC","files":["docs/part2/evidence/phase1/14-post-not-supported.txt","docs/part2/evidence/phase1/16-patch-not-supported.txt","docs/part2/evidence/phase1/15-delete-not-supported.txt"]}
+]

@@ -1,0 +1,17 @@
+$ curl -H 'x-api-key: student-api-key-123' 'http://localhost:8000/api/v1/asteroids?min_diameter=abc'
+
+{
+  "detail": [
+    {
+      "type": "float_parsing",
+      "loc": [
+        "query",
+        "min_diameter"
+      ],
+      "msg": "Input should be a valid number, unable to parse string as a number",
+      "input": "abc"
+    }
+  ]
+}
+
+HTTP status: 422

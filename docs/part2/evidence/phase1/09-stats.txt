@@ -1,0 +1,27 @@
+$ curl -H 'x-api-key: student-api-key-123' http://localhost:8000/api/v1/stats
+
+{
+  "total": 33511,
+  "potentially_hazardous": 2493,
+  "estimated_diameter_km": {
+    "min": 0.0008,
+    "max": 60.7495,
+    "median": 0.0783
+  },
+  "relative_velocity_km_h": {
+    "min": 439.939,
+    "max": 273704.636,
+    "median": 47145.341
+  },
+  "miss_distance_km": {
+    "min": 9316.925,
+    "max": 74792800.949,
+    "median": 35229281.508
+  },
+  "close_approach_date": {
+    "min": "1910-01-01",
+    "max": "2024-12-29"
+  }
+}
+
+HTTP status: 200
