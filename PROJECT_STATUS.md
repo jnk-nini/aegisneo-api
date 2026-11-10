@@ -1,6 +1,6 @@
 # AegisNEO — project status and hand-off notes
 
-Last updated: 2026-10-05
+Last updated: 2026-11-10
 
 ## Live sites
 
@@ -22,16 +22,18 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 
 ## Environment variables
 
-- `aegisneo-api` project: `AEGISNEO_API_KEYS` = `aegisneo-web:<key>,impactor:<key>,neo-atlas:<key>`,
-  one key per site. The demo key `student-api-key-123` is always accepted as well (client "demo"), so
-  /docs and the report's examples keep working; the sites themselves don't use it.
-- The main site's key (`aegisneo-web`) is written in `frontend/app.js`. A plain-JS page can't hide a key, so it
-  only identifies the site; the companion sites keep theirs secret behind their `/api/neo` proxies.
+- `aegisneo-api` project:
+  - `DATABASE_URL`: pooled Neon connection string of the limited role `aegis_app`.
+  - `JWT_SECRET`: random 64-character hex string that signs login tokens (`JWT_EXPIRE_MINUTES` is optional, default 60).
+  - `AEGISNEO_API_KEYS` = `impactor:<key>,neo-atlas:<key>`, one read-only key per partner site.
+  - The old demo key `student-api-key-123` and the website key are retired and no longer accepted. The website
+    has no key now: visitors log in or continue as guests (10 featured asteroids).
+- The owner connection string (`DATABASE_OWNER_URL`) is only used by the setup scripts on the main laptop and is never set on Vercel.
 - `aegisneo-impactor` project: `AEGISNEO_API_KEY` (its own `impactor` key) and `AEGISNEO_API_URL`.
 - `neo-atlas` project: `AEGISNEO_API_KEY` (its own `neo-atlas` key) and `AEGISNEO_API_URL`.
-- Locally nothing needs setting: the local API accepts the demo key, and `.env.local` can use it.
+- Locally the API reads a `.env` file (see `.env.example`). Companion sites in development need a partner key.
 - A private copy of all the keys is kept in `.env` at the repo root on the main laptop. It is ignored by
-  git and nothing loads it; it is only there to look the keys up.
+  git. When run locally, the API and the setup scripts read it (real environment variables win).
 
 ## Setting up on a new computer
 
@@ -47,6 +49,15 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
    `.env.local` (it already uses the live API and the demo key), then `npm install` and `npm run dev`.
 
 ## Status
+
+### Part II: cloud database (Neon)
+- Design done (database, architecture and access rules; see the Part II Phases 1-3 report).
+- Code written: `db/schema.sql`, `api/` split into modules, import and account scripts, login screen on the website,
+  automated tests (`tests/`, run against a local PostgreSQL).
+- Still to do on the real services: run `db/schema.sql` and the scripts on Neon, set the Vercel variables,
+  rotate the partner keys (the old ones are in git history), deploy, verify persistence after a redeploy,
+  then the final test report and the demo.
+- The API's default list order is now by `neo_reference_id` (it used to be the JSON file order).
 
 ### Done
 - API v1.1: filters, sorting, paging, `/asteroids/random`, `/stats`, per-client keys. Old clients still work.
