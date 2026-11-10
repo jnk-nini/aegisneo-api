@@ -17,7 +17,8 @@ api/db.py           every SQL query (psycopg 3)
 api/models.py       request validation models
 api/config.py       settings from environment variables
 db/schema.sql       tables, constraints, indexes and privileges
-scripts/            import_asteroids.py, create_user.py (run once, on your own computer)
+scripts/            import_asteroids.py, create_user.py, check_connection.py, verify_deployment.py (run on your own computer)
+docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
 requirements.txt    Python packages for Vercel
 vercel.json         sends /frontend/... to the website and everything else to the API

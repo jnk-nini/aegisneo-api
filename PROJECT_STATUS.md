@@ -55,8 +55,9 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 - Code written: `db/schema.sql`, `api/` split into modules, import and account scripts, login screen on the website,
   automated tests (`tests/`, run against a local PostgreSQL).
 - Still to do on the real services: run `db/schema.sql` and the scripts on Neon, set the Vercel variables,
-  rotate the partner keys (the old ones are in git history), deploy, verify persistence after a redeploy,
-  then the final test report and the demo.
+  delete the `aegisneo-web` entry from `AEGISNEO_API_KEYS` (that key and the demo key are in git history; the
+  Impactor and NEO Atlas keys never were), deploy, verify persistence after a redeploy, then the final test
+  report and the demo. The steps are in `docs/part2/phases-4-8/01-steps.md`.
 - The API's default list order is now by `neo_reference_id` (it used to be the JSON file order).
 
 ### Done
