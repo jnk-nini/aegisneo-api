@@ -76,8 +76,8 @@ examples in `02-api-guide.md`.
    never repeat submitted values; result: the test passes, and a login test confirms passwords are never echoed).
 2. Search more than 100 times slower than needed (cause: `name ILIKE ... OR neo_reference_id ILIKE ...` cannot use the trigram
    index; diagnosis: `EXPLAIN ANALYZE` showed a sequential scan, 26 ms against 0.2 ms; fix: add the ID condition only
-   when the search text is all digits; result: the plan uses `asteroids_name_trgm_idx` and the request takes about
-   26 ms).
+   when the search text is all digits; result: the plan uses `asteroids_name_trgm_idx` and the whole request takes
+   a median of 9 ms).
 
 Add anything that actually goes wrong on Neon or Vercel (do not invent problems; the assignment says to describe
 the verification steps instead if there were none).

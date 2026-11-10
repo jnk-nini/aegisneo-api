@@ -106,7 +106,7 @@ The API was started against a local database holding all 33,511 records (importe
 | Guest, user, partner | 10, 33,511 and 33,511 asteroids |
 | Create, update, delete | 201, 200, 200; a restart of the server (with a new `JWT_SECRET`) kept the data; the old token was rejected with 401 |
 | Query plans (`EXPLAIN`) | Primary-key, trigram, diameter, date and featured indexes were used for the five main queries |
-| Request time (local, warm) | about 26 to 55 ms for a search |
+| Request time (local, warm) | median 9 ms for a search, 6 ms for one asteroid, 31 to 36 ms for the full list and the statistics (30 requests each) |
 
 ## 4. Website (real browser, 31 checks, all passed)
 
@@ -146,4 +146,4 @@ Run `python scripts/verify_deployment.py https://aegisneo-api.vercel.app <user>`
 2. **Searching was more than 100 times slower than it should be** (26 ms against 0.2 ms in the database on the real data). Searching
    "name or ID" in one condition stopped PostgreSQL from using the trigram index on `name`. Fix: the ID is only
    searched when the text is all digits. Found with `EXPLAIN ANALYZE`; checked by `test_text_search_does_not_look_at_ids`
-   and by timing the live server again (about 26 ms for the whole request).
+   and by timing the live server again (median 9 ms for the whole request).
