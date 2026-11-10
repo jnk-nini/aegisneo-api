@@ -1298,3 +1298,110 @@ footer {
     .asteroid-card.pre-reveal { opacity: 1; transform: none; }
     .stars { transition: none; }
 }
+
+
+/* LOGIN, GUEST VIEW AND ACCOUNT BAR */
+.account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.account-label {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+}
+
+.account-btn {
+    padding: 8px 14px;
+    font-size: 0.8rem;
+}
+
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(2, 4, 9, 0.86);
+    backdrop-filter: blur(6px);
+    overflow-y: auto;
+}
+
+.login-overlay[hidden] {
+    display: none;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 28px;
+    background: var(--bg-void-soft);
+    border: 1px solid var(--border-faint);
+    border-radius: var(--radius-lg);
+}
+
+.login-card h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+}
+
+.login-sub {
+    margin: 0 0 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.login-card label {
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.login-card input {
+    padding: 12px 14px;
+    background: var(--surface-strong);
+    border: 1px solid var(--border-faint);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 1rem; /* 16px keeps iPhones from zooming in on focus */
+}
+
+.login-card input:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 1px;
+}
+
+.login-error {
+    min-height: 1.3em;
+    margin: 6px 0 0;
+    color: var(--amber);
+    font-size: 0.85rem;
+}
+
+.login-submit {
+    margin-top: 4px;
+    padding: 14px 20px;
+}
+
+.login-guest {
+    background: transparent;
+    border-color: var(--border-faint);
+    color: var(--text-secondary);
+}
+
+.login-card button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}

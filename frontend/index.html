@@ -21,6 +21,10 @@
                     <p class="brand-sub">Near-Earth Object Watch</p>
                 </div>
             </div>
+            <div class="account">
+                <span id="accountLabel" class="account-label"></span>
+                <button id="accountBtn" type="button" class="account-btn">Log in</button>
+            </div>
             <dl class="masthead-stats">
                 <div>
                     <dt>Tracked objects</dt>
@@ -134,6 +138,21 @@
     <footer>
         <p>Data: NASA-derived Near-Earth Object catalog · AegisNEO telemetry console</p>
     </footer>
+
+    <div id="loginOverlay" class="login-overlay" hidden>
+        <form id="loginForm" class="login-card" aria-labelledby="loginTitle" role="dialog" aria-modal="true">
+            <h2 id="loginTitle">Log in to AegisNEO</h2>
+            <p class="login-sub">Log in to see the whole catalog. Guests see 10 featured asteroids.</p>
+            <label for="loginUser">Username</label>
+            <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+                maxlength="30" required>
+            <label for="loginPass">Password</label>
+            <input id="loginPass" type="password" autocomplete="current-password" maxlength="72" required>
+            <p id="loginError" class="login-error" role="alert"></p>
+            <button id="loginSubmit" type="submit" class="login-submit">Log in</button>
+            <button id="guestBtn" type="button" class="login-guest">Continue as guest</button>
+        </form>
+    </div>
 
     <script src="app.js"></script>
 </body>

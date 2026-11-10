@@ -1,12 +1,53 @@
 const API_URL = "https://aegisneo-api.vercel.app";
 
-// This page calls the live API straight from the browser, whether it is opened
-// from the computer (double-click index.html) or from Vercel. Its key is public
-// by design: it tells the API which site is asking and can be revoked on its
-// own, but it can't keep anyone out. It is the "aegisneo-web" key, listed in
-// AEGISNEO_API_KEYS on the API project.
-const API_KEY = "web-b965bc029ea2ddaade9fc202";
-const API_HEADERS = { "x-api-key": API_KEY };
+// This page calls the live API straight from the browser. There is no key in
+// the page: a visitor either logs in (the API returns a token that is kept only
+// for this browser tab) or continues as a guest, who sees the featured
+// asteroids only.
+const TOKEN_KEY = "aegisneo_token";
+const GUEST_KEY = "aegisneo_guest";
+const USER_KEY = "aegisneo_user";
+
+function readSession(key) {
+    try { return sessionStorage.getItem(key); } catch { return null; }
+}
+
+function writeSession(key, value) {
+    try {
+        if (value === null) sessionStorage.removeItem(key);
+        else sessionStorage.setItem(key, value);
+    } catch { /* storage blocked: the session lasts until the page is reloaded */ }
+}
+
+// The token's own expiry time, so an expired token is dropped before any request.
+function tokenExpired(token) {
+    try {
+        const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        return !payload.exp || payload.exp * 1000 <= Date.now();
+    } catch {
+        return true;
+    }
+}
+
+function getToken() {
+    const token = readSession(TOKEN_KEY);
+    if (token && tokenExpired(token)) {
+        writeSession(TOKEN_KEY, null);
+        return null;
+    }
+    return token;
+}
+
+function authHeaders() {
+    const token = getToken();
+    if (!token && readSession(USER_KEY)) {
+        // The token ran out while the page was open: ask the user to log in again.
+        writeSession(USER_KEY, null);
+        updateAccountBar();
+        showLogin("Your session has expired. Please log in again.");
+    }
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const LUNAR_DISTANCE_KM = 384400;
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -59,7 +100,7 @@ async function loadMissingFavorites() {
     state.raw.forEach(a => { if (favorites.has(a.neo_reference_id)) favoriteCache.set(a.neo_reference_id, a); });
     const missing = [...favorites].filter(id => !favoriteCache.has(id));
     const fetched = await Promise.all(missing.map(id =>
-        fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: API_HEADERS })
+        fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: authHeaders() })
             .then(r => (r.ok ? r.json() : null))
             .catch(() => null)
     ));
@@ -118,7 +159,7 @@ async function loadAsteroids() {
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: API_HEADERS, signal });
+        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: authHeaders(), signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
@@ -150,7 +191,7 @@ async function searchAsteroids() {
 
     try {
         const response =
-            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: API_HEADERS, signal });
+            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: authHeaders(), signal });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
@@ -285,7 +326,7 @@ function asteroidCardHTML(asteroid) {
 // VIEW ONE ASTEROID (detail panel, replaces the starter's alert() popup)
 async function viewAsteroid(id) {
     try {
-        const response = await fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: API_HEADERS });
+        const response = await fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: authHeaders() });
         if (!response.ok) throw new Error("not found");
         const asteroid = await response.json();
         showDetailPanel(asteroid);
@@ -1050,4 +1091,96 @@ searchInput.addEventListener("input", () => {
     }, 350);
 });
 
-loadAsteroids();
+
+// LOGIN, GUEST VIEW AND LOG OUT
+const loginOverlay = document.getElementById("loginOverlay");
+const loginForm = document.getElementById("loginForm");
+const loginUser = document.getElementById("loginUser");
+const loginPass = document.getElementById("loginPass");
+const loginError = document.getElementById("loginError");
+const loginSubmit = document.getElementById("loginSubmit");
+const guestBtn = document.getElementById("guestBtn");
+const accountLabel = document.getElementById("accountLabel");
+const accountBtn = document.getElementById("accountBtn");
+
+function updateAccountBar() {
+    const loggedIn = Boolean(getToken());
+    accountLabel.textContent = loggedIn
+        ? `Signed in as ${readSession(USER_KEY) || "user"}`
+        : "Guest view · 10 featured objects";
+    accountBtn.textContent = loggedIn ? "Log out" : "Log in";
+}
+
+// While the login box is open nothing behind it can be reached with the keyboard.
+function setBackgroundInert(inert) {
+    [...document.body.children].forEach(el => {
+        if (el !== loginOverlay && el.tagName !== "SCRIPT") el.inert = inert;
+    });
+}
+
+function showLogin(message = "") {
+    loginError.textContent = message;
+    loginOverlay.hidden = false;
+    setBackgroundInert(true);
+    loginUser.focus();
+}
+
+function hideLogin() {
+    loginOverlay.hidden = true;
+    loginPass.value = "";
+    setBackgroundInert(false);
+}
+
+function startBrowsing() {
+    hideLogin();
+    updateAccountBar();
+    searchInput.value = "";
+    loadAsteroids();
+}
+
+loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = loginUser.value.trim().toLowerCase();
+    loginSubmit.disabled = true;
+    loginError.textContent = "";
+    try {
+        const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+            method: "POST",
+            body: new URLSearchParams({ username, password: loginPass.value }),
+        });
+        if (response.status === 401) throw new Error("Incorrect username or password.");
+        if (!response.ok) throw new Error("Login is not available right now. Please try again later.");
+        const data = await response.json();
+        writeSession(TOKEN_KEY, data.access_token);
+        writeSession(USER_KEY, username);
+        writeSession(GUEST_KEY, null);
+        startBrowsing();
+    } catch (error) {
+        loginError.textContent = error instanceof TypeError
+            ? "Could not reach the server. Check your connection and try again."
+            : error.message;
+    } finally {
+        loginSubmit.disabled = false;
+    }
+});
+
+guestBtn.addEventListener("click", () => {
+    writeSession(GUEST_KEY, "1");
+    startBrowsing();
+});
+
+accountBtn.addEventListener("click", () => {
+    if (getToken()) {
+        // Reloading also drops the full catalog that is held in memory.
+        writeSession(TOKEN_KEY, null);
+        writeSession(USER_KEY, null);
+        writeSession(GUEST_KEY, null);
+        location.reload();
+    } else {
+        showLogin();
+    }
+});
+
+updateAccountBar();
+if (getToken() || readSession(GUEST_KEY)) loadAsteroids();
+else showLogin();
