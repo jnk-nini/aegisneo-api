@@ -147,3 +147,9 @@ Run `python scripts/verify_deployment.py https://aegisneo-api.vercel.app <user>`
    "name or ID" in one condition stopped PostgreSQL from using the trigram index on `name`. Fix: the ID is only
    searched when the text is all digits. Found with `EXPLAIN ANALYZE`; checked by `test_text_search_does_not_look_at_ids`
    and by timing the live server again (median 9 ms for the whole request).
+3. **The NEO Atlas site showed no stars after the move to the database.** The first API matched the search text against
+   the name, the ID, the close approach date and the hazard text. The database version searched only names (and IDs for
+   digits), so the site's request `search=1968-` returned no asteroids. Found by opening the companion site after the
+   deployment. Fix: date-like text (digits and dashes, or a four-digit year) is also matched against the close approach
+   date. Checked by `test_search_matches_the_close_approach_date` and `test_date_search_with_no_match_is_empty`, and on
+   the real data (`1968-` now matches 285 asteroids).

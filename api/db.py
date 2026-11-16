@@ -98,13 +98,28 @@ def like_pattern(text):
     return f"%{escaped}%"
 
 
+def is_date_text(text):
+    """True for text that can be part of a date: digits and dashes, with a dash
+    ("1968-", "05-12") or exactly four digits (a year)."""
+    if not (text.isascii() and 1 <= len(text) <= 10):
+        return False
+    if not all(ch.isdigit() or ch == "-" for ch in text):
+        return False
+    return "-" in text or (len(text) == 4 and text.isdigit())
+
+
 def build_filters(search, hazardous, min_diameter, max_diameter, from_date, to_date, featured_only):
     conditions, params = [], []
     if featured_only:
         conditions.append("is_featured")
     if search:
         pattern = like_pattern(search)
-        if search.isascii() and search.isdigit():
+        if is_date_text(search):
+            # Date-like text ("1968-", "1968-05", "2024-03-15", or a year) also
+            # matches the close approach date, as the first API did.
+            conditions.append("(name ilike %s or close_approach_date::text like %s)")
+            params += [pattern, pattern]
+        elif search.isascii() and search.isdigit():
             # Only digits can match an ID. Adding the ID condition to every search
             # would stop PostgreSQL from using the trigram index on name.
             conditions.append("(name ilike %s or neo_reference_id like %s)")
