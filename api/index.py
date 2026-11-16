@@ -177,7 +177,7 @@ def me(caller: auth.Caller = Depends(auth.require_logged_in)):
 @app.get("/api/v1/asteroids")
 def get_asteroids(
     caller: auth.Caller = Depends(auth.get_caller),
-    search: Optional[str] = Query(default=None, max_length=100, description="Text match on name or ID."),
+    search: Optional[str] = Query(default=None, max_length=100, description="Text match on name, on ID (digits only) or on the close approach date (for example 1968- or 1968-05)."),
     hazardous: Optional[bool] = Query(default=None, description="Only hazardous (true) or non-hazardous (false) objects."),
     min_diameter: Optional[float] = Query(default=None, ge=0, description="Minimum estimated diameter in km."),
     max_diameter: Optional[float] = Query(default=None, ge=0, description="Maximum estimated diameter in km."),

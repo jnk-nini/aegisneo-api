@@ -53,6 +53,20 @@ def test_text_search_does_not_look_at_ids(client, auth):
     assert client.get("/api/v1/asteroids?search=99942", headers=auth).json()["matched"] == 1
 
 
+def test_search_matches_the_close_approach_date(client, auth):
+    # The first API matched dates too; the NEO Atlas site searches "1968-".
+    for text in ("1930-", "1930-08", "1930-08-09", "08-09", "1930"):
+        body = client.get("/api/v1/asteroids", params={"search": text}, headers=auth).json()
+        ids = [a["neo_reference_id"] for a in body["asteroids"]]
+        assert "2099942" in ids, text
+        for a in body["asteroids"]:
+            assert text in a["close_approach_date"] or text.lower() in a["name"].lower()
+
+
+def test_date_search_with_no_match_is_empty(client, auth):
+    assert client.get("/api/v1/asteroids?search=1801-", headers=auth).json()["matched"] == 0
+
+
 def test_search_treats_wildcards_literally(client, auth):
     assert client.get("/api/v1/asteroids?search=%25", headers=auth).json()["matched"] == 0
     assert client.get("/api/v1/asteroids?search=_", headers=auth).json()["matched"] == 0
