@@ -1,0 +1,15 @@
+$ curl http://localhost:8000/
+
+{
+  "message": "Welcome to the AegisNEO API!",
+  "total_tracked": 33511,
+  "endpoints": [
+    "/api/v1/asteroids",
+    "/api/v1/asteroids?search=&hazardous=&min_diameter=&max_diameter=&sort=&order=&limit=&offset=",
+    "/api/v1/asteroids/random?count=",
+    "/api/v1/asteroids/{neo_reference_id}",
+    "/api/v1/stats"
+  ]
+}
+
+HTTP status: 200

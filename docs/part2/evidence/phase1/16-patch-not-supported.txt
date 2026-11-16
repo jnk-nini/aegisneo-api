@@ -1,0 +1,7 @@
+$ curl -X PATCH -H 'x-api-key: student-api-key-123' -H 'content-type: application/json' -d '{"name":"x"}' http://localhost:8000/api/v1/asteroids/2099942
+
+{
+  "detail": "Method Not Allowed"
+}
+
+HTTP status: 405

@@ -1,0 +1,7 @@
+$ curl -H 'x-api-key: student-api-key-123' 'http://localhost:8000/api/v1/asteroids?min_diameter=5&max_diameter=1'
+
+{
+  "detail": "min_diameter cannot be greater than max_diameter."
+}
+
+HTTP status: 422

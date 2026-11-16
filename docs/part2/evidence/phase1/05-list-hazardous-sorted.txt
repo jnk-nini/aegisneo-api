@@ -1,0 +1,34 @@
+$ curl -H 'x-api-key: student-api-key-123' 'http://localhost:8000/api/v1/asteroids?hazardous=true&min_diameter=1&sort=diameter&order=desc&limit=3'
+
+{
+  "count": 3,
+  "matched": 219,
+  "total": 33511,
+  "offset": 0,
+  "limit": 3,
+  "asteroids": [
+    {
+      "neo_reference_id": "2003122",
+      "name": "3122 Florence (1981 ET3)",
+      "estimated_diameter_km": 6.5094,
+      "is_potentially_hazardous": true,
+      "close_approach_date": "1936-12-05",
+      "relative_velocity_km_h": 73048.503,
+      "miss_distance_km": 58055238.369,
+      "absolute_magnitude": 14.1
+    },
+    {
+      "neo_reference_id": "2004183",
+      "name": "4183 Cuno (1959 LM)",
+      "estimated_diameter_km": 6.3029,
+      "is_potentially_hazardous": true,
+      "close_approach_date": "2009-11-22",
+      "relative_velocity_km_h": 53773.404,
+      "miss_distance_km": 42214827.89,
+      "absolute_magnitude": 14.17
+    },
+    # 1 more asteroid object not shown in this figure
+  ]
+}
+
+HTTP status: 200

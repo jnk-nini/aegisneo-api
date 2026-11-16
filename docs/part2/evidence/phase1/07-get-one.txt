@@ -1,0 +1,14 @@
+$ curl -H 'x-api-key: student-api-key-123' http://localhost:8000/api/v1/asteroids/2099942
+
+{
+  "neo_reference_id": "2099942",
+  "name": "99942 Apophis (2004 MN4)",
+  "estimated_diameter_km": 0.6539,
+  "is_potentially_hazardous": true,
+  "close_approach_date": "1930-08-09",
+  "relative_velocity_km_h": 14822.02,
+  "miss_distance_km": 24400576.109,
+  "absolute_magnitude": 19.09
+}
+
+HTTP status: 200

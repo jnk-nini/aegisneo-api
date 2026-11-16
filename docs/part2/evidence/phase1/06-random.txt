@@ -1,0 +1,30 @@
+$ curl -H 'x-api-key: student-api-key-123' 'http://localhost:8000/api/v1/asteroids/random?count=2'
+
+{
+  "count": 2,
+  "matched": 33511,
+  "asteroids": [
+    {
+      "neo_reference_id": "3599866",
+      "name": "(2012 DK31)",
+      "estimated_diameter_km": 0.1728,
+      "is_potentially_hazardous": true,
+      "close_approach_date": "2002-08-09",
+      "relative_velocity_km_h": 45641.899,
+      "miss_distance_km": 15573664.014,
+      "absolute_magnitude": 21.98
+    },
+    {
+      "neo_reference_id": "3661270",
+      "name": "(2014 CQ)",
+      "estimated_diameter_km": 0.1131,
+      "is_potentially_hazardous": false,
+      "close_approach_date": "2018-07-26",
+      "relative_velocity_km_h": 71903.118,
+      "miss_distance_km": 18474291.495,
+      "absolute_magnitude": 22.9
+    }
+  ]
+}
+
+HTTP status: 200

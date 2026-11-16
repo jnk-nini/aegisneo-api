@@ -1,0 +1,7 @@
+$ curl -H 'x-api-key: student-api-key-123' http://localhost:8000/api/v1/asteroids/0000000
+
+{
+  "detail": "Asteroid not found."
+}
+
+HTTP status: 404
