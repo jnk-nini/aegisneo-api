@@ -83,3 +83,4 @@ class SignUp(BaseModel):
         if len(value.encode()) > 72:  # bcrypt ignores everything after 72 bytes
             raise ValueError("The password must be at most 72 bytes.")
         return value
+

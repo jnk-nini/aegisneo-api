@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub · AegisNEO</title>
+    <link rel="stylesheet" href="site.css">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="wrap topbar-inner">
+            <a class="brand" href="index.html" aria-label="AegisNEO home">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <span class="brand-name">AegisNEO</span>
+            </a>
+            <div class="topbar-actions">
+                <span class="user-chip"><span class="name" id="who"></span><span class="role-pill" id="rolePill"></span></span>
+                <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Log out</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="wrap" style="padding-bottom:64px">
+        <div class="hub-head">
+            <div>
+                <h1 id="greeting">Welcome</h1>
+                <p class="hub-sub" id="roleText"></p>
+            </div>
+        </div>
+
+        <div class="upsell" id="upsell" hidden>
+            <div>
+                <strong>Unlock the whole catalog</strong>
+                <p>Create a free account to see every asteroid on all three sites, keep a watchlist and earn badges.</p>
+            </div>
+            <a class="btn btn-primary btn-sm" href="auth.html?mode=signup">Create a free account</a>
+        </div>
+
+        <p class="form-error" id="hubError" role="alert" style="margin-top:16px"></p>
+        <div class="site-grid" id="siteGrid" aria-live="polite"></div>
+
+        <div class="two-col" id="accountPanels" hidden>
+            <section class="panel">
+                <h2>Your badges</h2>
+                <p class="sub" id="badgeSub"></p>
+                <div class="badge-grid" id="badgeGrid"></div>
+            </section>
+            <section class="panel">
+                <h2>Recent launches</h2>
+                <p class="sub">The last sites you opened from here.</p>
+                <ul class="feed" id="launchFeed"></ul>
+                <p class="sub" style="margin:18px 0 0">Watchlist: <strong id="watchCount">0</strong> asteroid(s) ·
+                    <a href="explorer.html?list=1">open it in the Explorer</a></p>
+            </section>
+        </div>
+
+        <section class="panel" id="adminPanel" style="margin-top:20px" hidden>
+            <h2>Mission control</h2>
+            <p class="sub">Only admins see this: who uses the sites, and who changed the catalog.</p>
+            <div class="stat-row" id="adminStats"></div>
+            <div class="two-col" style="margin-top:0">
+                <div>
+                    <h3 style="font-size:16px;margin-bottom:10px">Recent catalog changes</h3>
+                    <div class="table-wrap"><table class="data" id="changesTable"></table></div>
+                </div>
+                <div>
+                    <h3 style="font-size:16px;margin-bottom:10px">Most watched asteroids</h3>
+                    <ul class="feed" id="watchedFeed"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+    <script src="shared.js"></script>
+    <script src="hub.js"></script>
+</body>
+
+</html>

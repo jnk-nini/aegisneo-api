@@ -8,6 +8,6 @@
 | `04-test-report.md` | Test cases and results (Phase 8 output); the deployed-environment part is for you to fill in |
 | `05-report-outline.md` | Where the material for each section of the final report is |
 | `demo-snippets.txt` | Copy-paste requests and Neon queries for the live demo, in order |
-| `evidence/pytest-local-run.txt` | The recorded run of all 122 automated tests |
+| `evidence/pytest-local-run.txt` | The recorded run of all 156 automated tests |
 
 Helper scripts used by the steps: `scripts/check_connection.py` and `scripts/verify_deployment.py`.

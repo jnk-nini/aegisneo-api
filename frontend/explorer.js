@@ -1,54 +1,18 @@
-const API_URL = "https://aegisneo-api.vercel.app";
-
-// This page calls the live API straight from the browser. There is no key in
-// the page: a visitor either logs in (the API returns a token that is kept only
-// for this browser tab) or continues as a guest, who sees the featured
-// asteroids only.
-const TOKEN_KEY = "aegisneo_token";
-const GUEST_KEY = "aegisneo_guest";
-const USER_KEY = "aegisneo_user";
-const ROLE_KEY = "aegisneo_role";
-
-function readSession(key) {
-    try { return sessionStorage.getItem(key); } catch { return null; }
+// Session, API_URL, apiFetch and escapeHtml come from shared.js. The sign-in page
+// (auth.html) and the hub (hub.html) come before this page: a visitor is either
+// signed in or a guest, and what the API returns depends on their role.
+function authHeaders() {
+    const token = Session.token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function writeSession(key, value) {
-    try {
-        if (value === null) sessionStorage.removeItem(key);
-        else sessionStorage.setItem(key, value);
-    } catch { /* storage blocked: the session lasts until the page is reloaded */ }
-}
-
-// The token's own expiry time, so an expired token is dropped before any request.
-function tokenExpired(token) {
-    try {
-        const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-        return !payload.exp || payload.exp * 1000 <= Date.now();
-    } catch {
+// A 401 for a signed-in visitor means the token ran out: back to the sign-in page.
+function sessionEnded(response) {
+    if (response.status === 401 && Session.username && !Session.token) {
+        location.replace("auth.html?expired=1");
         return true;
     }
-}
-
-function getToken() {
-    const token = readSession(TOKEN_KEY);
-    if (token && tokenExpired(token)) {
-        writeSession(TOKEN_KEY, null);
-        return null;
-    }
-    return token;
-}
-
-function authHeaders() {
-    const token = getToken();
-    if (!token && readSession(USER_KEY)) {
-        // The token ran out while the page was open: ask the user to log in again.
-        writeSession(USER_KEY, null);
-        writeSession(ROLE_KEY, null);
-        updateAccountBar();
-        showLogin("Your session has expired. Please log in again.");
-    }
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return false;
 }
 
 const LUNAR_DISTANCE_KM = 384400;
@@ -80,22 +44,51 @@ const state = {
     watchlistOnly: false,
 };
 
-// FAVORITES — persisted locally per browser, never sent anywhere
-const favorites = new Set(JSON.parse(localStorage.getItem("aegisneo_favorites") || "[]"));
+// WATCHLIST ("My List"): kept in the account for a signed-in visitor, so it follows them
+// to any device; a guest has no account, so theirs stays in this browser.
+const LOCAL_FAVORITES_KEY = "aegisneo_favorites";
+const favorites = new Set(Session.loggedIn ? [] : JSON.parse(localStorage.getItem(LOCAL_FAVORITES_KEY) || "[]"));
 
 // starred objects already seen or fetched, so My List works outside the current 100-object batch
 const favoriteCache = new Map();
 
 function toggleFavorite(id) {
-    if (favorites.has(id)) {
-        favorites.delete(id);
-    } else {
+    const adding = !favorites.has(id);
+    if (adding) {
         favorites.add(id);
         const asteroid = state.raw.find(a => a.neo_reference_id === id);
         if (asteroid) favoriteCache.set(id, asteroid);
+    } else {
+        favorites.delete(id);
     }
-    localStorage.setItem("aegisneo_favorites", JSON.stringify([...favorites]));
+    if (Session.loggedIn) {
+        apiFetch(`/api/v1/me/watchlist/${encodeURIComponent(id)}`, { method: adding ? "PUT" : "DELETE" })
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => (data?.new_badges || []).forEach(b => showToast(b.icon, `Badge unlocked: ${b.name}`, b.description)))
+            .catch(() => {});
+    } else {
+        localStorage.setItem(LOCAL_FAVORITES_KEY, JSON.stringify([...favorites]));
+    }
     updateWatchlistButton();
+}
+
+// On sign-in the list comes from the account. Stars a visitor saved in this browser
+// before signing in are moved into the account once, then removed from the browser.
+async function syncFavorites() {
+    if (!Session.loggedIn) return;
+    try {
+        const response = await apiFetch("/api/v1/me/watchlist");
+        if (!response.ok) return;
+        (await response.json()).asteroids.forEach(a => { favorites.add(a.neo_reference_id); favoriteCache.set(a.neo_reference_id, a); });
+        const local = JSON.parse(localStorage.getItem(LOCAL_FAVORITES_KEY) || "[]");
+        for (const id of local) {
+            if (favorites.has(id)) continue;
+            const put = await apiFetch(`/api/v1/me/watchlist/${encodeURIComponent(id)}`, { method: "PUT" });
+            if (put.ok) favorites.add(id);
+        }
+        localStorage.removeItem(LOCAL_FAVORITES_KEY);
+        updateWatchlistButton();
+    } catch { /* the list stays empty until the next visit */ }
 }
 
 async function loadMissingFavorites() {
@@ -133,13 +126,6 @@ function infoDot(tipKey) {
     return `<span class="info-dot" tabindex="0" data-tip="${tip}">ⓘ</span>`;
 }
 
-// ESCAPING — API strings (names, IDs) go into template-literal HTML, so escape them first
-const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-
-function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
-}
-
 let facts = ["Scanning near-Earth space…"];
 let factIndex = 0;
 let factTimer = null;
@@ -162,10 +148,13 @@ async function loadAsteroids() {
 
     try {
         const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: authHeaders(), signal });
+        if (sessionEnded(response)) return;
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
         if (data.total !== undefined) statTotalEl.textContent = data.total.toLocaleString();
+        guestTotal = data.total;
+        updateAccountBar();
         applyFiltersAndSort();
         refreshFacts();
         renderOrbitHighlights();
@@ -194,6 +183,7 @@ async function searchAsteroids() {
     try {
         const response =
             await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: authHeaders(), signal });
+        if (sessionEnded(response)) return;
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         state.raw = data.asteroids || [];
@@ -320,6 +310,10 @@ function asteroidCardHTML(asteroid) {
             <button class="detail-btn" type="button" data-neo="${id}">
                 Full telemetry
             </button>
+            ${Session.isAdmin ? `<div class="admin-row">
+                <button class="admin-btn edit-btn" type="button" data-neo="${id}">✎ Edit</button>
+                <button class="admin-btn del-btn" type="button" data-neo="${id}">🗑 Delete</button>
+            </div>` : ""}
         </article>
     `;
 }
@@ -894,6 +888,16 @@ listEl.addEventListener("click", (e) => {
         viewAsteroid(detailBtn.dataset.neo);
         return;
     }
+    const editBtn = e.target.closest(".edit-btn");
+    if (editBtn) {
+        openEditor(state.raw.find(a => a.neo_reference_id === editBtn.dataset.neo));
+        return;
+    }
+    const delBtn = e.target.closest(".del-btn");
+    if (delBtn) {
+        deleteAsteroid(delBtn.dataset.neo);
+        return;
+    }
     const favBtn = e.target.closest(".fav-btn");
     if (!favBtn) return;
     toggleFavorite(favBtn.dataset.neo);
@@ -1094,146 +1098,145 @@ searchInput.addEventListener("input", () => {
 });
 
 
-// LOGIN, GUEST VIEW AND LOG OUT
-const loginOverlay = document.getElementById("loginOverlay");
-const loginForm = document.getElementById("loginForm");
-const loginUser = document.getElementById("loginUser");
-const loginPass = document.getElementById("loginPass");
-const loginError = document.getElementById("loginError");
-const loginSubmit = document.getElementById("loginSubmit");
-const guestBtn = document.getElementById("guestBtn");
-const loginTitle = document.getElementById("loginTitle");
-const loginSub = document.querySelector(".login-sub");
-const userHint = document.getElementById("userHint");
-const passHint = document.getElementById("passHint");
-const switchText = document.getElementById("switchText");
-const switchMode = document.getElementById("switchMode");
-let signingUp = false;
-
-// One box for both: "Log in" and "Create an account" (new accounts can read
-// everything; only an admin can change data).
-function setSignUpMode(on) {
-    signingUp = on;
-    loginTitle.textContent = on ? "Create an account" : "Log in to AegisNEO";
-    loginSub.textContent = on
-        ? "A new account can see the whole catalog. Only an admin can change data."
-        : "Log in to see the whole catalog. Guests see 10 featured asteroids.";
-    loginSubmit.textContent = on ? "Create account" : "Log in";
-    loginPass.autocomplete = on ? "new-password" : "current-password";
-    loginPass.minLength = on ? 8 : 0;
-    userHint.hidden = passHint.hidden = !on;
-    switchText.textContent = on ? "Already have an account?" : "No account yet?";
-    switchMode.textContent = on ? "Log in" : "Create one";
-    loginError.textContent = "";
+// TOASTS
+function showToast(icon, title, text) {
+    let box = document.getElementById("toastBox");
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "toastBox";
+        box.className = "toast-box";
+        box.setAttribute("aria-live", "polite");
+        document.body.appendChild(box);
+    }
+    const el = document.createElement("div");
+    el.className = "toast-item";
+    el.innerHTML = `<span aria-hidden="true">${escapeHtml(icon)}</span><div><strong>${escapeHtml(title)}</strong><br><small>${escapeHtml(text || "")}</small></div>`;
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 5000);
 }
 
-// An old message would be misleading once the user starts typing again.
-[loginUser, loginPass].forEach(input => input.addEventListener("input", () => { loginError.textContent = ""; }));
 
-switchMode.addEventListener("click", () => {
-    setSignUpMode(!signingUp);
-    loginUser.focus();
-});
-
-// Turns a 422 from the sign-up endpoint into one plain sentence.
-function signUpProblem(detail) {
-    const field = Array.isArray(detail) ? detail[0]?.loc?.at(-1) : null;
-    if (field === "username") return "Use 3 to 30 characters: lowercase letters, numbers and _.";
-    if (field === "password") return "The password must be 8 to 72 characters.";
-    return "Please check the username and password.";
-}
+// ACCOUNT BAR: who is signed in, the way back to the hub, log out
 const accountLabel = document.getElementById("accountLabel");
 const accountBtn = document.getElementById("accountBtn");
+const guestBanner = document.getElementById("guestBanner");
+let guestTotal = null;
 
 function updateAccountBar() {
-    const loggedIn = Boolean(getToken());
-    accountLabel.textContent = loggedIn
-        ? `Signed in as ${readSession(USER_KEY) || "user"}${readSession(ROLE_KEY) ? ` (${readSession(ROLE_KEY)})` : ""}`
-        : "Guest view · 10 featured objects";
-    accountBtn.textContent = loggedIn ? "Log out" : "Log in";
-}
-
-// While the login box is open nothing behind it can be reached with the keyboard.
-function setBackgroundInert(inert) {
-    [...document.body.children].forEach(el => {
-        if (el !== loginOverlay && el.tagName !== "SCRIPT") el.inert = inert;
-    });
-}
-
-function showLogin(message = "") {
-    loginError.textContent = message;
-    loginOverlay.hidden = false;
-    setBackgroundInert(true);
-    loginUser.focus();
-}
-
-function hideLogin() {
-    loginOverlay.hidden = true;
-    loginPass.value = "";
-    setBackgroundInert(false);
-}
-
-function startBrowsing() {
-    hideLogin();
-    updateAccountBar();
-    searchInput.value = "";
-    loadAsteroids();
-}
-
-loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const username = loginUser.value.trim().toLowerCase();
-    loginSubmit.disabled = true;
-    loginError.textContent = "";
-    try {
-        const response = signingUp
-            ? await fetch(`${API_URL}/api/v1/auth/signup`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password: loginPass.value }),
-            })
-            : await fetch(`${API_URL}/api/v1/auth/login`, {
-                method: "POST",
-                body: new URLSearchParams({ username, password: loginPass.value }),
-            });
-        if (signingUp && response.status === 409) throw new Error("This username is already taken.");
-        if (signingUp && response.status === 422) throw new Error(signUpProblem((await response.json()).detail));
-        if (!signingUp && response.status === 401) throw new Error("Incorrect username or password.");
-        if (!response.ok) throw new Error(`${signingUp ? "Sign-up" : "Login"} is not available right now. Please try again later.`);
-        const data = await response.json();
-        writeSession(TOKEN_KEY, data.access_token);
-        writeSession(USER_KEY, username);
-        writeSession(ROLE_KEY, data.role || null);
-        writeSession(GUEST_KEY, null);
-        setSignUpMode(false);
-        startBrowsing();
-    } catch (error) {
-        loginError.textContent = error instanceof TypeError
-            ? "Could not reach the server. Check your connection and try again."
-            : error.message;
-    } finally {
-        loginSubmit.disabled = false;
+    if (Session.loggedIn) {
+        accountLabel.textContent = `Signed in as ${Session.username} (${Session.role})`;
+        accountBtn.textContent = "Log out";
+        guestBanner.hidden = true;
+    } else {
+        accountLabel.textContent = "Guest view";
+        accountBtn.textContent = "Sign in";
+        guestBanner.hidden = false;
+        guestBanner.querySelector("span").textContent =
+            `You are a guest: ${guestTotal ?? 10} featured asteroids are shown. Create a free account to see the whole catalog.`;
     }
-});
-
-guestBtn.addEventListener("click", () => {
-    writeSession(GUEST_KEY, "1");
-    startBrowsing();
-});
+}
 
 accountBtn.addEventListener("click", () => {
-    if (getToken()) {
-        // Reloading also drops the full catalog that is held in memory.
-        writeSession(TOKEN_KEY, null);
-        writeSession(USER_KEY, null);
-        writeSession(ROLE_KEY, null);
-        writeSession(GUEST_KEY, null);
-        location.reload();
-    } else {
-        showLogin();
+    if (Session.loggedIn) Session.logOut();
+    else location.assign("auth.html");
+});
+
+
+// ADMIN: create, edit and delete (the API refuses everyone else with 403)
+const editor = document.getElementById("editorOverlay");
+const editorForm = document.getElementById("editorForm");
+const editorError = document.getElementById("editorError");
+let editingId = null;
+
+const EDITOR_FIELDS = [
+    "neo_reference_id", "name", "estimated_diameter_km", "close_approach_date",
+    "relative_velocity_km_h", "miss_distance_km", "absolute_magnitude",
+];
+
+function openEditor(asteroid) {
+    editingId = asteroid ? asteroid.neo_reference_id : null;
+    document.getElementById("editorTitle").textContent = asteroid ? `Edit ${asteroid.name}` : "New asteroid";
+    EDITOR_FIELDS.forEach(field => { editorForm.elements[field].value = asteroid ? asteroid[field] : ""; });
+    editorForm.elements.neo_reference_id.disabled = Boolean(asteroid);
+    editorForm.elements.is_potentially_hazardous.checked = Boolean(asteroid?.is_potentially_hazardous);
+    editorForm.elements.is_featured.checked = Boolean(asteroid?.is_featured);
+    editorError.textContent = "";
+    editor.hidden = false;
+    editorForm.elements[asteroid ? "name" : "neo_reference_id"].focus();
+}
+
+function closeEditor() {
+    editor.hidden = true;
+}
+
+function editorProblem(detail) {
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]) return `Check "${detail[0].loc.at(-1)}": ${detail[0].msg}`;
+    return "The asteroid could not be saved.";
+}
+
+editorForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const number = name => Number(editorForm.elements[name].value);
+    const body = {
+        name: editorForm.elements.name.value.trim(),
+        estimated_diameter_km: number("estimated_diameter_km"),
+        is_potentially_hazardous: editorForm.elements.is_potentially_hazardous.checked,
+        close_approach_date: editorForm.elements.close_approach_date.value,
+        relative_velocity_km_h: number("relative_velocity_km_h"),
+        miss_distance_km: number("miss_distance_km"),
+        absolute_magnitude: number("absolute_magnitude"),
+        is_featured: editorForm.elements.is_featured.checked,
+    };
+    if (!editingId) body.neo_reference_id = editorForm.elements.neo_reference_id.value.trim();
+    const submitBtn = editorForm.querySelector("[type=submit]");
+    submitBtn.disabled = true;
+    editorError.textContent = "";
+    try {
+        const response = await apiFetch(
+            editingId ? `/api/v1/asteroids/${encodeURIComponent(editingId)}` : "/api/v1/asteroids",
+            { method: editingId ? "PATCH" : "POST", json: body });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(editorProblem(data.detail));
+        closeEditor();
+        showToast("✔", editingId ? "Asteroid updated" : "Asteroid created", data.name);
+        await loadAsteroids();
+    } catch (error) {
+        editorError.textContent = error instanceof TypeError ? "Could not reach the server." : error.message;
+    } finally {
+        submitBtn.disabled = false;
     }
 });
 
-updateAccountBar();
-if (getToken() || readSession(GUEST_KEY)) loadAsteroids();
-else showLogin();
+document.getElementById("editorCancel").addEventListener("click", closeEditor);
+editor.addEventListener("click", (event) => { if (event.target === editor) closeEditor(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !editor.hidden) closeEditor(); });
+
+async function deleteAsteroid(id) {
+    const asteroid = state.raw.find(a => a.neo_reference_id === id);
+    if (!confirm(`Delete ${asteroid ? asteroid.name : id}? This removes it from the catalog and from every watchlist.`)) return;
+    try {
+        const response = await apiFetch(`/api/v1/asteroids/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Could not delete.");
+        favorites.delete(id);
+        updateWatchlistButton();
+        showToast("🗑", "Asteroid deleted", asteroid ? asteroid.name : id);
+        await loadAsteroids();
+    } catch (error) {
+        showToast("⚠️", "Not deleted", error.message);
+    }
+}
+
+const newBtn = document.getElementById("newBtn");
+newBtn.hidden = !Session.isAdmin;
+newBtn.addEventListener("click", () => openEditor(null));
+
+
+// START: only a signed-in visitor or a guest gets here (otherwise: the sign-in page)
+(async function start() {
+    if (!Session.require()) return;
+    updateAccountBar();
+    await syncFavorites();
+    await loadAsteroids();
+    if (new URLSearchParams(location.search).get("list")) watchlistToggle.click();
+})();

@@ -9,14 +9,19 @@ Ids, timestamps and tokens will differ on your side.
 
 ## Authentication
 
-There are three kinds of callers.
+What a caller may do depends on its **role** and on the **site** it uses (the main site, Impactor or NEO Atlas).
+The rules are the rows of the `site_access` table:
 
-| Caller | Credentials | May |
-| --- | --- | --- |
-| Guest | none | read the 10 featured asteroids |
-| Admin (account with role `admin`) | `Authorization: Bearer <token>` | read all, create, update, delete, statistics |
-| User (account with role `user`) | `Authorization: Bearer <token>` | read all and statistics; any change returns 403 |
-| Partner site | `x-api-key: <key>` | read all and statistics; any change returns 403 |
+| Role | Credentials | Main site | Impactor / NEO Atlas |
+| --- | --- | --- | --- |
+| Guest | none (or a partner key alone) | 10 featured asteroids | 10 featured asteroids |
+| User | `Authorization: Bearer <token>` (partner: the ticket, see below) | whole catalog; any change returns 403 | whole catalog |
+| Admin | `Authorization: Bearer <token>` | whole catalog, create, update, delete | whole catalog (read only) |
+
+A partner site identifies itself with `x-api-key: <key>`. With no visitor it is served as a guest. For a signed-in
+visitor it also forwards the **ticket** the hub gave them (`Authorization: Bearer <ticket>`). A ticket is valid for one
+site only (using it with another site's key is 401), expires after `LAUNCH_TICKET_MINUTES` (default 240) and is read
+only: any change, `/auth/me` and `/me/*` are refused.
 
 Anyone can create an account with `POST /api/v1/auth/signup` (JSON). The account always gets the **user** role;
 sending a `role` field is rejected with 422. The response logs the new account in straight away:
@@ -58,6 +63,13 @@ An invalid or expired token is rejected with 401. It is never treated as a guest
 | POST | `/api/v1/auth/signup` | Create an account (role user) | 201 | public |
 | POST | `/api/v1/auth/login` | Log in | 200 | public |
 | GET | `/api/v1/auth/me` | Current account and its role | 200 | admin, user |
+| GET | `/api/v1/sites` | The three sites and the caller's access on each (`level`: full, limited or none) | 200 | public |
+| POST | `/api/v1/sites/{slug}/launch` | Record opening a site; returns `url`, `ticket` (accounts, partner sites), `new_badges` | 200 | guest or account |
+| GET | `/api/v1/me/overview` | Account, all badges (with `earned_at`), recent launches, watchlist size | 200 | admin, user |
+| GET | `/api/v1/me/watchlist` | The account's watchlist | 200 | admin, user |
+| PUT | `/api/v1/me/watchlist/{neo_reference_id}` | Add (again = no change); may return `new_badges`; 409 over 200 items | 200 | admin, user |
+| DELETE | `/api/v1/me/watchlist/{neo_reference_id}` | Remove | 200 | admin, user |
+| GET | `/api/v1/admin/overview` | Users per role, launches per site, most watched, last changes | 200 | admin |
 | GET | `/api/v1/asteroids` | List, search, filter, sort, page | 200 | guest (featured only), user, partner |
 | GET | `/api/v1/asteroids/random` | Random asteroids | 200 | guest (featured only), user, partner |
 | GET | `/api/v1/asteroids/{neo_reference_id}` | One asteroid | 200 | guest (featured only), user, partner |
@@ -189,7 +201,7 @@ A second delete, or a `GET`, returns 404.
 
 ### Statistics
 
-`GET /api/v1/stats` (user or partner) returns `total`, `potentially_hazardous`, and `min`, `max` and `median` of
+`GET /api/v1/stats` (everyone; a limited role gets the figures of the featured asteroids only, and `access` says which) returns `total`, `potentially_hazardous`, and `min`, `max` and `median` of
 `estimated_diameter_km`, `relative_velocity_km_h` and `miss_distance_km`, plus the first and last
 `close_approach_date`. They are computed by the database on each request.
 

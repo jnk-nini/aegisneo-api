@@ -26,6 +26,7 @@ APP_ROLE = "aegis_app"
 APP_PASSWORD = "test-app-password"
 JWT_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 PARTNER_KEY = "partner-test-key-abc123"
+ATLAS_KEY = "atlas-test-key-def456"
 USER_PASSWORD = "correct horse battery"
 
 # Ten featured asteroids, then four others, all real records from the catalog.
@@ -85,6 +86,14 @@ def database(urls, catalog, monkeypatch):
     hashed = bcrypt.hashpw(USER_PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
     with psycopg.connect(urls["owner"]) as conn:
         conn.execute("truncate asteroids, users restart identity cascade")
+        # Tests may edit the access rules; put the ones from schema.sql back.
+        conn.execute("delete from site_access")
+        conn.execute(
+            "insert into site_access (role, site, can_write, item_limit) values "
+            "('admin','aegisneo',true,null),('admin','impactor',false,null),('admin','neo-atlas',false,null),"
+            "('user','aegisneo',false,null),('user','impactor',false,null),('user','neo-atlas',false,null),"
+            "('guest','aegisneo',false,10),('guest','impactor',false,10),('guest','neo-atlas',false,10)"
+        )
         # alice is an admin (may change data); bob has the user role (read only).
         conn.execute("insert into users (username, password_hash, role) "
                      "values ('alice', %s, 'admin'), ('bob', %s, 'user')", [hashed, hashed])
@@ -101,7 +110,7 @@ def database(urls, catalog, monkeypatch):
             )
     monkeypatch.setenv("DATABASE_URL", urls["app"])
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    monkeypatch.setenv("AEGISNEO_API_KEYS", f"impactor:{PARTNER_KEY}")
+    monkeypatch.setenv("AEGISNEO_API_KEYS", f"impactor:{PARTNER_KEY},neo-atlas:{ATLAS_KEY}")
 
 
 @pytest.fixture
@@ -141,7 +150,30 @@ def reader(client):
 
 @pytest.fixture
 def partner():
+    """Impactor's key with no visitor: the partner site serves a guest."""
     return {"x-api-key": PARTNER_KEY}
+
+
+@pytest.fixture
+def atlas():
+    return {"x-api-key": ATLAS_KEY}
+
+
+def launch_headers(client, login_headers, slug="impactor", key=PARTNER_KEY):
+    """What a partner site sends for a visitor: its own key and the visitor's ticket."""
+    r = client.post(f"/api/v1/sites/{slug}/launch", headers=login_headers)
+    assert r.status_code == 200, r.text
+    return {"x-api-key": key, "Authorization": f"Bearer {r.json()['ticket']}"}
+
+
+@pytest.fixture
+def user_via_impactor(client, reader):
+    return launch_headers(client, reader)
+
+
+@pytest.fixture
+def admin_via_impactor(client, auth):
+    return launch_headers(client, auth)
 
 
 NEW_ASTEROID = {

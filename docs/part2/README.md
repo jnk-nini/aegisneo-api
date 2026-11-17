@@ -8,7 +8,7 @@ starts in Phase 4.
 | `AegisNEO_Part2_Phases1-3.docx` / `.pdf` | Phase 1 (existing API assessment), Phase 2 (database design), Phase 3 (integration architecture) |
 | `evidence/phase1/` | Raw curl output from the API before any change (v1.1, commit `7e61ec8`, 3 Nov 2026) |
 | `screenshots/phase1/` | Swagger UI, website and terminal figures made from that output |
-| `diagrams/` | ERD, architecture and request-flow diagrams (SVG and PNG) |
+| `diagrams/` | ERD (ten tables), architecture, request-flow and hub/ticket diagrams (SVG and PNG) |
 | `tools/` | Scripts that produced the figures, diagrams and the Word document |
 
 Rebuilding the document (from the repository root, with Node and Playwright available):

@@ -1,4 +1,4 @@
-"""Roles stored in the database: admin (may change data) and user (read only)."""
+"""Roles stored in the database: admin (may change data), user (read only) and guest (no account)."""
 import psycopg
 import pytest
 
@@ -7,9 +7,9 @@ from tests.conftest import FEATURED_IDS, OTHER_IDS
 ALL = len(FEATURED_IDS) + len(OTHER_IDS)
 
 
-def test_the_roles_table_holds_admin_and_user(owner_db):
+def test_the_roles_table_holds_admin_user_and_guest(owner_db):
     rows = owner_db.execute("select name from roles order by name").fetchall()
-    assert [r[0] for r in rows] == ["admin", "user"]
+    assert [r[0] for r in rows] == ["admin", "guest", "user"]
     accounts = owner_db.execute("select username, role from users order by id").fetchall()
     assert accounts == [("alice", "admin"), ("bob", "user")]
 
@@ -24,6 +24,11 @@ def test_the_database_refuses_an_unknown_role(owner_db):
         owner_db.execute("insert into users (username, password_hash, role) values ('dave', repeat('x', 60), 'boss')")
     with pytest.raises(psycopg.errors.NotNullViolation):
         owner_db.execute("update users set role = null where username = 'bob'")
+
+
+def test_no_account_can_hold_the_guest_role(owner_db):
+    with pytest.raises(psycopg.errors.CheckViolation):
+        owner_db.execute("insert into users (username, password_hash, role) values ('eve', repeat('x', 60), 'guest')")
 
 
 def test_login_and_me_report_the_role(client, auth, reader):
