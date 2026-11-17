@@ -33,7 +33,7 @@ frontend/           the website: index.html, app.js, style.css, assets/
 | --- | --- | --- |
 | Guest | nothing | read the 10 featured asteroids |
 | Admin (account with role `admin`) | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` | read everything, create, update, delete, statistics |
-| User (account with role `user`) | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` | read everything and statistics, change nothing (403) |
+| User (account with role `user`) | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` or `/signup` | read everything and statistics, change nothing (403) |
 | Partner site | `x-api-key` header | read everything and statistics, change nothing (403) |
 
 An invalid or expired token, or a wrong partner key, is a 401 (it is never treated as a guest).
@@ -43,12 +43,18 @@ has a `role` column that must be one of them (foreign key). A new account is a `
 as an admin. The API reads the role from the database before every create, update and delete, so changing a
 role takes effect at once.
 
+Anyone can create an account on the website ("Create one" in the login box) or with `POST /api/v1/auth/signup`.
+Sign-up accounts are always `user`: the request cannot name a role, and the API's database role may fill in only
+`username` and `password_hash`, so the database itself stops it from making an admin. Admins are made only by
+you, with `scripts/create_user.py <name> admin` or `scripts/set_role.py <name> admin`.
+
 ## Endpoints
 
 | Method | Path | Purpose | Access |
 | --- | --- | --- | --- |
 | GET | `/` | Welcome message and the number of asteroids | public |
 | GET | `/health` | Status check; 503 if the database cannot be reached | public |
+| POST | `/api/v1/auth/signup` | Create an account (JSON `username`, `password`); it always gets the user role (201) | public |
 | POST | `/api/v1/auth/login` | Username and password (form fields) -> access token | public |
 | GET | `/api/v1/auth/me` | The logged-in account and its role | admin or user |
 | GET | `/api/v1/asteroids` | List with `search`, `hazardous`, `min_diameter`, `max_diameter`, `from_date`, `to_date`, `sort`, `order`, `limit`, `offset` | guest: featured only |

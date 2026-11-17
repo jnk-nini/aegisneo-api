@@ -35,7 +35,7 @@ screenshot to take (save them under `docs/part2/screenshots/`, next to your Phas
 
    **Already did this step before roles were added?** Do not run `schema.sql` again. Run
    `db/migrations/001_add_roles.sql` in the SQL Editor instead. It adds the `roles` table and the `role` column,
-   and makes the accounts you already have admins. Running it twice is safe.
+   makes the accounts you already have admins, and allows sign-up. Running it twice is safe.
    > Screenshot `phase4/neon-asteroids-columns.png`: the `asteroids` table with its columns and indexes.
 5. **Import the 33,511 records.**
    ```bash
@@ -135,15 +135,16 @@ Neon **Tables** view showing the change:
     compute), then time the first request: `curl -s -o /dev/null -w "%{time_total}\n" https://aegisneo-api.vercel.app/health`.
     Part I measured about 1 second; run it again straight after and note the difference.
 
-## E. Phase 6 follow-up: login rate limit (evaluate)
+## E. Phase 6 follow-up: login and sign-up rate limit (evaluate)
 
 22. Vercel > project > **Firewall** > Add rule: path equals `/api/v1/auth/login`, method POST, action **Rate limit**
-    (for example 10 requests per minute per IP). Write down what you chose, or why you decided against it. The
+    (for example 10 requests per minute per IP). Add the same kind of rule for `/api/v1/auth/signup` (for example
+    5 per hour per IP). Write down what you chose, or why you decided against it. The
     design already says this is evaluated in Phase 6.
 
 ## F. Phase 8 and the report
 
-23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 107 passed). Fill in the "deployed"
+23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 122 passed). Fill in the "deployed"
     columns in `04-test-report.md` with what you saw in steps 10 to 19.
 24. Write the report from `05-report-outline.md`. The sections marked **YOU** (challenges you met on Neon and
     Vercel, and the reflection) have to come from your own experience, so they are left empty on purpose.

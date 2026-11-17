@@ -11,7 +11,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from api import auth, db
 from api.config import API_VERSION
-from api.models import AsteroidCreate, AsteroidUpdate
+from api.models import AsteroidCreate, AsteroidUpdate, SignUp
 
 log = logging.getLogger("aegisneo")
 
@@ -55,6 +55,8 @@ def database_error(request, exc):
 
 @app.exception_handler(db.DuplicateError)
 def duplicate(request, exc):
+    if exc.field == "username":
+        return JSONResponse({"detail": "This username is already taken."}, status_code=409)
     return JSONResponse({"detail": f"An asteroid with this {exc.field} already exists."}, status_code=409)
 
 
@@ -124,6 +126,7 @@ def home():
         "message": "Welcome to the AegisNEO API!",
         "total_tracked": db.count_asteroids(),
         "endpoints": [
+            "POST /api/v1/auth/signup",
             "POST /api/v1/auth/login",
             "GET /api/v1/auth/me",
             "GET /api/v1/asteroids",
@@ -161,6 +164,22 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         "access_token": auth.create_token(user["id"], user["username"], user["role"]),
         "token_type": "bearer",
         "role": user["role"],
+        "expires_in": auth.config.jwt_expire_minutes() * 60,
+    }
+
+
+@app.post("/api/v1/auth/signup", status_code=201)
+def signup(data: SignUp):
+    """Create an account with the user role (read only) and log it in.
+    Admins are made only by the owner, with scripts/set_role.py."""
+    auth.check_login_configured()  # 503 before anything is stored if tokens cannot be signed
+    user = db.create_user(data.username, auth.hash_password(data.password))
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "access_token": auth.create_token(user["id"], user["username"], user["role"]),
+        "token_type": "bearer",
         "expires_in": auth.config.jwt_expire_minutes() * 60,
     }
 

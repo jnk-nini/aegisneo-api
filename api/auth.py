@@ -58,10 +58,19 @@ def _secret():
     return secret
 
 
+def check_login_configured():
+    """Raise AuthConfigError (503) if tokens cannot be signed."""
+    _secret()
+
+
 def password_matches(password, password_hash):
     hashed = password_hash.encode() if password_hash else _DUMMY_HASH
     ok = bcrypt.checkpw(password.encode()[:72], hashed)  # bcrypt reads at most 72 bytes
     return ok and password_hash is not None
+
+
+def hash_password(password):
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
 
 
 def create_token(user_id, username, role):

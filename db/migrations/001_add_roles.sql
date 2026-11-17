@@ -1,5 +1,6 @@
--- Adds the roles table and a role for every account, on a database that was
--- created with the earlier schema.sql. Run once as the owner (neondb_owner)
+-- Adds the roles table, a role for every account, and the permission the
+-- sign-up page needs, on a database that was created with the earlier
+-- schema.sql. Run once as the owner (neondb_owner)
 -- in the Neon SQL Editor. Running it again changes nothing.
 
 begin;
@@ -25,6 +26,10 @@ update public.users set role = 'admin'
 where not exists (select 1 from public.users where role = 'admin');
 
 grant select on public.roles to aegis_app;
+
+-- Sign-up: the API may add an account, but only the username and the password
+-- hash. It cannot fill in the role, so every new account is a 'user'.
+grant insert (username, password_hash) on public.users to aegis_app;
 
 commit;
 

@@ -145,12 +145,19 @@
             <p class="login-sub">Log in to see the whole catalog. Guests see 10 featured asteroids.</p>
             <label for="loginUser">Username</label>
             <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
-                maxlength="30" required>
+                maxlength="30" required aria-describedby="userHint">
+            <p id="userHint" class="login-hint" hidden>3 to 30 characters: lowercase letters, numbers and _</p>
             <label for="loginPass">Password</label>
-            <input id="loginPass" type="password" autocomplete="current-password" maxlength="72" required>
+            <input id="loginPass" type="password" autocomplete="current-password" maxlength="72" required
+                aria-describedby="passHint">
+            <p id="passHint" class="login-hint" hidden>At least 8 characters</p>
             <p id="loginError" class="login-error" role="alert"></p>
             <button id="loginSubmit" type="submit" class="login-submit">Log in</button>
             <button id="guestBtn" type="button" class="login-guest">Continue as guest</button>
+            <p class="login-switch">
+                <span id="switchText">No account yet?</span>
+                <button id="switchMode" type="button" class="login-link">Create one</button>
+            </p>
         </form>
     </div>
 

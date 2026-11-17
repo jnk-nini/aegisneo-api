@@ -8,7 +8,7 @@
 | Database in the automated tests | PostgreSQL 16.15 on the developer machine. The tests create a fresh database from `db/schema.sql` and connect as the limited role `aegis_app`, like the deployed API. A second, owner connection reads the tables directly, so the tests check what is **stored**, not only what the API answers. |
 | Safety | The test setup refuses to run unless `TEST_DATABASE_URL` points at localhost, so the tests can never touch Neon. |
 | Test data | 14 real records from the catalog (the 10 featured asteroids plus 4 others) and two accounts: `alice` (role admin) and `bob` (role user); the data is reset before every test. |
-| Result | **107 tests, 107 passed** (`evidence/pytest-local-run.txt`): read 19, write 11, validation 35, security 25, roles 8, reliability 9. |
+| Result | **122 tests, 122 passed** (`evidence/pytest-local-run.txt`): read 19, write 11, validation 35, security 25, roles 8, sign-up 15, reliability 9. |
 | Also run | A full run with the real 33,511 records on the local database (section 3), and the website in a real browser (section 4). |
 | Deployed environment | Neon (PostgreSQL 18) and Vercel: section 5, to be completed after deployment. |
 
@@ -68,7 +68,7 @@ Evidence names are test functions in `tests/` (see `evidence/pytest-local-run.tx
 | S-07 | Statistics without credentials | 401 | As expected | Pass | `test_stats_need_login_or_a_partner_key` |
 | S-08 | SQL injection in search, in the ID path and in the username | Normal answers; data unchanged | As expected | Pass | `test_sql_injection_attempts_are_harmless`, `test_login_is_not_injectable` |
 | S-09 | Password hashes and passwords in responses | Never present, including in validation errors | As expected | Pass | `test_password_hashes_are_never_returned`, `test_validation_errors_never_echo_the_password` |
-| S-10 | Database role limits | `aegis_app` cannot drop, create or alter tables, insert or change users, change a role or add a role | 8 of 8 refused | Pass | `test_the_api_role_cannot_change_the_structure_or_accounts` |
+| S-10 | Database role limits | `aegis_app` cannot drop, create or alter tables, create an admin, change a password, change or delete users, change a role or add a role | 9 of 9 refused | Pass | `test_the_api_role_cannot_change_the_structure_or_accounts` |
 | S-11 | Token of a deleted user tries to create | 401 | As expected | Pass | `test_token_of_a_deleted_user_cannot_create` |
 
 ### Roles (admin and user)
@@ -83,6 +83,19 @@ Evidence names are test functions in `tests/` (see `evidence/pytest-local-run.tx
 | RO-06 | A user tries to create, update and delete | 403 each; table unchanged | As expected | Pass | `test_a_user_cannot_change_data` |
 | RO-07 | An admin creates and deletes | 201, 200 | As expected | Pass | `test_an_admin_can_change_data` |
 | RO-08 | Roles swapped in the database while both are logged in | Old admin now gets 403, old user now gets 201, without logging in again | As expected | Pass | `test_a_role_change_applies_at_once` |
+
+### Sign-up
+
+| ID | Description | Expected | Actual | Status | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| SU-01 | Create an account | 201; role `user`; bcrypt hash stored, not the password; the token and the same password both work | As expected | Pass | `test_signup_creates_a_user_and_logs_in` |
+| SU-02 | New account reads and tries to change | Reads everything; create and delete are 403 | As expected | Pass | `test_a_new_account_can_read_but_not_change` |
+| SU-03 | Sign-up asking for `"role": "admin"` | 422; no account stored | As expected | Pass | `test_signup_cannot_ask_for_the_admin_role` |
+| SU-04 | The database stops the API from making an admin | Insert without a role gets `user`; insert with a role is refused | As expected | Pass | `test_the_api_role_can_add_an_account_only_with_the_user_role` |
+| SU-05 | Username taken (ignoring case) | 409 `"This username is already taken."` | As expected | Pass | `test_taken_username_is_409` |
+| SU-06 | Username with spaces and capitals | Trimmed and lowercased | As expected | Pass | `test_username_is_trimmed_and_lowercased` |
+| SU-07 | Invalid usernames and passwords (8 cases) | 422; password never echoed; nothing stored | As expected | Pass | `test_invalid_signups_are_422_and_store_nothing` |
+| SU-08 | `JWT_SECRET` missing | 503 before anything is stored | As expected | Pass | `test_signup_without_jwt_secret_is_503_and_stores_nothing` |
 
 ### Persistence and integration
 
@@ -137,7 +150,7 @@ Run `python scripts/verify_deployment.py https://aegisneo-api.vercel.app <user>`
 | ID | Description | Expected | Actual | Status | Evidence (screenshot) |
 | --- | --- | --- | --- | --- | --- |
 | D-01 | `/health` on the deployed API | 200, `"database": "ok"` | | | |
-| D-02 | Connection check as `aegis_app` | TLS encrypted; 33,511 rows; roles admin and user listed; 5 of 5 forbidden operations refused | | | `phase4/check-connection.png` |
+| D-02 | Connection check as `aegis_app` | TLS encrypted; 33,511 rows; roles admin and user listed; 5 of 5 forbidden operations refused (including creating an admin) | | | `phase4/check-connection.png` |
 | D-03 | Retrieve existing records | 33,511 for a user, 10 for a guest | | | |
 | D-04 | Create through the deployed API, then see the row in the Neon console | 201; row visible in Neon | | | |
 | D-05 | Update, then see the change in Neon | 200; value changed in Neon | | | |
@@ -146,7 +159,7 @@ Run `python scripts/verify_deployment.py https://aegisneo-api.vercel.app <user>`
 | D-08 | Redeploy, then `--after-redeploy` | 5 of 5 passed; 33,511 records still present; the test record still deleted | | | `phase7/verify-after-redeploy.png` |
 | D-09 | Unauthorized request to the deployed API (no token on `POST`; partner key on `DELETE`; `demo` account with role user on `POST`) | 401; 403; 403 | | | |
 | D-10 | Invalid input to the deployed API | 422 / 400 / 409 | | | |
-| D-11 | Website: login, guest, logout on the deployed site | as in section 4 | | | `phase7/website-*.png` |
+| D-11 | Website: login, sign-up, guest, logout on the deployed site | as in section 4; a new account shows "(user)" and the full catalog | | | `phase7/website-*.png` |
 | D-12 | Impactor and NEO Atlas still load data after the change | Both work with their partner key | | | |
 | D-13 | First request after more than 5 idle minutes | Slower (about 1 s in Part I); the next one fast | | | |
 

@@ -74,6 +74,17 @@ GET /api/v1/asteroids          -> 200, "access": "full" (users can read everythi
 POST /api/v1/asteroids         -> 403 "Only an admin can change data..."
 Log out and log in again as your admin account before step 8.
 
+==== 7c. SIGN-UP: anyone can make a read-only account ====
+Website: https://aegisneo-api.vercel.app/frontend/  > Log in > "Create one"
+Make e.g. prof_demo, then the top bar shows "Signed in as prof_demo (user)".
+Neon: select id, username, role from users order by id;   (new row, role user)
+Swagger: POST /api/v1/auth/signup with
+{ "username": "sneaky", "password": "longpassword1", "role": "admin" }
+-> 422 (you cannot ask for admin). Remove the "role" line -> 201, role user.
+Neon proof that the API cannot make an admin (aegis_app may INSERT only these two columns):
+select privilege_type, column_name from information_schema.column_privileges
+where table_name = 'users' and grantee = 'aegis_app' order by 1, 2;
+
 ==== 8. DUPLICATE (expect 409) ====
 Create id 9000001 twice (use the step 1 body). The second one gives 409.
 Delete it afterwards.

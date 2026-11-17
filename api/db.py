@@ -37,6 +37,7 @@ ASTEROID_COLUMNS = (
 DUPLICATE_FIELDS = {
     "asteroids_pkey": "neo_reference_id",
     "asteroids_name_lower_key": "name",
+    "users_username_key": "username",
 }
 
 
@@ -291,6 +292,15 @@ def get_user_by_username(username):
     with connection() as conn:
         return conn.execute(
             "select id, username, password_hash, role from users where username = %s", [username]
+        ).fetchone()
+
+
+def create_user(username, password_hash):
+    """Add an account. The role is not sent: the database gives it 'user'."""
+    with connection() as conn:
+        return conn.execute(
+            "insert into users (username, password_hash) values (%s, %s) returning id, username, role",
+            [username, password_hash],
         ).fetchone()
 
 

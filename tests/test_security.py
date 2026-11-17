@@ -138,7 +138,8 @@ def test_password_hashes_are_never_returned(client, auth, new_asteroid):
 def test_the_api_role_cannot_change_the_structure_or_accounts(urls):
     with psycopg.connect(urls["app"], autocommit=True) as conn:
         for statement in ("drop table asteroids", "create table x (a int)",
-                          "insert into users (username, password_hash) values ('eve', repeat('x', 60))",
+                          "insert into users (username, password_hash, role) values ('eve', repeat('x', 60), 'admin')",
+                          "update users set password_hash = repeat('y', 60)",
                           "update users set username = 'eve'", "delete from users",
                           "alter table asteroids add column y int",
                           "update users set role = 'admin'",

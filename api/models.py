@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 MIN_DATE = date(1900, 1, 1)
 MAX_DATE = date(2200, 12, 31)
@@ -59,3 +59,27 @@ class AsteroidUpdate(BaseModel):
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null.")
         return self
+
+
+class SignUp(BaseModel):
+    """A new account from the sign-up page. There is no role field: any extra
+    field, such as "role": "admin", is rejected, and the database gives every
+    new account the user role."""
+    model_config = ConfigDict(extra="forbid")
+
+    username: Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]{3,30}$")] = Field(
+        description="3 to 30 characters: lowercase letters, digits and underscore."
+    )
+    password: str = Field(min_length=8, description="At least 8 characters, at most 72 bytes.")
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalise_username(cls, value):
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, value):
+        if len(value.encode()) > 72:  # bcrypt ignores everything after 72 bytes
+            raise ValueError("The password must be at most 72 bytes.")
+        return value

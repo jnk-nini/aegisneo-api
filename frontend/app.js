@@ -1102,6 +1102,46 @@ const loginPass = document.getElementById("loginPass");
 const loginError = document.getElementById("loginError");
 const loginSubmit = document.getElementById("loginSubmit");
 const guestBtn = document.getElementById("guestBtn");
+const loginTitle = document.getElementById("loginTitle");
+const loginSub = document.querySelector(".login-sub");
+const userHint = document.getElementById("userHint");
+const passHint = document.getElementById("passHint");
+const switchText = document.getElementById("switchText");
+const switchMode = document.getElementById("switchMode");
+let signingUp = false;
+
+// One box for both: "Log in" and "Create an account" (new accounts can read
+// everything; only an admin can change data).
+function setSignUpMode(on) {
+    signingUp = on;
+    loginTitle.textContent = on ? "Create an account" : "Log in to AegisNEO";
+    loginSub.textContent = on
+        ? "A new account can see the whole catalog. Only an admin can change data."
+        : "Log in to see the whole catalog. Guests see 10 featured asteroids.";
+    loginSubmit.textContent = on ? "Create account" : "Log in";
+    loginPass.autocomplete = on ? "new-password" : "current-password";
+    loginPass.minLength = on ? 8 : 0;
+    userHint.hidden = passHint.hidden = !on;
+    switchText.textContent = on ? "Already have an account?" : "No account yet?";
+    switchMode.textContent = on ? "Log in" : "Create one";
+    loginError.textContent = "";
+}
+
+// An old message would be misleading once the user starts typing again.
+[loginUser, loginPass].forEach(input => input.addEventListener("input", () => { loginError.textContent = ""; }));
+
+switchMode.addEventListener("click", () => {
+    setSignUpMode(!signingUp);
+    loginUser.focus();
+});
+
+// Turns a 422 from the sign-up endpoint into one plain sentence.
+function signUpProblem(detail) {
+    const field = Array.isArray(detail) ? detail[0]?.loc?.at(-1) : null;
+    if (field === "username") return "Use 3 to 30 characters: lowercase letters, numbers and _.";
+    if (field === "password") return "The password must be 8 to 72 characters.";
+    return "Please check the username and password.";
+}
 const accountLabel = document.getElementById("accountLabel");
 const accountBtn = document.getElementById("accountBtn");
 
@@ -1146,17 +1186,26 @@ loginForm.addEventListener("submit", async (event) => {
     loginSubmit.disabled = true;
     loginError.textContent = "";
     try {
-        const response = await fetch(`${API_URL}/api/v1/auth/login`, {
-            method: "POST",
-            body: new URLSearchParams({ username, password: loginPass.value }),
-        });
-        if (response.status === 401) throw new Error("Incorrect username or password.");
-        if (!response.ok) throw new Error("Login is not available right now. Please try again later.");
+        const response = signingUp
+            ? await fetch(`${API_URL}/api/v1/auth/signup`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password: loginPass.value }),
+            })
+            : await fetch(`${API_URL}/api/v1/auth/login`, {
+                method: "POST",
+                body: new URLSearchParams({ username, password: loginPass.value }),
+            });
+        if (signingUp && response.status === 409) throw new Error("This username is already taken.");
+        if (signingUp && response.status === 422) throw new Error(signUpProblem((await response.json()).detail));
+        if (!signingUp && response.status === 401) throw new Error("Incorrect username or password.");
+        if (!response.ok) throw new Error(`${signingUp ? "Sign-up" : "Login"} is not available right now. Please try again later.`);
         const data = await response.json();
         writeSession(TOKEN_KEY, data.access_token);
         writeSession(USER_KEY, username);
         writeSession(ROLE_KEY, data.role || null);
         writeSession(GUEST_KEY, null);
+        setSignUpMode(false);
         startBrowsing();
     } catch (error) {
         loginError.textContent = error instanceof TypeError

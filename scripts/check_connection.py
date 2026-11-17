@@ -63,7 +63,7 @@ def main():
         for label, sql in [
             ("create a table", "create table should_not_exist (a int)"),
             ("drop the asteroids table", "drop table asteroids"),
-            ("create a user account", "insert into users (username, password_hash) values ('x', repeat('x', 60))"),
+            ("create an admin account", "insert into users (username, password_hash, role) values ('x', repeat('x', 60), 'admin')"),
             ("change a password hash", "update users set password_hash = repeat('y', 60)"),
             ("make an account admin", "update users set role = 'admin'"),
         ]:

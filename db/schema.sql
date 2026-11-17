@@ -56,9 +56,12 @@ create index asteroids_date_idx       on public.asteroids (close_approach_date);
 create index asteroids_featured_idx   on public.asteroids (name) where is_featured;
 create index asteroids_created_by_idx on public.asteroids (created_by);
 
--- The API connects as aegis_app: it can read and write asteroids and read
--- roles and users, and nothing else (it cannot create accounts or change a
--- role). The role must exist before this script runs.
+-- The API connects as aegis_app: it can read and write asteroids, read
+-- roles and users, and add an account for the sign-up page, and nothing else.
+-- It may fill in only username and password_hash, so every account it adds
+-- gets the default role 'user'. It cannot make an admin, change a role or a
+-- password, or delete an account. The role must exist before this script runs.
 grant usage on schema public to aegis_app;
 grant select, insert, update, delete on public.asteroids to aegis_app;
 grant select on public.roles, public.users to aegis_app;
+grant insert (username, password_hash) on public.users to aegis_app;
