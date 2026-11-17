@@ -6,6 +6,7 @@ starts in Phase 4.
 | Path | Contents |
 | --- | --- |
 | `AegisNEO_Part2_Phases1-3.docx` / `.pdf` | Phase 1 (existing API assessment), Phase 2 (database design), Phase 3 (integration architecture) |
+| `AegisNEO_Part2_Final_Report.docx` / `.pdf` | Final implementation and technical evaluation report (Phases 4 to 8), with the updated ERD |
 | `evidence/phase1/` | Raw curl output from the API before any change (v1.1, commit `7e61ec8`, 3 Nov 2026) |
 | `screenshots/phase1/` | Swagger UI, website and terminal figures made from that output |
 | `diagrams/` | ERD, architecture and request-flow diagrams (SVG and PNG) |
@@ -16,4 +17,5 @@ Rebuilding the document (from the repository root, with Node and Playwright avai
 ```bash
 node docs/part2/tools/diagrams.js .
 node docs/part2/tools/build_doc.js .
+node docs/part2/tools/build_final_report.js .
 ```
