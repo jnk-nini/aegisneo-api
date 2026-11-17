@@ -1,8 +1,10 @@
 """Run the Phase 7 checklist against a running API (local or deployed).
 
-    python scripts/verify_deployment.py https://aegisneo-api.vercel.app <username>
+    python scripts/verify_deployment.py https://aegisneo-api.vercel.app <admin username>
 
-The password is asked for on the terminal (or read from VERIFY_PASSWORD).
+The account must have the admin role, because the checklist creates, changes
+and deletes a record. The password is asked for on the terminal (or read from
+VERIFY_PASSWORD).
 It creates one test asteroid, changes it, deletes it and checks the database
 state after every step. Use --after-redeploy after redeploying the API to
 confirm that the data is still there (the test asteroid must stay deleted).

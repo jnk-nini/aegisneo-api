@@ -20,7 +20,8 @@ app = FastAPI(
     description=(
         "Tracks Near-Earth Objects using real NASA/Kaggle asteroid data, stored in a Neon "
         "(PostgreSQL) database. Without credentials only 10 featured asteroids are visible. "
-        "Log in with the Authorize button to see all of them and to create, update and delete."
+        "Log in with the Authorize button to see all of them. Accounts with the admin role "
+        "may also create, update and delete; accounts with the user role may only read."
     ),
     version=API_VERSION,
 )
@@ -157,15 +158,19 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         # Same message whether the username or the password was wrong.
         raise HTTPException(401, "Incorrect username or password.", headers={"WWW-Authenticate": "Bearer"})
     return {
-        "access_token": auth.create_token(user["id"], user["username"]),
+        "access_token": auth.create_token(user["id"], user["username"], user["role"]),
         "token_type": "bearer",
+        "role": user["role"],
         "expires_in": auth.config.jwt_expire_minutes() * 60,
     }
 
 
 @app.get("/api/v1/auth/me")
 def me(caller: auth.Caller = Depends(auth.require_logged_in)):
-    return {"id": caller.user_id, "username": caller.username}
+    user = db.get_user(caller.user_id)
+    if user is None:
+        raise db.UnknownUserError()
+    return {"id": user["id"], "username": user["username"], "role": user["role"]}
 
 
 # ============================================================
@@ -247,15 +252,15 @@ def get_stats(caller: auth.Caller = Depends(auth.require_full_access)):
 
 
 # ============================================================
-# WRITE: create, update, delete (logged-in users only)
+# WRITE: create, update, delete (accounts with the admin role only)
 # ============================================================
 @app.post("/api/v1/asteroids", status_code=201)
-def create_asteroid(data: AsteroidCreate, caller: auth.Caller = Depends(auth.require_user)):
+def create_asteroid(data: AsteroidCreate, caller: auth.Caller = Depends(auth.require_admin)):
     return present(db.create_asteroid(data, caller.user_id))
 
 
 @app.patch("/api/v1/asteroids/{neo_reference_id}")
-def update_asteroid(neo_reference_id: str, data: AsteroidUpdate, caller: auth.Caller = Depends(auth.require_user)):
+def update_asteroid(neo_reference_id: str, data: AsteroidUpdate, caller: auth.Caller = Depends(auth.require_admin)):
     row = db.update_asteroid(neo_reference_id, data) if NEO_ID_PATTERN.match(neo_reference_id) else None
     if row is None:
         raise HTTPException(404, "Asteroid not found.")
@@ -263,7 +268,7 @@ def update_asteroid(neo_reference_id: str, data: AsteroidUpdate, caller: auth.Ca
 
 
 @app.delete("/api/v1/asteroids/{neo_reference_id}")
-def delete_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.require_user)):
+def delete_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.require_admin)):
     if not (NEO_ID_PATTERN.match(neo_reference_id) and db.delete_asteroid(neo_reference_id)):
         raise HTTPException(404, "Asteroid not found.")
     return {"message": "Asteroid deleted.", "neo_reference_id": neo_reference_id}

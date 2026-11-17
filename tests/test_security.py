@@ -38,7 +38,7 @@ def test_validation_errors_never_echo_the_password(client):
 
 def test_me_returns_the_logged_in_user_without_secrets(client, auth):
     r = client.get("/api/v1/auth/me", headers=auth)
-    assert r.json() == {"id": 1, "username": "alice"}
+    assert r.json() == {"id": 1, "username": "alice", "role": "admin"}
 
 
 def test_me_needs_a_user_token(client, partner):
@@ -140,7 +140,9 @@ def test_the_api_role_cannot_change_the_structure_or_accounts(urls):
         for statement in ("drop table asteroids", "create table x (a int)",
                           "insert into users (username, password_hash) values ('eve', repeat('x', 60))",
                           "update users set username = 'eve'", "delete from users",
-                          "alter table asteroids add column y int"):
+                          "alter table asteroids add column y int",
+                          "update users set role = 'admin'",
+                          "insert into roles (name, description) values ('owner', 'x')"):
             with pytest.raises(psycopg.errors.Error):
                 conn.execute(statement)
         # what it is allowed to do

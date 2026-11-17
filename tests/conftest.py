@@ -85,8 +85,9 @@ def database(urls, catalog, monkeypatch):
     hashed = bcrypt.hashpw(USER_PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
     with psycopg.connect(urls["owner"]) as conn:
         conn.execute("truncate asteroids, users restart identity cascade")
-        conn.execute("insert into users (username, password_hash) values ('alice', %s), ('bob', %s)",
-                     [hashed, hashed])
+        # alice is an admin (may change data); bob has the user role (read only).
+        conn.execute("insert into users (username, password_hash, role) "
+                     "values ('alice', %s, 'admin'), ('bob', %s, 'user')", [hashed, hashed])
         for neo_id in FEATURED_IDS + OTHER_IDS:
             a = catalog[neo_id]
             conn.execute(
@@ -128,8 +129,14 @@ def token(client):
 
 @pytest.fixture
 def auth(token):
-    """Headers of a logged-in user (alice, id 1)."""
+    """Headers of a logged-in admin (alice, id 1)."""
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def reader(client):
+    """Headers of a logged-in account with the user role (bob, id 2)."""
+    return {"Authorization": f"Bearer {_login(client, 'bob').json()['access_token']}"}
 
 
 @pytest.fixture

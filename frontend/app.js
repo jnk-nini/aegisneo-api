@@ -7,6 +7,7 @@ const API_URL = "https://aegisneo-api.vercel.app";
 const TOKEN_KEY = "aegisneo_token";
 const GUEST_KEY = "aegisneo_guest";
 const USER_KEY = "aegisneo_user";
+const ROLE_KEY = "aegisneo_role";
 
 function readSession(key) {
     try { return sessionStorage.getItem(key); } catch { return null; }
@@ -43,6 +44,7 @@ function authHeaders() {
     if (!token && readSession(USER_KEY)) {
         // The token ran out while the page was open: ask the user to log in again.
         writeSession(USER_KEY, null);
+        writeSession(ROLE_KEY, null);
         updateAccountBar();
         showLogin("Your session has expired. Please log in again.");
     }
@@ -1106,7 +1108,7 @@ const accountBtn = document.getElementById("accountBtn");
 function updateAccountBar() {
     const loggedIn = Boolean(getToken());
     accountLabel.textContent = loggedIn
-        ? `Signed in as ${readSession(USER_KEY) || "user"}`
+        ? `Signed in as ${readSession(USER_KEY) || "user"}${readSession(ROLE_KEY) ? ` (${readSession(ROLE_KEY)})` : ""}`
         : "Guest view · 10 featured objects";
     accountBtn.textContent = loggedIn ? "Log out" : "Log in";
 }
@@ -1153,6 +1155,7 @@ loginForm.addEventListener("submit", async (event) => {
         const data = await response.json();
         writeSession(TOKEN_KEY, data.access_token);
         writeSession(USER_KEY, username);
+        writeSession(ROLE_KEY, data.role || null);
         writeSession(GUEST_KEY, null);
         startBrowsing();
     } catch (error) {
@@ -1174,6 +1177,7 @@ accountBtn.addEventListener("click", () => {
         // Reloading also drops the full catalog that is held in memory.
         writeSession(TOKEN_KEY, null);
         writeSession(USER_KEY, null);
+        writeSession(ROLE_KEY, null);
         writeSession(GUEST_KEY, null);
         location.reload();
     } else {

@@ -3,11 +3,24 @@
 
 create extension if not exists pg_trgm;
 
+-- The two kinds of account. An admin may create, update and delete
+-- asteroids; a user may read the whole catalog but change nothing.
+create table public.roles (
+  name        text primary key check (name ~ '^[a-z]{3,20}$'),
+  description text not null
+);
+
+insert into public.roles (name, description) values
+  ('admin', 'Read the whole catalog; create, update and delete asteroids'),
+  ('user',  'Read the whole catalog; cannot change data');
+
 create table public.users (
   id            integer generated always as identity primary key,
   username      text not null unique
                 check (username ~ '^[a-z0-9_]{3,30}$'),
   password_hash text not null check (length(password_hash) = 60),
+  role          text not null default 'user'
+                references public.roles (name) on update cascade,
   created_at    timestamptz not null default now()
 );
 
@@ -44,7 +57,8 @@ create index asteroids_featured_idx   on public.asteroids (name) where is_featur
 create index asteroids_created_by_idx on public.asteroids (created_by);
 
 -- The API connects as aegis_app: it can read and write asteroids and read
--- users, and nothing else. The role must exist before this script runs.
+-- roles and users, and nothing else (it cannot create accounts or change a
+-- role). The role must exist before this script runs.
 grant usage on schema public to aegis_app;
 grant select, insert, update, delete on public.asteroids to aegis_app;
-grant select on public.users to aegis_app;
+grant select on public.roles, public.users to aegis_app;

@@ -30,7 +30,12 @@ screenshot to take (save them under `docs/part2/screenshots/`, next to your Phas
    ```
 4. **Create the structure.** Open `db/schema.sql`, paste the whole file into the SQL Editor and run it.
    You should see success with no errors. Then open **Tables** in the console.
-   > Screenshot `phase4/neon-tables.png`: the Tables page showing `asteroids` and `users`.
+   > Screenshot `phase4/neon-tables.png`: the Tables page showing `roles`, `users` and `asteroids`.
+   > Screenshot `phase4/neon-roles.png`: the `roles` table (rows `admin` and `user`) and the `role` column of `users`.
+
+   **Already did this step before roles were added?** Do not run `schema.sql` again. Run
+   `db/migrations/001_add_roles.sql` in the SQL Editor instead. It adds the `roles` table and the `role` column,
+   and makes the accounts you already have admins. Running it twice is safe.
    > Screenshot `phase4/neon-asteroids-columns.png`: the `asteroids` table with its columns and indexes.
 5. **Import the 33,511 records.**
    ```bash
@@ -38,20 +43,21 @@ screenshot to take (save them under `docs/part2/screenshots/`, next to your Phas
    ```
    Expected last line: `Done. The table now holds 33511 asteroids, 10 featured.`
    > Screenshot `phase4/import.png`: the terminal.
-6. **Create login accounts** (you will be asked for a password; at least 8 characters). Make one for yourself and
-   one for the demo or your instructor:
+6. **Create login accounts** (you will be asked for a password; at least 8 characters). Make an admin for yourself
+   and a read-only user for the demo or your instructor:
    ```bash
-   python scripts/create_user.py yourname
+   python scripts/create_user.py yourname admin
    python scripts/create_user.py demo
    ```
-   Expected: `Account 'yourname' created.`
+   Expected: `Account 'yourname' created with the admin role.` and `Account 'demo' created with the user role.`
+   To change a role later: `python scripts/set_role.py demo admin`; `python scripts/set_role.py --list` shows all.
    > Screenshot `phase4/create-user.png` (do not show the password).
 7. **Prove the API connection.**
    ```bash
    python scripts/check_connection.py
    ```
    Expected: `Connected : yes (PostgreSQL 18...)`, `Role : aegis_app`, `TLS : encrypted`,
-   `asteroids : 33511 rows (10 featured)`, and `4 of 4 forbidden operations refused.`
+   `asteroids : 33511 rows (10 featured)`, the two roles with their accounts, and `5 of 5 forbidden operations refused.`
    > Screenshot `phase4/check-connection.png`: this is the Phase 4 evidence (connection, role, first query,
    > data retrieval). It never prints the password.
 8. **Check the query plans** (Phase 2 promised this). In the SQL Editor run each line separately and screenshot
@@ -83,7 +89,7 @@ Neon **Tables** view showing the change:
 11. `PATCH /api/v1/asteroids/9000001` with `{"estimated_diameter_km": 0.31}`. Expect **200**. Refresh Neon: only that value and `updated_at` changed.
 12. `GET /api/v1/asteroids?search=Demo Rock` shows it (search and filter).
 13. `DELETE /api/v1/asteroids/9000001`. Expect **200**; refresh Neon: the row is gone; `GET` returns **404**.
-14. Error cases: log out in Swagger and try `POST` (**401**); send the body `{oops` (**400**); send `"estimated_diameter_km": "big"` (**422**); post `9000001` twice (**409**).
+14. Error cases: log out in Swagger and try `POST` (**401**); log in as `demo` (role user) and try `POST` (**403**); send the body `{oops` (**400**); send `"estimated_diameter_km": "big"` (**422**); post `9000001` twice (**409**).
     > Screenshots `phase5/` and `phase6/`, one per case. Responses to compare with are in `02-api-guide.md`.
 
 ## D. Deploy (Phase 7)
@@ -137,7 +143,7 @@ Neon **Tables** view showing the change:
 
 ## F. Phase 8 and the report
 
-23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 97 passed). Fill in the "deployed"
+23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 107 passed). Fill in the "deployed"
     columns in `04-test-report.md` with what you saw in steps 10 to 19.
 24. Write the report from `05-report-outline.md`. The sections marked **YOU** (challenges you met on Neon and
     Vercel, and the reflection) have to come from your own experience, so they are left empty on purpose.

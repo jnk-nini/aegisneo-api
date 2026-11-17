@@ -16,8 +16,9 @@ api/auth.py         login, tokens, partner keys and the access rules
 api/db.py           every SQL query (psycopg 3)
 api/models.py       request validation models
 api/config.py       settings from environment variables
-db/schema.sql       tables, constraints, indexes and privileges
-scripts/            import_asteroids.py, create_user.py, check_connection.py, verify_deployment.py (run on your own computer)
+db/schema.sql       tables (roles, users, asteroids), constraints, indexes and privileges
+db/migrations/      changes for a database made with an older schema.sql
+scripts/            import_asteroids.py, create_user.py, set_role.py, check_connection.py, verify_deployment.py (run on your own computer)
 docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
 requirements.txt    Python packages for Vercel
@@ -31,10 +32,16 @@ frontend/           the website: index.html, app.js, style.css, assets/
 | Caller | How it identifies itself | Allowed |
 | --- | --- | --- |
 | Guest | nothing | read the 10 featured asteroids |
-| User | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` | read everything, create, update, delete, statistics |
+| Admin (account with role `admin`) | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` | read everything, create, update, delete, statistics |
+| User (account with role `user`) | `Authorization: Bearer <token>` from `POST /api/v1/auth/login` | read everything and statistics, change nothing (403) |
 | Partner site | `x-api-key` header | read everything and statistics, change nothing (403) |
 
 An invalid or expired token, or a wrong partner key, is a 401 (it is never treated as a guest).
+
+The roles are stored in the database: the `roles` table lists `admin` and `user`, and every row of `users`
+has a `role` column that must be one of them (foreign key). A new account is a `user` unless it is created
+as an admin. The API reads the role from the database before every create, update and delete, so changing a
+role takes effect at once.
 
 ## Endpoints
 
@@ -43,17 +50,17 @@ An invalid or expired token, or a wrong partner key, is a 401 (it is never treat
 | GET | `/` | Welcome message and the number of asteroids | public |
 | GET | `/health` | Status check; 503 if the database cannot be reached | public |
 | POST | `/api/v1/auth/login` | Username and password (form fields) -> access token | public |
-| GET | `/api/v1/auth/me` | The logged-in user | user |
+| GET | `/api/v1/auth/me` | The logged-in account and its role | admin or user |
 | GET | `/api/v1/asteroids` | List with `search`, `hazardous`, `min_diameter`, `max_diameter`, `from_date`, `to_date`, `sort`, `order`, `limit`, `offset` | guest: featured only |
 | GET | `/api/v1/asteroids/random?count=` | Random asteroids | guest: featured only |
 | GET | `/api/v1/asteroids/{neo_reference_id}` | One asteroid | guest: featured only |
-| POST | `/api/v1/asteroids` | Create (201) | user |
-| PATCH | `/api/v1/asteroids/{neo_reference_id}` | Change only the fields sent | user |
-| DELETE | `/api/v1/asteroids/{neo_reference_id}` | Delete | user |
-| GET | `/api/v1/stats` | Catalog summary | user or partner |
+| POST | `/api/v1/asteroids` | Create (201) | admin |
+| PATCH | `/api/v1/asteroids/{neo_reference_id}` | Change only the fields sent | admin |
+| DELETE | `/api/v1/asteroids/{neo_reference_id}` | Delete | admin |
+| GET | `/api/v1/stats` | Catalog summary | admin, user or partner |
 
 Status codes: 200, 201, 400 (body is not JSON), 401 (login needed or invalid credentials), 403 (read-only
-key), 404, 409 (duplicate ID or name, or more than 10 featured), 422 (invalid data), 503 (database
+key, or an account with the user role trying to change data), 404, 409 (duplicate ID or name, or more than 10 featured), 422 (invalid data), 503 (database
 unavailable), 500 (generic message; details only in the server log).
 
 ## Environment variables
@@ -70,10 +77,15 @@ The real `.env` file is ignored by git.
 ```bash
 pip install -r requirements.txt
 python scripts/import_asteroids.py
-python scripts/create_user.py <username>
+python scripts/create_user.py <username> admin   # may change data
+python scripts/create_user.py <username>         # role user: read only
 ```
 
 The import can be run again safely. `create_user.py` asks for the password on the terminal.
+To change a role later: `python scripts/set_role.py <username> admin` (or `user`); `--list` shows every account.
+
+If your database was created before roles existed, run `db/migrations/001_add_roles.sql` once in the Neon SQL
+Editor. It adds the `roles` table and the `role` column, and makes the existing accounts admins.
 
 ## Run it on your computer
 

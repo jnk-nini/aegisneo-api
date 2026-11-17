@@ -45,6 +45,12 @@ def main():
         ).fetchone()
         users = conn.execute("select count(*) from users").fetchone()[0]
         print(f"asteroids : {total} rows ({featured} featured)   users: {users} rows")
+        print("\nRoles and how many accounts have each:")
+        for name, description, accounts in conn.execute(
+            "select r.name, r.description, count(u.id) from roles r "
+            "left join users u on u.role = r.name group by r.name, r.description order by r.name"
+        ):
+            print(f"   {name:<6} {accounts} account(s)   {description}")
         print("\nFirst 3 asteroids:")
         for row in conn.execute(
             "select neo_reference_id, name, estimated_diameter_km, is_potentially_hazardous "
@@ -59,6 +65,7 @@ def main():
             ("drop the asteroids table", "drop table asteroids"),
             ("create a user account", "insert into users (username, password_hash) values ('x', repeat('x', 60))"),
             ("change a password hash", "update users set password_hash = repeat('y', 60)"),
+            ("make an account admin", "update users set role = 'admin'"),
         ]:
             try:
                 conn.execute(sql)
@@ -68,7 +75,7 @@ def main():
                 print(f"   {label}: refused (permission denied)")
             finally:
                 conn.rollback()
-        print(f"\n{refused} of 4 forbidden operations refused.")
+        print(f"\n{refused} of 5 forbidden operations refused.")
 
 
 if __name__ == "__main__":

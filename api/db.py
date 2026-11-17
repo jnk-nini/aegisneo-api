@@ -290,5 +290,18 @@ def catalog_stats():
 def get_user_by_username(username):
     with connection() as conn:
         return conn.execute(
-            "select id, username, password_hash from users where username = %s", [username]
+            "select id, username, password_hash, role from users where username = %s", [username]
         ).fetchone()
+
+
+def get_user(user_id):
+    with connection() as conn:
+        return conn.execute(
+            "select id, username, role from users where id = %s", [user_id]
+        ).fetchone()
+
+
+def get_user_role(user_id):
+    """The account's current role, or None if the account no longer exists."""
+    user = get_user(user_id)
+    return user["role"] if user else None

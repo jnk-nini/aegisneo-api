@@ -22,10 +22,14 @@ not drafted. Part I must not be repeated: this report is about what was designed
 
 ## Facts for section 4 (update to what was built)
 
-- Modules: `api/index.py` (routes, error handlers), `api/auth.py` (callers, tokens, partner keys),
+- Change from the Phase 2 design, asked for by the instructor: roles are now stored in the database. A `roles`
+  table holds `admin` and `user`, and `users.role` references it. Admins may create, update and delete; users may
+  only read. (The Phases 1 to 3 report said a roles table was not needed; explain this change in the report.)
+  Existing Neon databases get it from `db/migrations/001_add_roles.sql`.
+- Modules: `api/index.py` (routes, error handlers), `api/auth.py` (callers, roles, tokens, partner keys),
   `api/db.py` (all SQL), `api/models.py` (request validation), `api/config.py` (environment variables, local `.env`).
 - Scripts (run on your computer, not on Vercel): `scripts/import_asteroids.py`, `scripts/create_user.py`,
-  `scripts/check_connection.py`, `scripts/verify_deployment.py`.
+  `scripts/set_role.py`, `scripts/check_connection.py`, `scripts/verify_deployment.py`.
 - One change from the design: the API version is now 2.0, and responses include `is_featured`, `created_by`,
   `created_at`, `updated_at` besides the original fields, plus `access` on lists.
 
