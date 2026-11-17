@@ -22,8 +22,14 @@ def test_user_list_shows_everything(client, auth):
     assert body["total"] == body["matched"] == 14
 
 
-def test_partner_list_shows_everything(client, partner):
-    assert client.get("/api/v1/asteroids", headers=partner).json()["total"] == 14
+def test_a_partner_key_alone_serves_a_guest(client, partner):
+    body = client.get("/api/v1/asteroids", headers=partner).json()
+    assert body["total"] == 10 and body["access"] == "guest"
+
+
+def test_a_partner_site_serves_a_user_in_full_with_a_ticket(client, user_via_impactor):
+    body = client.get("/api/v1/asteroids", headers=user_via_impactor).json()
+    assert body["total"] == 14 and body["access"] == "full"
 
 
 def test_response_keeps_the_original_fields(client, auth):

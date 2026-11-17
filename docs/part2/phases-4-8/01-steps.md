@@ -30,8 +30,11 @@ screenshot to take (save them under `docs/part2/screenshots/`, next to your Phas
    ```
 4. **Create the structure.** Open `db/schema.sql`, paste the whole file into the SQL Editor and run it.
    You should see success with no errors. Then open **Tables** in the console.
-   > Screenshot `phase4/neon-tables.png`: the Tables page showing `roles`, `users` and `asteroids`.
+   > Screenshot `phase4/neon-tables.png`: the Tables page showing the ten tables (`roles`, `users`, `sites`, `site_access`, `asteroids`, `launches`, `watchlist`, `badges`, `user_badges`, `asteroid_audit`).
    > Screenshot `phase4/neon-roles.png`: the `roles` table (rows `admin` and `user`) and the `role` column of `users`.
+
+   **Already ran an older schema?** After 001 below (if needed), run `db/migrations/002_add_sites_and_activity.sql`:
+   it adds the sites, access rules, launches, watchlist, badges, audit trail and the guest role. It can be run again safely.
 
    **Already did this step before roles were added?** Do not run `schema.sql` again. Run
    `db/migrations/001_add_roles.sql` in the SQL Editor instead. It adds the `roles` table and the `role` column,
@@ -144,7 +147,7 @@ Neon **Tables** view showing the change:
 
 ## F. Phase 8 and the report
 
-23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 122 passed). Fill in the "deployed"
+23. The local test run is already recorded (`evidence/pytest-local-run.txt`, 156 passed). Fill in the "deployed"
     columns in `04-test-report.md` with what you saw in steps 10 to 19.
 24. Write the report from `05-report-outline.md`. The sections marked **YOU** (challenges you met on Neon and
     Vercel, and the reflection) have to come from your own experience, so they are left empty on purpose.

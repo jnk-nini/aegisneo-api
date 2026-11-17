@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in · AegisNEO</title>
+    <link rel="stylesheet" href="site.css">
+</head>
+
+<body>
+    <div class="auth-page">
+        <aside class="auth-aside">
+            <a class="brand" href="index.html" aria-label="Back to the AegisNEO home page">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <span class="brand-name">AegisNEO</span>
+            </a>
+            <div>
+                <h1>One account.<br>Three ways to see the sky.</h1>
+                <p class="lede">Sign in once and open the explorer, the impact simulator and the birthday atlas with the same access.</p>
+                <ul class="perks">
+                    <li><span class="ico" aria-hidden="true">🔭</span><div><strong>The whole catalog</strong><span>33,511 real asteroids instead of 10 featured ones.</span></div></li>
+                    <li><span class="ico" aria-hidden="true">★</span><div><strong>A watchlist that follows you</strong><span>Star an asteroid once; find it again on any device.</span></div></li>
+                    <li><span class="ico" aria-hidden="true">🏅</span><div><strong>Badges to collect</strong><span>Open every site for the Grand Tour.</span></div></li>
+                </ul>
+            </div>
+            <p class="fineprint">Guests can look around too, with 10 featured asteroids.</p>
+        </aside>
+
+        <main class="auth-main">
+            <form class="auth-card" id="authForm" novalidate>
+                <h2 id="authTitle">Welcome back</h2>
+                <p class="sub" id="authSub">Sign in to open the hub.</p>
+                <p class="form-note" id="expiredNote" hidden>Your session ended. Please sign in again.</p>
+
+                <div class="tabs" role="tablist" aria-label="Sign in or create an account">
+                    <button type="button" role="tab" id="tabLogin" aria-selected="true" aria-controls="authForm">Sign in</button>
+                    <button type="button" role="tab" id="tabSignup" aria-selected="false" aria-controls="authForm">Create account</button>
+                </div>
+
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30" required>
+                    <span class="hint" id="userHint" hidden>3 to 30 characters: lowercase letters, numbers and _</span>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="pw-wrap">
+                        <input id="password" type="password" autocomplete="current-password" maxlength="72" required>
+                        <button type="button" class="pw-toggle" id="pwToggle" aria-pressed="false">Show</button>
+                    </div>
+                    <span class="hint" id="passHint" hidden>At least 8 characters</span>
+                </div>
+                <div class="field" id="confirmField" hidden>
+                    <label for="confirm">Confirm password</label>
+                    <input id="confirm" type="password" autocomplete="new-password" maxlength="72">
+                </div>
+
+                <p class="form-error" id="authError" role="alert"></p>
+                <button class="btn btn-primary btn-block" id="authSubmit" type="submit">Sign in</button>
+
+                <div class="divider">or</div>
+                <button class="btn btn-ghost btn-block" id="guestBtn" type="button">Continue as a guest</button>
+                <p class="fineprint" style="text-align:center">Guests see 10 featured asteroids on every site.</p>
+                <a class="back-link" href="index.html">← Back to the home page</a>
+            </form>
+        </main>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="auth.js"></script>
+</body>
+
+</html>

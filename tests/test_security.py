@@ -70,10 +70,11 @@ def test_a_guest_cannot_read_a_non_featured_asteroid(client):
     assert client.get("/api/v1/asteroids/2162117").status_code == 401
 
 
-def test_stats_need_login_or_a_partner_key(client, auth, partner):
-    assert client.get("/api/v1/stats").status_code == 401
-    assert client.get("/api/v1/stats", headers=auth).status_code == 200
-    assert client.get("/api/v1/stats", headers=partner).status_code == 200
+def test_stats_cover_only_what_the_caller_may_see(client, auth, partner):
+    assert client.get("/api/v1/stats").json()["total"] == 10
+    assert client.get("/api/v1/stats", headers=partner).json()["total"] == 10
+    full = client.get("/api/v1/stats", headers=auth).json()
+    assert full["total"] == 14 and full["access"] == "full"
 
 
 # ---------- bad credentials ----------

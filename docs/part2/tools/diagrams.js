@@ -20,41 +20,92 @@ function box(x, y, w, h, title, lines = [], o = {}) {
 const container = (x, y, w, h, title, sub) => `<rect x='${x}' y='${y}' width='${w}' height='${h}' rx='6' fill='${C.soft}' stroke='${C.border}' stroke-width='1.3'/>` + T(x + 16, y + 28, title, { bold: true, size: 18, fill: C.navy }) + (sub || []).map((l, i) => T(x + 16, y + 49 + i * 18, l, { size: 15, fill: C.muted })).join('');
 
 // ---------- ERD ----------
-function entity(x, y, w, name, rows) {
-  const rh = 32, hh = 38;
+// Ten tables. Lines use crow's-foot ends: bar = one, foot = many, circle = optional.
+function entity(x, y, w, name, rows, o = {}) {
+  const rh = 30, hh = 38, tagW = 62;
   let s = `<rect x='${x}' y='${y}' width='${w}' height='${hh + rows.length * rh}' fill='#fff' stroke='${C.navy}' stroke-width='1.5'/>`;
-  s += `<rect x='${x}' y='${y}' width='${w}' height='${hh}' fill='${C.navy}'/>` + T(x + w / 2, y + 26, name, { bold: true, fill: '#fff', anchor: 'middle', size: 20 });
+  s += `<rect x='${x}' y='${y}' width='${w}' height='${hh}' fill='${o.fill || C.navy}'/>` + T(x + w / 2, y + 26, name, { bold: true, fill: '#fff', anchor: 'middle', size: 19 });
   const pos = {};
   rows.forEach((r, i) => {
     const ry = y + hh + i * rh;
     if (i % 2) s += `<rect x='${x + 0.8}' y='${ry}' width='${w - 1.6}' height='${rh}' fill='${C.soft}'/>`;
-    s += T(x + 12, ry + 21, r[0], { bold: true, fill: C.blue, size: 14.5 });
-    s += T(x + 50, ry + 21, r[1], { size: 17, bold: r[0] === 'PK' });
-    s += T(x + w - 12, ry + 21, r[2], { size: 15.5, fill: C.muted, anchor: 'end' });
+    s += T(x + 10, ry + 20, r[0], { bold: true, fill: C.blue, size: 13.5 });
+    s += T(x + tagW, ry + 20, r[1], { size: 16, bold: r[0].startsWith('PK') });
+    s += T(x + w - 10, ry + 20, r[2], { size: 14, fill: C.muted, anchor: 'end' });
     pos[r[1]] = ry + rh / 2;
   });
-  s += `<line x1='${x + 42}' y1='${y + hh}' x2='${x + 42}' y2='${y + hh + rows.length * rh}' stroke='#d5dde8'/>`;
-  return { s, pos, h: hh + rows.length * rh };
+  s += `<line x1='${x + tagW - 6}' y1='${y + hh}' x2='${x + tagW - 6}' y2='${y + hh + rows.length * rh}' stroke='#d5dde8'/>`;
+  return { s, pos, x, y, w, h: hh + rows.length * rh, right: x + w, bottom: y + hh + rows.length * rh };
+}
+// An end marker at (x, y) on the side of an entity ('l' or 'r').
+function endMark(x, y, side, kind) {
+  const o = side === 'r' ? 1 : -1, st = `stroke='${C.line}' stroke-width='1.7' fill='none'`;
+  let s = '';
+  if (kind === 'many' || kind === 'zmany') s += `<path d='M${x + o * 17},${y} L${x},${y - 9} M${x + o * 17},${y} L${x},${y + 9}' ${st}/>`;
+  if (kind === 'one' || kind === 'zone') s += `<line x1='${x + o * 12}' y1='${y - 9}' x2='${x + o * 12}' y2='${y + 9}' ${st}/>`;
+  if (kind === 'zone' || kind === 'zmany') s += `<circle cx='${x + o * 27}' cy='${y}' r='6' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
+  return s;
+}
+function rel(pts, a, b, label, o = {}) {
+  let s = `<path d='M${pts.map(p => p.join(',')).join(' L')}' fill='none' stroke='${C.line}' stroke-width='1.6'${o.dash ? " stroke-dasharray='6 4'" : ''}/>`;
+  s += endMark(pts[0][0], pts[0][1], a[0], a[1]) + endMark(pts.at(-1)[0], pts.at(-1)[1], b[0], b[1]);
+  if (label) {
+    const [lx, ly] = o.at || pts[Math.floor(pts.length / 2) - 1].map((v, i) => (v + pts[Math.floor(pts.length / 2)][i]) / 2);
+    s += `<rect x='${lx - label.length * 3.7 - 4}' y='${ly - 11}' width='${label.length * 7.4 + 8}' height='20' fill='#fff'/>` + T(lx, ly + 5, label, { anchor: 'middle', italic: true, size: 14, fill: C.muted });
+  }
+  return s;
 }
 function erd() {
-  const W = 960;
-  const u = entity(20, 60, 340, 'users', [['PK', 'id', 'integer (identity)'], ['UK', 'username', 'text'], ['', 'password_hash', 'text'], ['', 'created_at', 'timestamptz']]);
-  const a = entity(520, 20, 420, 'asteroids', [['PK', 'neo_reference_id', 'text'], ['UK', 'name', 'text'], ['', 'estimated_diameter_km', 'double precision'], ['', 'is_potentially_hazardous', 'boolean'], ['', 'close_approach_date', 'date'], ['', 'relative_velocity_km_h', 'double precision'], ['', 'miss_distance_km', 'double precision'], ['', 'absolute_magnitude', 'double precision'], ['', 'is_featured', 'boolean'], ['FK', 'created_by', 'integer (nullable)'], ['', 'created_at', 'timestamptz'], ['', 'updated_at', 'timestamptz']]);
-  const y1 = u.pos.id, y2 = a.pos.created_by, x1 = 360, x2 = 520, mx = 440;
-  let s = `<path d='M${x1},${y1} H${mx} V${y2} H${x2}' fill='none' stroke='${C.line}' stroke-width='1.7'/>`;
-  s += `<line x1='${x1 + 14}' y1='${y1 - 10}' x2='${x1 + 14}' y2='${y1 + 10}' stroke='${C.line}' stroke-width='1.7'/><circle cx='${x1 + 29}' cy='${y1}' r='6.5' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
-  s += `<path d='M${x2 - 17},${y2} L${x2},${y2 - 10} M${x2 - 17},${y2} L${x2},${y2 + 10}' stroke='${C.line}' stroke-width='1.7'/><circle cx='${x2 - 28}' cy='${y2}' r='6.5' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
-  s += `<rect x='${mx - 62}' y='${(y1 + y2) / 2 - 30}' width='124' height='52' fill='#fff'/>`;
-  s += T(mx, (y1 + y2) / 2 - 10, 'creates', { anchor: 'middle', italic: true, fill: C.muted, size: 16 });
-  s += T(mx, (y1 + y2) / 2 + 12, '0..1 to 0..n', { anchor: 'middle', fill: C.muted, size: 15.5 });
-  const ly = 60 + u.h + 50;
-  s += T(20, ly, 'Legend', { bold: true, fill: C.navy, size: 17 });
-  s += T(20, ly + 26, 'PK = primary key, UK = unique, FK = foreign key', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 50, 'asteroids.created_by references users.id', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 74, '(ON DELETE SET NULL)', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 98, 'created_by is empty for the 33,511', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 122, 'imported records', { size: 15.5, fill: C.muted });
-  return { W, H: 20 + a.h + 20, body: u.s + a.s + s };
+  const W = 1180, X1 = 40, X2 = 440, X3 = 840, CW = 300;
+  const roles = entity(X1, 30, CW, 'roles', [['PK', 'name', 'text'], ['', 'description', 'text']]);
+  const users = entity(X1, 190, CW, 'users', [['PK', 'id', 'integer'], ['UK', 'username', 'text'], ['', 'password_hash', 'text'], ['FK', 'role', 'text'], ['', 'created_at', 'timestamptz']]);
+  const ubadge = entity(X1, 450, CW, 'user_badges', [['PK,FK', 'user_id', 'integer'], ['PK,FK', 'badge', 'text'], ['', 'earned_at', 'timestamptz']]);
+  const badges = entity(X1, 630, CW, 'badges', [['PK', 'code', 'text'], ['', 'name', 'text'], ['', 'description', 'text'], ['', 'icon', 'text'], ['', 'sort_order', 'smallint']]);
+  const access = entity(X2, 30, CW, 'site_access', [['PK,FK', 'role', 'text'], ['PK,FK', 'site', 'text'], ['', 'can_write', 'boolean'], ['', 'item_limit', 'integer, null = all']], { fill: C.blue });
+  const launch = entity(X2, 250, CW, 'launches', [['PK', 'id', 'bigint'], ['FK', 'user_id', 'integer, null = guest'], ['FK', 'site', 'text'], ['FK', 'role', 'text'], ['', 'launched_at', 'timestamptz']]);
+  const watch = entity(X2, 500, CW, 'watchlist', [['PK,FK', 'user_id', 'integer'], ['PK,FK', 'neo_reference_id', 'text'], ['', 'added_at', 'timestamptz']]);
+  const sites = entity(X3, 30, CW, 'sites', [['PK', 'slug', 'text'], ['', 'name', 'text'], ['', 'kind', "'main' or 'partner'"], ['', 'description', 'text'], ['', 'url', 'text'], ['', 'sort_order', 'smallint']]);
+  const ast = entity(X3, 320, CW, 'asteroids', [['PK', 'neo_reference_id', 'text'], ['UK', 'name', 'text'], ['', 'estimated_diameter_km', 'float8'], ['', 'is_potentially_hazardous', 'boolean'], ['', 'close_approach_date', 'date'], ['', 'relative_velocity_km_h', 'float8'], ['', 'miss_distance_km', 'float8'], ['', 'absolute_magnitude', 'float8'], ['', 'is_featured', 'boolean'], ['FK', 'created_by', 'integer, null'], ['', 'created_at', 'timestamptz'], ['', 'updated_at', 'timestamptz']]);
+  const audit = entity(X3, 800, CW, 'asteroid_audit', [['PK', 'id', 'bigint'], ['', 'neo_reference_id', 'text (no FK)'], ['', 'asteroid_name', 'text'], ['FK', 'user_id', 'integer, null'], ['', 'action', 'create, update, delete'], ['', 'changes', 'jsonb'], ['', 'changed_at', 'timestamptz']]);
+  const H = audit.bottom + 90;
+  let s = [roles, users, ubadge, badges, access, launch, watch, sites, ast, audit].map(e => e.s).join('');
+  const R = (e, r) => [e.right, e.pos[r]], L = (e, r) => [e.x, e.pos[r]];
+  // roles - site_access, sites - site_access
+  s += rel([R(roles, 'name'), L(access, 'role')], ['r', 'one'], ['l', 'many'], 'defines');
+  s += rel([L(sites, 'slug'), R(access, 'site')], ['l', 'one'], ['r', 'many'], 'is open to');
+  // roles - users (vertical)
+  // users - launches, launches - sites, launches - roles
+  s += rel([R(users, 'id'), [400, users.pos.id], [400, launch.pos.user_id], L(launch, 'user_id')], ['r', 'one'], ['l', 'zmany'], 'opens', { at: [400, (users.pos.id + launch.pos.user_id) / 2] });
+  s += rel([R(launch, 'site'), [790, launch.pos.site], [790, sites.pos.slug + 40], [X3, sites.pos.slug + 40]], ['r', 'many'], ['l', 'one'], 'is opened', { at: [790, 150] });
+  s += rel([L(launch, 'role'), [380, launch.pos.role], [380, roles.pos.description], R(roles, 'description')], ['l', 'many'], ['r', 'one'], 'held as', { at: [380, 120] });
+  // users - watchlist - asteroids
+  s += rel([R(users, 'role'), [410, users.pos.role], [410, watch.pos.user_id], L(watch, 'user_id')], ['r', 'one'], ['l', 'many'], 'watches', { at: [410, 400] });
+  s += rel([R(watch, 'neo_reference_id'), [790, watch.pos.neo_reference_id], [790, ast.pos.neo_reference_id], L(ast, 'neo_reference_id')], ['r', 'many'], ['l', 'one'], 'is watched', { at: [790, 480] });
+  // users - user_badges - badges (vertical)
+  // asteroids.created_by and audit.user_id: lines round the outside
+  s += rel([L(users, 'id'), [14, users.pos.id], [14, 12], [W - 14, 12], [W - 14, ast.pos.created_by], R(ast, 'created_by')], ['l', 'one'], ['r', 'zmany'], 'creates', { at: [600, 12] });
+  s += rel([L(users, 'created_at'), [22, users.pos.created_at], [22, H - 30], [W - 30, H - 30], [W - 30, audit.pos.user_id], R(audit, 'user_id')], ['l', 'one'], ['r', 'zmany'], 'makes changes recorded in', { at: [600, H - 30] });
+  s += rel([[X3 + 150, ast.bottom], [X3 + 150, audit.y]], ['l', 'one'], ['l', 'zmany'], 'history kept, no FK', { dash: true, at: [X3 + 150, (ast.bottom + audit.y) / 2] });
+  // vertical links with proper ends
+  s += `<path d='M${X1 + 150},${roles.bottom} V${users.y}' stroke='${C.line}' stroke-width='1.6' fill='none'/>`;
+  s += `<path d='M${X1 + 150},${users.bottom} V${ubadge.y}' stroke='${C.line}' stroke-width='1.6' fill='none'/>`;
+  s += `<path d='M${X1 + 150},${badges.y} V${ubadge.bottom}' stroke='${C.line}' stroke-width='1.6' fill='none'/>`;
+  const vEnd = (x, y, down, kind) => { // marker on a vertical line; down = line leaves the entity downwards
+    const o = down ? 1 : -1, st = `stroke='${C.line}' stroke-width='1.7' fill='none'`;
+    if (kind === 'one') return `<line x1='${x - 9}' y1='${y + o * 12}' x2='${x + 9}' y2='${y + o * 12}' ${st}/>`;
+    return `<path d='M${x},${y + o * 17} L${x - 9},${y} M${x},${y + o * 17} L${x + 9},${y}' ${st}/>`;
+  };
+  s += vEnd(X1 + 150, roles.bottom, true, 'one') + vEnd(X1 + 150, users.y, false, 'many');
+  s += vEnd(X1 + 150, users.bottom, true, 'one') + vEnd(X1 + 150, ubadge.y, false, 'many');
+  s += vEnd(X1 + 150, badges.y, false, 'one') + vEnd(X1 + 150, ubadge.bottom, true, 'many');
+  s += vEnd(X3 + 150, ast.bottom, true, 'one') + vEnd(X3 + 150, audit.y, false, 'many');
+  const lab = (x, y, t) => `<rect x='${x - t.length * 3.7 - 4}' y='${y - 11}' width='${t.length * 7.4 + 8}' height='20' fill='#fff'/>` + T(x, y + 5, t, { anchor: 'middle', italic: true, size: 14, fill: C.muted });
+  s += lab(X1 + 150, (roles.bottom + users.y) / 2, 'holds') + lab(X1 + 150, (users.bottom + ubadge.y) / 2, 'earns') + lab(X1 + 150, (ubadge.bottom + badges.y) / 2, 'awarded as');
+  // legend
+  const ly = ubadge.bottom + 0;
+  s += T(X2, 760, 'Legend', { bold: true, fill: C.navy, size: 16 });
+  ['PK primary key, UK unique, FK foreign key', 'Bar = one, foot = many, circle = optional', 'site_access: one row per role and site;', 'limits change with an UPDATE, not a deploy.', 'launches.user_id is empty for a guest.', 'asteroid_audit is append-only for the API.'].forEach((t, i) => { s += T(X2, 786 + i * 22, t, { size: 14.5, fill: C.muted }); });
+  return { W, H, body: s };
 }
 
 // ---------- Architecture ----------
@@ -153,9 +204,24 @@ const guest = seq(P, [
   { f: 3, t: 1, l: 'rows and match count', r: 1 },
   { f: 1, t: 0, l: '200 OK, access "guest"', r: 1 },
 ]);
+const PH = [['Visitor', 'browser'], ['Hub', 'AegisNEO site'], ['API', 'FastAPI'], ['Partner site', 'server function'], ['Neon', 'PostgreSQL']];
+const hubFlow = seq(PH, [
+  { section: 'A. Open a partner site from the hub' },
+  { f: 0, t: 1, l: 'click "Open Impactor"' },
+  { f: 1, t: 2, l: 'POST /sites/impactor/launch', l2: 'Bearer token (or none: guest)' },
+  { f: 2, t: 4, l: 'rule for (role, site); INSERT launch', l2: 'award badges' },
+  { f: 2, t: 1, l: 'url + ticket (aud = impactor)', l2: 'guest: no ticket', r: 1 },
+  { f: 1, t: 0, l: 'redirect to url#aegis_ticket=...', l2: 'fragment: never sent to a server', r: 1 },
+  { section: 'B. The partner site asks for data' },
+  { f: 0, t: 3, l: 'GET /api/neo/asteroids', l2: 'header x-aegisneo-ticket' },
+  { f: 3, t: 2, l: 'GET /api/v1/asteroids', l2: 'x-api-key + Bearer ticket' },
+  { f: 2, t: 2, self: 1, l: 'ticket valid, aud = key owner?', l2: 'no: 401' },
+  { f: 2, t: 4, l: 'site_access row, then SELECT', l2: 'item_limit empty: all; 10: featured' },
+  { f: 2, t: 0, l: '200 OK, access "full" or "limited"', l2: 'via the partner site', r: 1 },
+]);
 (async () => {
   const b = await chromium.launch(); const pg = await b.newPage({ deviceScaleFactor: 2.5 });
-  for (const [name, d] of [['erd', erd()], ['architecture', arch()], ['flow-login-create', create], ['flow-guest-list', guest]]) {
+  for (const [name, d] of [['erd', erd()], ['architecture', arch()], ['flow-login-create', create], ['flow-guest-list', guest], ['flow-hub-launch', hubFlow]]) {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${d.W}' height='${d.H}' viewBox='0 0 ${d.W} ${d.H}'>${defs}<rect width='100%' height='100%' fill='#fff'/>${d.body}</svg>`;
     fs.writeFileSync(path.join(out, name + '.svg'), svg);
     await pg.setViewportSize({ width: d.W, height: d.H });

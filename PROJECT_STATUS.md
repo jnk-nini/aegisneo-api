@@ -1,6 +1,6 @@
 # AegisNEO — project status and hand-off notes
 
-Last updated: 2026-11-10
+Last updated: 2026-11-17
 
 ## Live sites
 
@@ -50,6 +50,17 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 
 ## Status
 
+### Hub, roles and entities (added 17 Nov 2026)
+- The main site is now landing page -> sign-in screen -> hub -> explorer. The hub opens Impactor and NEO Atlas with a
+  read-only ticket, so the API serves the visitor by role on every site (guest: 10 featured, user: whole catalog,
+  admin: whole catalog plus create/update/delete on the main site).
+- New tables: `sites`, `site_access` (the rules, per role and site), `launches`, `watchlist`, `badges`,
+  `user_badges`, `asteroid_audit`, plus the `guest` role. New ERD in `docs/part2/diagrams/`.
+- **To do on Neon:** run `db/migrations/002_add_sites_and_activity.sql` (owner role), then redeploy the API.
+  Redeploy Impactor and NEO Atlas (they now forward the ticket). Until they are redeployed, they show guests' 10
+  featured asteroids, because a partner key alone is now a guest.
+- Partner sites no longer use edge caching (`Cache-Control: private`), because answers depend on the visitor.
+
 ### Part II: cloud database (Neon)
 - Design done (database, architecture and access rules; see the Part II Phases 1-3 report).
 - Code written: `db/schema.sql`, `api/` split into modules, import and account scripts, login screen on the website,
@@ -97,7 +108,6 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 - NEO Atlas dates are simulated: the Kaggle data has no dates, so `scripts/build_dataset.py` makes them
   up, and the site says so. Real dates would mean rebuilding the dataset from NASA JPL's close-approach
   API, which changes the main API's data too. Decided on 5 Oct 2026 to leave it for now.
-- Optional: link to the companion sites from the main AegisNEO page.
 
 ## Notes
 - The original `impact-simulator/assets/world.svg` was not an equirectangular map, so it placed impact

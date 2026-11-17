@@ -19,9 +19,10 @@ app = FastAPI(
     title="AegisNEO API",
     description=(
         "Tracks Near-Earth Objects using real NASA/Kaggle asteroid data, stored in a Neon "
-        "(PostgreSQL) database. Without credentials only 10 featured asteroids are visible. "
-        "Log in with the Authorize button to see all of them. Accounts with the admin role "
-        "may also create, update and delete; accounts with the user role may only read."
+        "(PostgreSQL) database. What a caller may do depends on its role (guest, user or admin) "
+        "and on the site it is using (the main site, Impactor or NEO Atlas): the rules are the "
+        "rows of the site_access table. A guest sees only the featured asteroids; log in with "
+        "the Authorize button to see all of them. Admins may also create, update and delete."
     ),
     version=API_VERSION,
 )
@@ -30,7 +31,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "x-api-key"],
 )
 
@@ -65,6 +66,11 @@ def featured_limit(request, exc):
     return JSONResponse(
         {"detail": f"At most {db.FEATURED_LIMIT} asteroids can be featured."}, status_code=409
     )
+
+
+@app.exception_handler(db.WatchlistFullError)
+def watchlist_full(request, exc):
+    return JSONResponse({"detail": f"A watchlist holds at most {db.WATCHLIST_LIMIT} asteroids."}, status_code=409)
 
 
 @app.exception_handler(db.UnknownUserError)
@@ -113,8 +119,8 @@ def check_ranges(min_diameter, max_diameter, from_date=None, to_date=None):
         raise HTTPException(422, "from_date cannot be later than to_date.")
 
 
-def access_label(caller):
-    return "full" if caller.full_access else "guest"
+def access_label(access):
+    return "guest" if access.role == "guest" else access.label
 
 
 # ============================================================
@@ -137,6 +143,11 @@ def home():
             "PATCH /api/v1/asteroids/{neo_reference_id}",
             "DELETE /api/v1/asteroids/{neo_reference_id}",
             "GET /api/v1/stats",
+            "GET /api/v1/sites",
+            "POST /api/v1/sites/{slug}/launch",
+            "GET /api/v1/me/overview",
+            "GET|PUT|DELETE /api/v1/me/watchlist[/{neo_reference_id}]",
+            "GET /api/v1/admin/overview",
         ],
     }
 
@@ -200,7 +211,7 @@ def me(caller: auth.Caller = Depends(auth.require_logged_in)):
 # those passed the filters.
 @app.get("/api/v1/asteroids")
 def get_asteroids(
-    caller: auth.Caller = Depends(auth.get_caller),
+    access: auth.Access = Depends(auth.get_access),
     search: Optional[str] = Query(default=None, max_length=100, description="Text match on name, on ID (digits only) or on the close approach date (for example 1968- or 1968-05)."),
     hazardous: Optional[bool] = Query(default=None, description="Only hazardous (true) or non-hazardous (false) objects."),
     min_diameter: Optional[float] = Query(default=None, ge=0, description="Minimum estimated diameter in km."),
@@ -217,7 +228,7 @@ def get_asteroids(
         search=search.strip() if search else None, hazardous=hazardous,
         min_diameter=min_diameter, max_diameter=max_diameter,
         from_date=from_date, to_date=to_date, sort=sort, order=order,
-        limit=limit, offset=offset, featured_only=not caller.full_access,
+        limit=limit, offset=offset, item_limit=access.item_limit,
     )
     response = {
         "count": len(rows),
@@ -225,7 +236,7 @@ def get_asteroids(
         "total": visible,
         "offset": offset,
         "limit": limit,
-        "access": access_label(caller),
+        "access": access_label(access),
         "asteroids": [present(r) for r in rows],
     }
     if search:
@@ -236,7 +247,7 @@ def get_asteroids(
 # Declared before /{neo_reference_id} so "random" is not read as an ID.
 @app.get("/api/v1/asteroids/random")
 def get_random_asteroids(
-    caller: auth.Caller = Depends(auth.get_caller),
+    access: auth.Access = Depends(auth.get_access),
     count: int = Query(default=1, ge=1, le=MAX_RANDOM),
     hazardous: Optional[bool] = Query(default=None),
     min_diameter: Optional[float] = Query(default=None, ge=0),
@@ -245,29 +256,33 @@ def get_random_asteroids(
     check_ranges(min_diameter, max_diameter)
     rows, matched = db.random_asteroids(
         count=count, hazardous=hazardous, min_diameter=min_diameter,
-        max_diameter=max_diameter, featured_only=not caller.full_access,
+        max_diameter=max_diameter, item_limit=access.item_limit,
     )
     return {
         "count": len(rows),
         "matched": matched,
-        "access": access_label(caller),
+        "access": access_label(access),
         "asteroids": [present(r) for r in rows],
     }
 
 
 @app.get("/api/v1/asteroids/{neo_reference_id}")
-def get_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.get_caller)):
-    row = db.get_asteroid(neo_reference_id) if NEO_ID_PATTERN.match(neo_reference_id) else None
-    if row is None:
+def get_asteroid(neo_reference_id: str, access: auth.Access = Depends(auth.get_access)):
+    if not NEO_ID_PATTERN.match(neo_reference_id):
         raise HTTPException(404, "Asteroid not found.")
-    if not caller.full_access and not row["is_featured"]:
-        raise HTTPException(401, "Log in to view this asteroid.", headers={"WWW-Authenticate": "Bearer"})
+    row = db.get_asteroid(neo_reference_id, access.item_limit)
+    if row is None:
+        if access.limited and db.asteroid_exists(neo_reference_id):
+            # It exists, but this role cannot see it: say how to get access.
+            raise HTTPException(401, "Log in to view this asteroid.", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(404, "Asteroid not found.")
     return present(row)
 
 
 @app.get("/api/v1/stats")
-def get_stats(caller: auth.Caller = Depends(auth.require_full_access)):
-    return db.catalog_stats()
+def get_stats(access: auth.Access = Depends(auth.get_access)):
+    """Summary of the catalog this caller may see (all of it, or the featured ones)."""
+    return {**db.catalog_stats(access.item_limit), "access": access_label(access)}
 
 
 # ============================================================
@@ -280,7 +295,7 @@ def create_asteroid(data: AsteroidCreate, caller: auth.Caller = Depends(auth.req
 
 @app.patch("/api/v1/asteroids/{neo_reference_id}")
 def update_asteroid(neo_reference_id: str, data: AsteroidUpdate, caller: auth.Caller = Depends(auth.require_admin)):
-    row = db.update_asteroid(neo_reference_id, data) if NEO_ID_PATTERN.match(neo_reference_id) else None
+    row = db.update_asteroid(neo_reference_id, data, caller.user_id) if NEO_ID_PATTERN.match(neo_reference_id) else None
     if row is None:
         raise HTTPException(404, "Asteroid not found.")
     return present(row)
@@ -288,6 +303,114 @@ def update_asteroid(neo_reference_id: str, data: AsteroidUpdate, caller: auth.Ca
 
 @app.delete("/api/v1/asteroids/{neo_reference_id}")
 def delete_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.require_admin)):
-    if not (NEO_ID_PATTERN.match(neo_reference_id) and db.delete_asteroid(neo_reference_id)):
+    if not (NEO_ID_PATTERN.match(neo_reference_id) and db.delete_asteroid(neo_reference_id, caller.user_id)):
         raise HTTPException(404, "Asteroid not found.")
     return {"message": "Asteroid deleted.", "neo_reference_id": neo_reference_id}
+
+
+# ============================================================
+# SITES: the hub lists them, and opening one is recorded
+# ============================================================
+def site_view(row, role):
+    if not row["allowed"]:
+        access = {"level": "none", "item_limit": None, "can_write": False}
+    else:
+        access = {"level": "limited" if row["item_limit"] is not None else "full",
+                  "item_limit": row["item_limit"], "can_write": row["can_write"]}
+    return {"slug": row["slug"], "name": row["name"], "kind": row["kind"],
+            "description": row["description"], "url": row["url"], "access": access}
+
+
+@app.get("/api/v1/sites")
+def get_sites(caller: auth.Caller = Depends(auth.get_caller)):
+    """The three sites and what the caller's role may do on each."""
+    role = caller.effective_role
+    return {"role": role, "sites": [site_view(r, role) for r in db.list_sites(role)]}
+
+
+@app.post("/api/v1/sites/{slug}/launch")
+def launch_site(slug: str, caller: auth.Caller = Depends(auth.get_caller)):
+    """Open a site from the hub. Records the launch (and awards badges to an
+    account). For a partner site, an account also gets a ticket, which the
+    partner forwards to this API so the visitor is served by their role."""
+    if caller.kind == "partner" or caller.ticket:
+        raise HTTPException(403, "Sites are opened from the AegisNEO hub.")
+    site = db.get_site(slug)
+    if site is None:
+        raise HTTPException(404, "Unknown site.")
+    role = caller.effective_role
+    rule = db.get_site_access(role, slug)
+    if rule is None:
+        raise HTTPException(403, "Your role has no access to this site.")
+    ticket = None
+    if caller.kind == "user" and site["kind"] == "partner":
+        user = db.get_user(caller.user_id)
+        if user is None:
+            raise db.UnknownUserError()
+        role = user["role"]  # the current role, not the one in the token
+        ticket = auth.create_ticket(user["id"], user["username"], role, slug)
+    new_badges = db.record_launch(caller.user_id if caller.kind == "user" else None, slug, role)
+    return {
+        "site": slug,
+        "name": site["name"],
+        "url": site["url"],
+        "ticket": ticket,
+        "ticket_expires_in": config_ticket_seconds() if ticket else None,
+        "access": {"level": "limited" if rule["item_limit"] is not None else "full",
+                   "item_limit": rule["item_limit"]},
+        "new_badges": new_badges,
+    }
+
+
+def config_ticket_seconds():
+    return auth.config.launch_ticket_minutes() * 60
+
+
+# ============================================================
+# MY ACCOUNT: overview, watchlist
+# ============================================================
+@app.get("/api/v1/me/overview")
+def my_overview(caller: auth.Caller = Depends(auth.require_logged_in)):
+    data = db.user_overview(caller.user_id)
+    if data is None:
+        raise db.UnknownUserError()
+    return {"user": present(data["user"]),
+            "badges": [present(b) for b in data["badges"]],
+            "recent_launches": [present(l) for l in data["recent_launches"]],
+            "watchlist_count": data["watchlist_count"]}
+
+
+@app.get("/api/v1/me/watchlist")
+def my_watchlist(caller: auth.Caller = Depends(auth.require_logged_in)):
+    rows = db.list_watchlist(caller.user_id)
+    return {"count": len(rows), "limit": db.WATCHLIST_LIMIT, "asteroids": [present(r) for r in rows]}
+
+
+@app.put("/api/v1/me/watchlist/{neo_reference_id}")
+def watch_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.require_logged_in)):
+    if not (NEO_ID_PATTERN.match(neo_reference_id) and db.asteroid_exists(neo_reference_id)):
+        raise HTTPException(404, "Asteroid not found.")
+    new_badges = db.add_to_watchlist(caller.user_id, neo_reference_id)
+    return {"neo_reference_id": neo_reference_id, "watching": True, "new_badges": new_badges}
+
+
+@app.delete("/api/v1/me/watchlist/{neo_reference_id}")
+def unwatch_asteroid(neo_reference_id: str, caller: auth.Caller = Depends(auth.require_logged_in)):
+    if not NEO_ID_PATTERN.match(neo_reference_id):
+        raise HTTPException(404, "Asteroid not found.")
+    db.remove_from_watchlist(caller.user_id, neo_reference_id)
+    return {"neo_reference_id": neo_reference_id, "watching": False}
+
+
+# ============================================================
+# ADMIN: who uses the sites, and who changed the catalog
+# ============================================================
+@app.get("/api/v1/admin/overview")
+def admin_overview(caller: auth.Caller = Depends(auth.require_admin)):
+    data = db.admin_overview()
+    return {
+        "users_by_role": data["users_by_role"],
+        "launches_by_site": data["launches_by_site"],
+        "most_watched": data["most_watched"],
+        "recent_changes": [present(c) for c in data["recent_changes"]],
+    }

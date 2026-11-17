@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorer · AegisNEO</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="stars" aria-hidden="true"></div>
+    <canvas id="fxCanvas" aria-hidden="true"></canvas>
+
+    <header class="masthead">
+        <div class="masthead-inner">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <div>
+                    <p class="brand-name">AegisNEO</p>
+                    <p class="brand-sub">Near-Earth Object Watch</p>
+                </div>
+            </div>
+            <div class="account">
+                <span id="accountLabel" class="account-label"></span>
+                <a class="account-btn hub-link" href="hub.html">← Hub</a>
+                <button id="accountBtn" type="button" class="account-btn">Log out</button>
+            </div>
+            <dl class="masthead-stats">
+                <div>
+                    <dt>Tracked objects</dt>
+                    <dd id="statTotal">—</dd>
+                </div>
+                <div>
+                    <dt>Showing</dt>
+                    <dd id="statShown">—</dd>
+                </div>
+                <div>
+                    <dt>Flagged hazardous</dt>
+                    <dd id="statHazard">—</dd>
+                </div>
+            </dl>
+        </div>
+    </header>
+
+    <p id="guestBanner" class="guest-banner" hidden><span></span> <a href="auth.html?mode=signup">Create an account</a></p>
+
+    <section class="hero">
+        <div class="hero-orbit">
+            <span class="orbit-ring ring-1" aria-hidden="true"></span>
+            <span class="orbit-ring ring-2" aria-hidden="true"></span>
+            <span class="orbit-ring ring-3" aria-hidden="true"></span>
+            <span class="orbit-core" aria-hidden="true" title="Earth"></span>
+            <div class="orbit-highlights" id="orbitHighlights" aria-label="Notable objects in the current batch">
+                <p class="orbit-loading">Locating notable objects…</p>
+            </div>
+        </div>
+        <div class="hero-copy">
+            <p class="hero-eyebrow">Live near-earth telemetry</p>
+            <h1 class="hero-title">Space rocks are closer<br>than you think.</h1>
+            <p class="hero-sub">Every card below is a real tracked asteroid — no filler, no stock photos.
+                Explore what's flying past Earth, how big it really is, and how close it came.</p>
+            <div class="hero-actions">
+                <button id="surpriseBtn" type="button" class="cta">🎲 Surprise me with a random rock</button>
+            </div>
+        </div>
+        <div class="fact-ticker" role="status" aria-live="polite">
+            <span class="fact-icon" aria-hidden="true">✦</span>
+            <span id="factText">Loading a fun fact…</span>
+        </div>
+    </section>
+
+    <section class="game" aria-labelledby="gameTitle">
+        <div class="game-head">
+            <div>
+                <h2 id="gameTitle">🛰️ Cosmic Guesser</h2>
+                <p class="game-sub">Real asteroids, real numbers. No spoilers until you pick.</p>
+            </div>
+            <div class="game-score">
+                <div><span>Streak</span><strong id="gameStreak">0</strong></div>
+                <div><span>Best</span><strong id="gameBest">0</strong></div>
+            </div>
+        </div>
+        <p class="game-prompt" id="gamePrompt">Loading a round…</p>
+        <div class="game-arena" id="gameArena"></div>
+        <p class="game-feedback" id="gameFeedback" aria-live="polite"></p>
+    </section>
+
+    <main>
+        <section class="controls">
+            <div class="search" role="search">
+                <label class="visually-hidden" for="searchInput">Search by name or reference ID</label>
+                <input type="text" id="searchInput" placeholder="Search by designation or reference ID…" autocomplete="off">
+                <button id="searchBtn" type="button">Search</button>
+                <button id="resetBtn" type="button" class="secondary">Show All</button>
+            </div>
+
+            <div class="filter-bar">
+                <div class="filter-group" role="group" aria-label="Filter by hazard status">
+                    <span class="filter-label">Status</span>
+                    <button class="chip active" type="button" data-filter="hazard" data-value="all">All</button>
+                    <button class="chip chip-safe" type="button" data-filter="hazard" data-value="safe">Nominal</button>
+                    <button class="chip chip-hazard" type="button" data-filter="hazard" data-value="hazard">Hazardous</button>
+                </div>
+
+                <div class="filter-group" role="group" aria-label="Filter by size">
+                    <span class="filter-label">Size</span>
+                    <button class="chip active" type="button" data-filter="size" data-value="all">All</button>
+                    <button class="chip" type="button" data-filter="size" data-value="small">Small</button>
+                    <button class="chip" type="button" data-filter="size" data-value="medium">Medium</button>
+                    <button class="chip" type="button" data-filter="size" data-value="large">Large</button>
+                </div>
+
+                <div class="filter-group">
+                    <span class="filter-label">List</span>
+                    <button id="watchlistToggle" class="chip chip-fav" type="button" aria-pressed="false">★ My List (0)</button>
+                </div>
+
+                <div class="filter-group">
+                    <button id="newBtn" class="chip chip-new" type="button" hidden>＋ New asteroid</button>
+                </div>
+
+                <div class="filter-group sort-group">
+                    <label class="filter-label" for="sortSelect">Sort by</label>
+                    <select id="sortSelect">
+                        <option value="default">Default</option>
+                        <option value="name">Name (A–Z)</option>
+                        <option value="diameter-desc">Diameter (largest first)</option>
+                        <option value="diameter-asc">Diameter (smallest first)</option>
+                        <option value="velocity-desc">Velocity (fastest first)</option>
+                        <option value="distance-asc">Miss distance (closest first)</option>
+                        <option value="date-desc">Close approach (newest first)</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="console" aria-live="polite">
+            <div id="asteroidList" class="asteroid-grid">
+                <p class="status-line">Establishing telemetry link…</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Data: NASA-derived Near-Earth Object catalog · AegisNEO telemetry console</p>
+    </footer>
+
+    <div id="editorOverlay" class="editor-overlay" hidden>
+        <form id="editorForm" class="editor-card" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+            <h2 id="editorTitle">New asteroid</h2>
+            <div class="editor-grid">
+                <label>Reference ID<input name="neo_reference_id" inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" required></label>
+                <label>Name<input name="name" maxlength="100" required></label>
+                <label>Diameter (km)<input name="estimated_diameter_km" type="number" step="any" min="0.0000001" max="1000" required></label>
+                <label>Close approach<input name="close_approach_date" type="date" min="1900-01-01" max="2200-12-31" required></label>
+                <label>Velocity (km/h)<input name="relative_velocity_km_h" type="number" step="any" min="0" max="1000000" required></label>
+                <label>Miss distance (km)<input name="miss_distance_km" type="number" step="any" min="0" max="1000000000" required></label>
+                <label>Absolute magnitude<input name="absolute_magnitude" type="number" step="any" min="0" max="40" required></label>
+            </div>
+            <label class="editor-check"><input name="is_potentially_hazardous" type="checkbox"> Potentially hazardous</label>
+            <label class="editor-check"><input name="is_featured" type="checkbox"> Featured (visible to guests; at most 10)</label>
+            <p class="login-error" id="editorError" role="alert"></p>
+            <div class="editor-actions">
+                <button type="button" id="editorCancel" class="secondary">Cancel</button>
+                <button type="submit" class="login-submit">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="explorer.js"></script>
+</body>
+
+</html>

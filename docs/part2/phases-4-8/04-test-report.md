@@ -8,7 +8,7 @@
 | Database in the automated tests | PostgreSQL 16.15 on the developer machine. The tests create a fresh database from `db/schema.sql` and connect as the limited role `aegis_app`, like the deployed API. A second, owner connection reads the tables directly, so the tests check what is **stored**, not only what the API answers. |
 | Safety | The test setup refuses to run unless `TEST_DATABASE_URL` points at localhost, so the tests can never touch Neon. |
 | Test data | 14 real records from the catalog (the 10 featured asteroids plus 4 others) and two accounts: `alice` (role admin) and `bob` (role user); the data is reset before every test. |
-| Result | **122 tests, 122 passed** (`evidence/pytest-local-run.txt`): read 19, write 11, validation 35, security 25, roles 8, sign-up 15, reliability 9. |
+| Result | **156 tests, 156 passed** (`evidence/pytest-local-run.txt`): read 20, write 11, validation 35, security 25, roles 9, sign-up 15, reliability 9, hub 32. |
 | Also run | A full run with the real 33,511 records on the local database (section 3), and the website in a real browser (section 4). |
 | Deployed environment | Neon (PostgreSQL 18) and Vercel: section 5, to be completed after deployment. |
 
@@ -65,7 +65,7 @@ Evidence names are test functions in `tests/` (see `evidence/pytest-local-run.tx
 | S-04 | Wrong partner key; the two retired keys | 401 | As expected | Pass | `test_wrong_partner_key_is_401`, `test_retired_keys_are_no_longer_accepted` |
 | S-05 | Garbage token, token signed with another secret, expired token, token with no expiry | 401 each (not treated as guest) | As expected | Pass | `test_invalid_token_is_401_not_guest` and 3 more |
 | S-06 | Guest reads the list and one non-featured asteroid | List shows only the 10 featured; the other asteroid returns 401 | As expected | Pass | `test_guest_list_shows_only_featured`, `test_a_guest_cannot_read_a_non_featured_asteroid` |
-| S-07 | Statistics without credentials | 401 | As expected | Pass | `test_stats_need_login_or_a_partner_key` |
+| S-07 | Statistics for a guest, a partner key alone and an account | Each sees only what its role may: 10, 10 and the whole catalog | As expected | Pass | `test_stats_cover_only_what_the_caller_may_see` |
 | S-08 | SQL injection in search, in the ID path and in the username | Normal answers; data unchanged | As expected | Pass | `test_sql_injection_attempts_are_harmless`, `test_login_is_not_injectable` |
 | S-09 | Password hashes and passwords in responses | Never present, including in validation errors | As expected | Pass | `test_password_hashes_are_never_returned`, `test_validation_errors_never_echo_the_password` |
 | S-10 | Database role limits | `aegis_app` cannot drop, create or alter tables, create an admin, change a password, change or delete users, change a role or add a role | 9 of 9 refused | Pass | `test_the_api_role_cannot_change_the_structure_or_accounts` |
@@ -179,3 +179,33 @@ Run `python scripts/verify_deployment.py https://aegisneo-api.vercel.app <user>`
    deployment. Fix: date-like text (digits and dashes, or a four-digit year) is also matched against the close approach
    date. Checked by `test_search_matches_the_close_approach_date` and `test_date_search_with_no_match_is_empty`, and on
    the real data (`1968-` now matches 285 asteroids).
+
+
+## Hub, access rules and activity (17 November 2026)
+
+| ID | Description | Expected | Actual | Status | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| H-01 | The access rules are rows of `site_access` (3 roles x 3 sites) | 9 rows with the agreed limits and write rights | As expected | Pass | `test_the_access_rules_are_stored_per_role_and_site` |
+| H-02 | A rule is edited in the database | The role sees the new limit at once, with no deployment | As expected | Pass | `test_changing_a_rule_changes_what_a_role_sees`, `test_a_lower_limit_hides_featured_asteroids_beyond_it` |
+| H-03 | A role with no rule; a rule for an unknown site or role | 403; the database refuses the row | As expected | Pass | `test_a_role_with_no_rule_has_no_access`, `test_the_database_refuses_a_rule_for_an_unknown_site_or_role` |
+| H-04 | A partner key alone, and with an account's ticket | 10 featured asteroids, then the whole catalog | As expected | Pass | `test_a_partner_key_alone_serves_a_guest`, `test_a_partner_site_serves_a_user_in_full_with_a_ticket` |
+| H-05 | Ticket used with another site's key, with no key, or expired | 401 each | As expected | Pass | `test_a_ticket_only_works_with_the_key_of_its_site`, `test_an_expired_ticket_is_401` |
+| H-06 | An admin's ticket tries to create, delete or open the admin overview | 403; table unchanged | As expected | Pass | `test_a_ticket_is_read_only_even_for_an_admin` |
+| H-07 | A ticket opens account pages or launches another site | Refused | As expected | Pass | `test_a_ticket_cannot_open_account_pages_or_launch_other_sites` |
+| H-08 | Launching a site (account, guest, main site, unknown site) | Launch row stored (guest: no user); ticket only for an account on a partner site; 404 for an unknown site | As expected | Pass | `test_launching_a_partner_site_gives_an_account_a_ticket` and 3 more |
+| H-09 | The role at launch time is used, not the one in the token | Ticket carries the current role | As expected | Pass | `test_the_role_at_launch_time_is_used_not_the_one_in_the_token` |
+| H-10 | Watchlist: add, add twice, remove, privacy, unknown asteroid, size limit, asteroid deleted | As specified | As expected | Pass | 5 `test_watchlist_*` / `test_watching_*` / `test_deleting_*` tests |
+| H-11 | Badges: sign-up, launching all three sites, watchlist rules, never taken away | Awarded once, only when the rule is true | As expected | Pass | `test_signup_earns_first_contact`, `test_launching_sites_earns_badges_and_the_grand_tour`, `test_watchlist_badges`, `test_badges_are_not_taken_away` |
+| H-12 | Admin create, update, delete | One audit row each; an update stores only the fields that changed; a failed change leaves no row | As expected | Pass | `test_admin_changes_are_recorded`, `test_a_failed_change_leaves_no_audit_row` |
+| H-13 | The API's database role tries to edit the audit trail, delete rules or promote an account | `permission denied` | As expected | Pass | `test_the_audit_trail_survives_the_asteroid_and_the_app_cannot_edit_it` |
+| H-14 | No account can hold the guest role | The database refuses it | As expected | Pass | `test_no_account_can_hold_the_guest_role` |
+| H-15 | Admin overview | Counts per role and site, last changes, most watched; admins only | As expected | Pass | `test_admin_overview`, `test_admin_overview_is_for_admins_only` |
+
+Browser check (Playwright against the local site and a database with the full 33,511 records): guest -> hub shows three
+limited sites -> Explorer shows 10 asteroids and the guest banner; sign-up -> First Contact badge -> launch Impactor ->
+Planet Defender badge shown on return -> Explorer shows 33,511 and the watchlist is saved in the account; admin sign-in
+-> Mission control, create, search, delete an asteroid -> both changes appear in the audit table. No horizontal scroll
+at 390 px.
+
+`db/migrations/002_add_sites_and_activity.sql` was run twice on a database made with the previous `schema.sql`; the second
+run changed nothing and the resulting columns match a fresh `schema.sql`.

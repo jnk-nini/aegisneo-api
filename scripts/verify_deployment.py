@@ -81,6 +81,13 @@ def main():
         sys.exit("Cannot continue without a token.")
     token = login["access_token"]
 
+    status, sites = call(base, "GET", "/api/v1/sites", token)
+    check("   the hub lists three sites for this role", status == 200 and len(sites["sites"]) == 3,
+          f"role={sites and sites.get('role')}")
+    status, launch = call(base, "POST", "/api/v1/sites/impactor/launch", token)
+    check("   opening a partner site gives this account a ticket", status == 200 and bool(launch.get("ticket")),
+          f"POST /sites/impactor/launch -> {status}")
+
     status, listing = call(base, "GET", "/api/v1/asteroids?limit=3", token)
     total = listing["total"]
     check("3. existing records are retrieved from the database", status == 200 and total >= 10,
@@ -113,6 +120,10 @@ def main():
         check("9. the record is gone", status == 404, f"GET -> {status}")
         status, final = call(base, "GET", "/api/v1/asteroids?limit=1", token)
         check("   the catalog is back to its original size", final["total"] == total, f"total={final['total']}")
+        status, overview = call(base, "GET", "/api/v1/admin/overview", token)
+        trail = [c["action"] for c in (overview or {}).get("recent_changes", [])[:3]]
+        check("   the audit trail recorded the three changes", status == 200 and trail == ["delete", "update", "create"],
+              f"latest={trail}")
         print("\nStep 10: redeploy the API, then run this script again with --after-redeploy.")
 
     print(f"\n{sum(results)} of {len(results)} checks passed.")

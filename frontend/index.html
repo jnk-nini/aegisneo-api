@@ -4,164 +4,235 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AegisNEO — Near-Earth Object Tracker</title>
-    <link rel="stylesheet" href="style.css">
+    <title>AegisNEO: Meet the asteroids passing Earth</title>
+    <meta name="description" content="One free account opens three experiences built on real near-Earth asteroid data: an explorer, a 3D impact simulator and a birthday star atlas.">
+    <link rel="stylesheet" href="site.css">
 </head>
 
 <body>
-    <div class="stars" aria-hidden="true"></div>
-    <canvas id="fxCanvas" aria-hidden="true"></canvas>
-
-    <header class="masthead">
-        <div class="masthead-inner">
-            <div class="brand">
+    <header class="topbar">
+        <div class="wrap topbar-inner">
+            <a class="brand" href="index.html" aria-label="AegisNEO home">
                 <span class="brand-mark" aria-hidden="true"></span>
-                <div>
-                    <p class="brand-name">AegisNEO</p>
-                    <p class="brand-sub">Near-Earth Object Watch</p>
-                </div>
+                <span>
+                    <span class="brand-name">AegisNEO</span>
+                    <span class="brand-sub" style="display:block">Near-Earth Object Watch</span>
+                </span>
+            </a>
+            <nav class="topnav" aria-label="Sections">
+                <a href="#experiences">Experiences</a>
+                <a href="#access">Access</a>
+                <a href="#how">How it works</a>
+            </nav>
+            <div class="topbar-actions" id="topActions">
+                <a class="btn btn-ghost btn-sm" href="auth.html">Sign in</a>
+                <a class="btn btn-primary btn-sm" href="auth.html?mode=signup">Get started</a>
             </div>
-            <div class="account">
-                <span id="accountLabel" class="account-label"></span>
-                <button id="accountBtn" type="button" class="account-btn">Log in</button>
-            </div>
-            <dl class="masthead-stats">
-                <div>
-                    <dt>Tracked objects</dt>
-                    <dd id="statTotal">—</dd>
-                </div>
-                <div>
-                    <dt>Showing</dt>
-                    <dd id="statShown">—</dd>
-                </div>
-                <div>
-                    <dt>Flagged hazardous</dt>
-                    <dd id="statHazard">—</dd>
-                </div>
-            </dl>
         </div>
     </header>
 
-    <section class="hero">
-        <div class="hero-orbit">
-            <span class="orbit-ring ring-1" aria-hidden="true"></span>
-            <span class="orbit-ring ring-2" aria-hidden="true"></span>
-            <span class="orbit-ring ring-3" aria-hidden="true"></span>
-            <span class="orbit-core" aria-hidden="true" title="Earth"></span>
-            <div class="orbit-highlights" id="orbitHighlights" aria-label="Notable objects in the current batch">
-                <p class="orbit-loading">Locating notable objects…</p>
-            </div>
-        </div>
-        <div class="hero-copy">
-            <p class="hero-eyebrow">Live near-earth telemetry</p>
-            <h1 class="hero-title">Space rocks are closer<br>than you think.</h1>
-            <p class="hero-sub">Every card below is a real tracked asteroid — no filler, no stock photos.
-                Explore what's flying past Earth, how big it really is, and how close it came.</p>
-            <div class="hero-actions">
-                <button id="surpriseBtn" type="button" class="cta">🎲 Surprise me with a random rock</button>
-            </div>
-        </div>
-        <div class="fact-ticker" role="status" aria-live="polite">
-            <span class="fact-icon" aria-hidden="true">✦</span>
-            <span id="factText">Loading a fun fact…</span>
-        </div>
-    </section>
-
-    <section class="game" aria-labelledby="gameTitle">
-        <div class="game-head">
-            <div>
-                <h2 id="gameTitle">🛰️ Cosmic Guesser</h2>
-                <p class="game-sub">Real asteroids, real numbers. No spoilers until you pick.</p>
-            </div>
-            <div class="game-score">
-                <div><span>Streak</span><strong id="gameStreak">0</strong></div>
-                <div><span>Best</span><strong id="gameBest">0</strong></div>
-            </div>
-        </div>
-        <p class="game-prompt" id="gamePrompt">Loading a round…</p>
-        <div class="game-arena" id="gameArena"></div>
-        <p class="game-feedback" id="gameFeedback" aria-live="polite"></p>
-    </section>
-
     <main>
-        <section class="controls">
-            <div class="search" role="search">
-                <label class="visually-hidden" for="searchInput">Search by name or reference ID</label>
-                <input type="text" id="searchInput" placeholder="Search by designation or reference ID…" autocomplete="off">
-                <button id="searchBtn" type="button">Search</button>
-                <button id="resetBtn" type="button" class="secondary">Show All</button>
-            </div>
-
-            <div class="filter-bar">
-                <div class="filter-group" role="group" aria-label="Filter by hazard status">
-                    <span class="filter-label">Status</span>
-                    <button class="chip active" type="button" data-filter="hazard" data-value="all">All</button>
-                    <button class="chip chip-safe" type="button" data-filter="hazard" data-value="safe">Nominal</button>
-                    <button class="chip chip-hazard" type="button" data-filter="hazard" data-value="hazard">Hazardous</button>
+        <section class="hero">
+            <div class="wrap hero-grid">
+                <div>
+                    <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Real NASA-derived data</span>
+                    <h1>The sky is full of rocks.<br><em>Meet them.</em></h1>
+                    <p class="lede">AegisNEO tracks <strong id="heroCount">33,511</strong> near-Earth asteroids. One free
+                        account opens three experiences: explore the catalog, crash an asteroid into a city in 3D,
+                        and find the ones that flew past on your birthday.</p>
+                    <div class="cta-row" id="heroActions">
+                        <a class="btn btn-primary" href="auth.html?mode=signup">Create a free account</a>
+                        <a class="btn btn-ghost" href="auth.html" data-guest>Look around as a guest</a>
+                    </div>
+                    <p class="fineprint">No payment, no email needed. Guests see 10 featured asteroids on every site.</p>
+                    <dl class="stat-tiles">
+                        <div class="tile"><dt>Objects</dt><dd id="tileCount">33,511</dd></div>
+                        <div class="tile"><dt>Years</dt><dd>1910–2024</dd></div>
+                        <div class="tile"><dt>Sites</dt><dd>3</dd></div>
+                    </dl>
                 </div>
-
-                <div class="filter-group" role="group" aria-label="Filter by size">
-                    <span class="filter-label">Size</span>
-                    <button class="chip active" type="button" data-filter="size" data-value="all">All</button>
-                    <button class="chip" type="button" data-filter="size" data-value="small">Small</button>
-                    <button class="chip" type="button" data-filter="size" data-value="medium">Medium</button>
-                    <button class="chip" type="button" data-filter="size" data-value="large">Large</button>
-                </div>
-
-                <div class="filter-group">
-                    <span class="filter-label">List</span>
-                    <button id="watchlistToggle" class="chip chip-fav" type="button" aria-pressed="false">★ My List (0)</button>
-                </div>
-
-                <div class="filter-group sort-group">
-                    <label class="filter-label" for="sortSelect">Sort by</label>
-                    <select id="sortSelect">
-                        <option value="default">Default</option>
-                        <option value="name">Name (A–Z)</option>
-                        <option value="diameter-desc">Diameter (largest first)</option>
-                        <option value="diameter-asc">Diameter (smallest first)</option>
-                        <option value="velocity-desc">Velocity (fastest first)</option>
-                        <option value="distance-asc">Miss distance (closest first)</option>
-                        <option value="date-desc">Close approach (newest first)</option>
-                    </select>
+                <div class="orbit-stage" aria-hidden="true">
+                    <span class="ring" style="--i:0%;--t:46s;--c:#f5a524"></span>
+                    <span class="ring" style="--i:12%;--t:30s;--c:#3ee0e8"></span>
+                    <span class="ring" style="--i:24%;--t:18s;--c:#ff6b6b"></span>
+                    <span class="earth"></span>
                 </div>
             </div>
         </section>
 
-        <section class="console" aria-live="polite">
-            <div id="asteroidList" class="asteroid-grid">
-                <p class="status-line">Establishing telemetry link…</p>
+        <section class="block" id="experiences">
+            <div class="wrap">
+                <div class="section-head">
+                    <span class="kicker">Three experiences, one account</span>
+                    <h2>Pick how you want to look at the sky</h2>
+                    <p>Each site is its own app. Sign in once and the hub opens any of them with your access.</p>
+                </div>
+                <div class="exp-grid">
+                    <article class="exp-card">
+                        <div class="exp-media" style="background-image:linear-gradient(180deg,rgba(5,7,13,.1),rgba(5,7,13,.6)),url('assets/nebula.jpg')"><span class="tag main">Main site</span></div>
+                        <div class="exp-body">
+                            <h3>AegisNEO Explorer</h3>
+                            <p>The full catalog, with real numbers and plain-language comparisons.</p>
+                            <ul>
+                                <li>Search, filter and sort every object</li>
+                                <li>Keep a personal watchlist</li>
+                                <li>Play Cosmic Guesser</li>
+                                <li>Admins can add, edit and remove records</li>
+                            </ul>
+                        </div>
+                    </article>
+                    <article class="exp-card">
+                        <div class="exp-media" style="background-image:url('assets/shot-impactor.jpg')"><span class="tag partner">Partner site</span></div>
+                        <div class="exp-body">
+                            <h3>Impactor</h3>
+                            <p>A 3D impact simulator built on a published scientific model.</p>
+                            <ul>
+                                <li>Aim a real asteroid at any place on a 3D globe</li>
+                                <li>Crater, fireball, blast wave and damage zones</li>
+                                <li>Works on phones</li>
+                            </ul>
+                        </div>
+                    </article>
+                    <article class="exp-card">
+                        <div class="exp-media" style="background-image:url('assets/shot-atlas.jpg')"><span class="tag partner">Partner site</span></div>
+                        <div class="exp-body">
+                            <h3>NEO Atlas</h3>
+                            <p>Your birthday sky, drawn as a constellation of real asteroids.</p>
+                            <ul>
+                                <li>Your own asteroid sign</li>
+                                <li>Postcards you can send, even sealed until the day</li>
+                                <li>Star Match with a friend</li>
+                            </ul>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="block" id="access">
+            <div class="wrap">
+                <div class="section-head">
+                    <span class="kicker">Access</span>
+                    <h2>Look for free. Sign up for everything.</h2>
+                    <p>What you can do depends on your role. The same rules apply on all three sites.</p>
+                </div>
+                <div class="tiers">
+                    <article class="tier">
+                        <h3>Guest</h3>
+                        <p class="who">No account</p>
+                        <ul>
+                            <li>Open all three sites</li>
+                            <li>See 10 featured asteroids on each</li>
+                            <li class="no">No watchlist or badges</li>
+                            <li class="no">Cannot change data</li>
+                        </ul>
+                        <a class="btn btn-ghost btn-block" href="auth.html" data-guest>Continue as guest</a>
+                    </article>
+                    <article class="tier featured">
+                        <span class="ribbon">Free</span>
+                        <h3>Explorer</h3>
+                        <p class="who">Anyone with an account</p>
+                        <ul>
+                            <li>The whole catalog on all three sites</li>
+                            <li>Watchlist that follows you</li>
+                            <li>7 badges to collect</li>
+                            <li>Your launch history</li>
+                            <li class="no">Read only: cannot change data</li>
+                        </ul>
+                        <a class="btn btn-primary btn-block" href="auth.html?mode=signup">Create a free account</a>
+                    </article>
+                    <article class="tier">
+                        <h3>Admin</h3>
+                        <p class="who">Made by the project owner</p>
+                        <ul>
+                            <li>Everything an Explorer has</li>
+                            <li>Create, edit and delete asteroids</li>
+                            <li>Mission control: who uses what</li>
+                            <li>A full trail of every change</li>
+                        </ul>
+                        <a class="btn btn-ghost btn-block" href="auth.html">Admin sign in</a>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="block" id="how">
+            <div class="wrap">
+                <div class="section-head">
+                    <span class="kicker">How it works</span>
+                    <h2>One sign-in, three doors</h2>
+                </div>
+                <div class="steps">
+                    <div class="step"><h3>Sign in</h3><p>Create an account in seconds, or continue as a guest.</p></div>
+                    <div class="step"><h3>Open the hub</h3><p>It shows the three sites and what your role can do on each.</p></div>
+                    <div class="step"><h3>Launch a site</h3><p>The partner site receives a short-lived, read-only pass for you, so it serves you the right amount of data.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="block">
+            <div class="wrap">
+                <div class="section-head">
+                    <span class="kicker">Make it a game</span>
+                    <h2>Collect badges as you explore</h2>
+                    <p>Open every site for the Grand Tour. Watch five asteroids to become a Watcher.</p>
+                </div>
+                <div class="badge-row" aria-label="Badges">
+                    <span class="badge-chip"><span>👋</span>First Contact</span>
+                    <span class="badge-chip"><span>🔭</span>Explorer</span>
+                    <span class="badge-chip"><span>☄️</span>Planet Defender</span>
+                    <span class="badge-chip"><span>✨</span>Stargazer</span>
+                    <span class="badge-chip"><span>🛰️</span>Grand Tour</span>
+                    <span class="badge-chip"><span>👁️</span>Watcher</span>
+                    <span class="badge-chip"><span>⚠️</span>Hazard Hunter</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="block">
+            <div class="wrap">
+                <div class="final-cta">
+                    <h2>Ready to see what's flying past?</h2>
+                    <p>It takes less than a minute, and it is free.</p>
+                    <div class="cta-row">
+                        <a class="btn btn-primary" href="auth.html?mode=signup">Get started</a>
+                        <a class="btn btn-ghost" href="auth.html">I already have an account</a>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
 
-    <footer>
-        <p>Data: NASA-derived Near-Earth Object catalog · AegisNEO telemetry console</p>
+    <footer class="site-foot">
+        <div class="wrap">
+            <span>AegisNEO · Data: NASA near-Earth object records via Kaggle</span>
+            <span><a href="/docs">API docs</a></span>
+        </div>
     </footer>
 
-    <div id="loginOverlay" class="login-overlay" hidden>
-        <form id="loginForm" class="login-card" aria-labelledby="loginTitle" role="dialog" aria-modal="true">
-            <h2 id="loginTitle">Log in to AegisNEO</h2>
-            <p class="login-sub">Log in to see the whole catalog. Guests see 10 featured asteroids.</p>
-            <label for="loginUser">Username</label>
-            <input id="loginUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
-                maxlength="30" required aria-describedby="userHint">
-            <p id="userHint" class="login-hint" hidden>3 to 30 characters: lowercase letters, numbers and _</p>
-            <label for="loginPass">Password</label>
-            <input id="loginPass" type="password" autocomplete="current-password" maxlength="72" required
-                aria-describedby="passHint">
-            <p id="passHint" class="login-hint" hidden>At least 8 characters</p>
-            <p id="loginError" class="login-error" role="alert"></p>
-            <button id="loginSubmit" type="submit" class="login-submit">Log in</button>
-            <button id="guestBtn" type="button" class="login-guest">Continue as guest</button>
-            <p class="login-switch">
-                <span id="switchText">No account yet?</span>
-                <button id="switchMode" type="button" class="login-link">Create one</button>
-            </p>
-        </form>
-    </div>
-
-    <script src="app.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        // Signed-in visitors get a way straight back to the hub.
+        if (Session.loggedIn || Session.isGuest) {
+            document.getElementById("topActions").innerHTML =
+                `<a class="btn btn-primary btn-sm" href="hub.html">Open the hub</a>`;
+            document.getElementById("heroActions").innerHTML =
+                `<a class="btn btn-primary" href="hub.html">Open the hub</a>`;
+        }
+        // "Continue as guest" links start a guest session before opening the hub.
+        document.querySelectorAll("[data-guest]").forEach(link => link.addEventListener("click", (event) => {
+            event.preventDefault();
+            Session.startGuest();
+            location.assign("hub.html");
+        }));
+        // The real size of the catalog (the home endpoint is public).
+        fetch(`${API_URL}/`).then(r => r.ok ? r.json() : null).then(data => {
+            if (!data || !data.total_tracked) return;
+            const text = formatNumber(data.total_tracked);
+            document.getElementById("heroCount").textContent = text;
+            document.getElementById("tileCount").textContent = text;
+        }).catch(() => { /* keep the printed number */ });
+    </script>
 </body>
 
 </html>

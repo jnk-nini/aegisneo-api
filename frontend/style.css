@@ -1433,3 +1433,32 @@ footer {
     opacity: 0.6;
     cursor: wait;
 }
+
+
+/* HUB LINK, GUEST BANNER, TOASTS, ADMIN CONTROLS */
+.hub-link { display: inline-flex; align-items: center; border: 1px solid var(--border-faint); border-radius: var(--radius-sm); color: var(--text-primary); text-decoration: none; }
+.hub-link:hover { border-color: var(--cyan); }
+.guest-banner { margin: 0; padding: 10px 24px; text-align: center; font-size: 0.85rem; background: var(--amber-dim); color: #ffd99a; border-bottom: 1px solid var(--amber-dim); position: relative; z-index: 2; }
+.guest-banner[hidden] { display: none; }
+.guest-banner a { color: var(--cyan); margin-left: 8px; }
+.toast-box { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: grid; gap: 10px; max-width: calc(100vw - 32px); }
+.toast-item { display: flex; gap: 12px; align-items: center; padding: 12px 16px; background: var(--bg-void-soft); border: 1px solid var(--amber-dim); border-radius: var(--radius-md); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
+.toast-item > span { font-size: 1.5rem; }
+.chip-new { border-color: var(--cyan-dim); color: var(--cyan); }
+.chip-new[hidden] { display: none; }
+.admin-row { display: flex; gap: 8px; margin-top: 10px; }
+.admin-btn { flex: 1; padding: 8px; font-size: 0.8rem; border-radius: var(--radius-sm); border: 1px solid var(--border-faint); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.admin-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.admin-btn.del-btn:hover { border-color: #ff6b6b; color: #ff6b6b; }
+.editor-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(2, 4, 9, 0.86); overflow-y: auto; }
+.editor-overlay[hidden] { display: none; }
+.editor-card { width: min(620px, 100%); background: var(--bg-void-soft); border: 1px solid var(--border-faint); border-radius: var(--radius-lg); padding: 24px; }
+.editor-card h2 { margin: 0 0 16px; font-family: var(--font-display); }
+.editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.editor-grid label, .editor-check { display: grid; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); }
+.editor-grid input { padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-faint); background: rgba(255, 255, 255, 0.04); color: var(--text-primary); font: inherit; }
+.editor-grid input:disabled { opacity: 0.55; }
+.editor-check { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+.editor-actions button { width: auto; min-width: 100px; }
+@media (max-width: 520px) { .editor-grid { grid-template-columns: 1fr; } }

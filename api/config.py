@@ -43,6 +43,14 @@ def jwt_expire_minutes():
         return 60
 
 
+def launch_ticket_minutes():
+    """How long a ticket for a partner site stays valid (default 4 hours)."""
+    try:
+        return max(1, int(os.environ.get("LAUNCH_TICKET_MINUTES", "240")))
+    except ValueError:
+        return 240
+
+
 def partner_keys():
     """Partner site keys from AEGISNEO_API_KEYS ("client:key,client:key")."""
     keys = {}

@@ -51,6 +51,16 @@ def main():
             "left join users u on u.role = r.name group by r.name, r.description order by r.name"
         ):
             print(f"   {name:<6} {accounts} account(s)   {description}")
+        print("\nAccess rules (role, site, can_write, item_limit; empty limit = whole catalog):")
+        for role, site, can_write, item_limit in conn.execute(
+            "select role, site, can_write, item_limit from site_access order by site, role"
+        ):
+            print(f"   {role:<6} {site:<10} write={str(can_write):<5} limit={item_limit if item_limit is not None else '-'}")
+        launches, watching, badges, changes = conn.execute(
+            "select (select count(*) from launches), (select count(*) from watchlist), "
+            "(select count(*) from user_badges), (select count(*) from asteroid_audit)"
+        ).fetchone()
+        print(f"launches  : {launches}   watchlist: {watching}   badges earned: {badges}   audit rows: {changes}")
         print("\nFirst 3 asteroids:")
         for row in conn.execute(
             "select neo_reference_id, name, estimated_diameter_km, is_potentially_hazardous "
@@ -66,6 +76,8 @@ def main():
             ("create an admin account", "insert into users (username, password_hash, role) values ('x', repeat('x', 60), 'admin')"),
             ("change a password hash", "update users set password_hash = repeat('y', 60)"),
             ("make an account admin", "update users set role = 'admin'"),
+            ("rewrite the audit trail", "update asteroid_audit set action = 'create'"),
+            ("loosen an access rule", "update site_access set item_limit = null"),
         ]:
             try:
                 conn.execute(sql)
@@ -75,7 +87,7 @@ def main():
                 print(f"   {label}: refused (permission denied)")
             finally:
                 conn.rollback()
-        print(f"\n{refused} of 5 forbidden operations refused.")
+        print(f"\n{refused} of 7 forbidden operations refused.")
 
 
 if __name__ == "__main__":
