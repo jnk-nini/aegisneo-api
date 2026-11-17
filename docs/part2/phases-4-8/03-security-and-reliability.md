@@ -58,24 +58,36 @@ host, stack trace) are written only to the server log. Tests that prove nothing 
 
 - **Users** log in with `POST /api/v1/auth/login`. The password is checked against a bcrypt hash (cost 12) in the
   `users` table; the password itself is never stored. On success the API signs a JSON Web Token (HS256) with
-  `JWT_SECRET`, containing the user id, username, issue time and an expiry 60 minutes later. The secret must be at
+  `JWT_SECRET`, containing the user id, username, role, issue time and an expiry 60 minutes later. The secret must be at
   least 32 characters or login answers 503.
 - **A failed login always returns the same message** (`"Incorrect username or password."`), and an unknown
   username runs a dummy bcrypt check, so neither the message nor the response time reveals whether an account exists
   (`test_wrong_password_and_unknown_user_look_the_same`). Passwords are limited to 72 bytes, the bcrypt limit.
+- **Sign-up** (`POST /api/v1/auth/signup`) lets anyone create an account, and it is always a **user**. Three
+  things make sure of it: the request model has no role field and rejects extra fields (`"role": "admin"` is 422);
+  the SQL does not mention the role, so the column default `user` applies; and `aegis_app` has `INSERT` only on the
+  `username` and `password_hash` columns, so the database refuses any insert that sets a role
+  (`test_signup_cannot_ask_for_the_admin_role`, `test_the_api_role_can_add_an_account_only_with_the_user_role`).
+  The password is hashed with bcrypt (cost 12) before it is stored and is never echoed back.
+- **Roles are stored in the database.** The `roles` table holds `admin` and `user`; `users.role` is a foreign key to
+  it, `NOT NULL`, and defaults to `user`. An **admin** may create, update and delete; a **user** may read the whole
+  catalog and the statistics but gets 403 on any change. For create, update and delete the API reads the role from
+  the `users` table, not from the token, so a role change (or a deleted account) applies at once
+  (`test_a_role_change_applies_at_once`). Roles are set only by the owner with `scripts/create_user.py` or
+  `scripts/set_role.py`; the API's database role cannot change them.
 - **Partner sites** (Impactor, NEO Atlas) send `x-api-key`. The key is compared with every configured key in
   constant time (`hmac.compare_digest`). These keys can read everything but never change data (403).
 - **Guests** send nothing and see only the 10 featured asteroids.
 - **Invalid credentials are never downgraded to guest:** a bad or expired token, a token without an expiry, a token
   signed with another secret, and a wrong partner key all return 401 (tests in `test_security.py`).
 
-| Operation | Guest | User | Partner |
-| --- | --- | --- | --- |
-| Home, health, login | yes | yes | yes |
-| `auth/me` | 401 | yes | 401 |
-| List, random, one asteroid | featured only | all | all |
-| Statistics | 401 | yes | yes |
-| Create, update, delete | 401 | yes | 403 |
+| Operation | Guest | User (role `user`) | Admin (role `admin`) | Partner |
+| --- | --- | --- | --- | --- |
+| Home, health, login | yes | yes | yes | yes |
+| `auth/me` | 401 | yes | yes | 401 |
+| List, random, one asteroid | featured only | all | all | all |
+| Statistics | 401 | yes | yes | yes |
+| Create, update, delete | 401 | 403 | yes | 403 |
 
 The database credentials are never used as a substitute for user login: users authenticate to the API, and only the
 API holds the database connection.
@@ -83,7 +95,8 @@ API holds the database connection.
 ## 4. Database access
 
 - The API connects as `aegis_app`, which can `SELECT/INSERT/UPDATE/DELETE` on `asteroids` and only `SELECT` on
-  `users`. It cannot create, alter or drop tables, create accounts or change a password hash
+  `roles` and `users`, and `INSERT` on only the `username` and `password_hash` columns of `users` (for sign-up). It
+  cannot create, alter or drop tables, create an admin, change or delete an account, change a password hash or change a role
   (`test_the_api_role_cannot_change_the_structure_or_accounts`; `scripts/check_connection.py` shows the same
   against Neon).
 - The owner role `neondb_owner` is used only by the setup scripts on the developer's computer and is never stored on Vercel.
@@ -107,8 +120,9 @@ API holds the database connection.
 
 - A token cannot be cancelled before it expires; logging out only removes it from the browser. The 60-minute expiry
   limits the risk.
-- The API itself does not limit login attempts. A Vercel Firewall rate-limit rule on `/api/v1/auth/login` is the
-  planned control (step 22 in `01-steps.md`).
+- The API itself does not limit login or sign-up attempts, so someone could try many passwords or create many
+  accounts. Vercel Firewall rate-limit rules on `/api/v1/auth/login` and `/api/v1/auth/signup` are the planned
+  control (step 22 in `01-steps.md`). Sign-up accounts can only read, so this cannot change the catalog.
 - The website keeps its token in `sessionStorage`, which any script running on the same page could read. The page
   loads no third-party scripts (only Google Fonts as a stylesheet), and the token disappears when the tab closes.
 - CORS allows any origin (`*`) because the public website and tools call the API from the browser. This is safe

@@ -14,8 +14,24 @@ There are three kinds of callers.
 | Caller | Credentials | May |
 | --- | --- | --- |
 | Guest | none | read the 10 featured asteroids |
-| User | `Authorization: Bearer <token>` | read all, create, update, delete, statistics |
+| Admin (account with role `admin`) | `Authorization: Bearer <token>` | read all, create, update, delete, statistics |
+| User (account with role `user`) | `Authorization: Bearer <token>` | read all and statistics; any change returns 403 |
 | Partner site | `x-api-key: <key>` | read all and statistics; any change returns 403 |
+
+Anyone can create an account with `POST /api/v1/auth/signup` (JSON). The account always gets the **user** role;
+sending a `role` field is rejected with 422. The response logs the new account in straight away:
+
+```bash
+curl -X POST https://aegisneo-api.vercel.app/api/v1/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"username": "carol", "password": "YOUR_PASSWORD"}'
+```
+```json
+{ "id": 3, "username": "carol", "role": "user", "access_token": "<token>", "token_type": "bearer", "expires_in": 3600 }
+```
+
+Rules: username 3 to 30 characters (lowercase letters, digits, `_`; it is trimmed and lowercased), password 8
+characters to 72 bytes. A taken username is 409. Admin accounts are made only by the owner with the scripts.
 
 Get a token with `POST /api/v1/auth/login` (form fields, not JSON, so the Swagger Authorize button works):
 
@@ -24,12 +40,12 @@ curl -X POST https://aegisneo-api.vercel.app/api/v1/auth/login \
      -d "username=demo&password=YOUR_PASSWORD"
 ```
 ```json
-{ "access_token": "<token>", "token_type": "bearer", "expires_in": 3600 }
+{ "access_token": "<token>", "token_type": "bearer", "role": "admin", "expires_in": 3600 }
 ```
 
 The token is valid for 60 minutes. Send it on later requests:
 `curl -H "Authorization: Bearer <token>" https://aegisneo-api.vercel.app/api/v1/auth/me` returns
-`{ "id": 1, "username": "demo" }`.
+`{ "id": 1, "username": "demo", "role": "admin" }`.
 
 An invalid or expired token is rejected with 401. It is never treated as a guest.
 
@@ -39,15 +55,16 @@ An invalid or expired token is rejected with 401. It is never treated as a guest
 | --- | --- | --- | --- | --- |
 | GET | `/` | Welcome message, number of asteroids | 200 | public |
 | GET | `/health` | Status and database check | 200 / 503 | public |
+| POST | `/api/v1/auth/signup` | Create an account (role user) | 201 | public |
 | POST | `/api/v1/auth/login` | Log in | 200 | public |
-| GET | `/api/v1/auth/me` | Current user | 200 | user |
+| GET | `/api/v1/auth/me` | Current account and its role | 200 | admin, user |
 | GET | `/api/v1/asteroids` | List, search, filter, sort, page | 200 | guest (featured only), user, partner |
 | GET | `/api/v1/asteroids/random` | Random asteroids | 200 | guest (featured only), user, partner |
 | GET | `/api/v1/asteroids/{neo_reference_id}` | One asteroid | 200 | guest (featured only), user, partner |
-| POST | `/api/v1/asteroids` | Create | 201 | user |
-| PATCH | `/api/v1/asteroids/{neo_reference_id}` | Change some fields | 200 | user |
-| DELETE | `/api/v1/asteroids/{neo_reference_id}` | Delete | 200 | user |
-| GET | `/api/v1/stats` | Catalog summary | 200 | user, partner |
+| POST | `/api/v1/asteroids` | Create | 201 | admin |
+| PATCH | `/api/v1/asteroids/{neo_reference_id}` | Change some fields | 200 | admin |
+| DELETE | `/api/v1/asteroids/{neo_reference_id}` | Delete | 200 | admin |
+| GET | `/api/v1/stats` | Catalog summary | 200 | admin, user, partner |
 
 ### Query parameters of `GET /api/v1/asteroids`
 
@@ -185,8 +202,10 @@ A second delete, or a `GET`, returns 404.
 | Invalid or expired token | 401 | `"Invalid or expired token."` |
 | Guest opens an asteroid that is not featured | 401 | `"Log in to view this asteroid."` |
 | Partner key used to change data | 403 | `"This API key is read-only."` |
+| Account with the user role used to change data | 403 | `"Only an admin can change data. Your account has the user role."` |
 | Asteroid does not exist | 404 | `"Asteroid not found."` |
 | Duplicate ID or name | 409 | `"An asteroid with this neo_reference_id already exists."` |
+| Sign-up with a username that is taken | 409 | `"This username is already taken."` |
 | More than 10 featured | 409 | `"At most 10 asteroids can be featured."` |
 | Body is not valid JSON | 400 | `"The request body is not valid JSON."` |
 | Invalid or missing fields | 422 | A list that names each field and the reason (the submitted value is not repeated) |

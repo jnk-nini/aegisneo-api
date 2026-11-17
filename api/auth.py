@@ -2,7 +2,10 @@
 
 Three kinds of caller:
   guest    no credentials; may see only the featured asteroids
-  user     "Authorization: Bearer <token>" from POST /api/v1/auth/login
+  user     "Authorization: Bearer <token>" from POST /api/v1/auth/login.
+           Each account has a role, stored in the users table:
+             admin  may read everything and create, update and delete
+             user   may read everything, change nothing
   partner  "x-api-key" of a partner site; may read everything, change nothing
 """
 import logging
@@ -15,7 +18,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 
-from api import config
+from api import config, db
 
 log = logging.getLogger("aegisneo.auth")
 
@@ -35,6 +38,7 @@ class Caller:
     kind: str  # "guest", "user" or "partner"
     user_id: Optional[int] = None
     username: Optional[str] = None
+    role: Optional[str] = None  # "admin" or "user", from the token
     client: Optional[str] = None
 
     @property
@@ -54,17 +58,27 @@ def _secret():
     return secret
 
 
+def check_login_configured():
+    """Raise AuthConfigError (503) if tokens cannot be signed."""
+    _secret()
+
+
 def password_matches(password, password_hash):
     hashed = password_hash.encode() if password_hash else _DUMMY_HASH
     ok = bcrypt.checkpw(password.encode()[:72], hashed)  # bcrypt reads at most 72 bytes
     return ok and password_hash is not None
 
 
-def create_token(user_id, username):
+def hash_password(password):
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+
+def create_token(user_id, username, role):
     now = int(time.time())
     payload = {
         "sub": str(user_id),
         "username": username,
+        "role": role,
         "iat": now,
         "exp": now + config.jwt_expire_minutes() * 60,
     }
@@ -78,7 +92,8 @@ def get_caller(
     if token:
         try:
             payload = jwt.decode(token, _secret(), algorithms=[ALGORITHM], options={"require": ["exp", "sub"]})
-            return Caller("user", user_id=int(payload["sub"]), username=payload.get("username"))
+            return Caller("user", user_id=int(payload["sub"]), username=payload.get("username"),
+                          role=payload.get("role"))
         except (jwt.PyJWTError, ValueError):
             # An invalid or expired token is a 401, not a silent downgrade to
             # guest, so the website knows the user has to log in again.
@@ -91,12 +106,23 @@ def get_caller(
     return Caller("guest")
 
 
-def require_user(caller: Caller = Depends(get_caller)):
-    """Create, update and delete: a logged-in user only."""
+def require_admin(caller: Caller = Depends(get_caller)):
+    """Create, update and delete: an account with the admin role only.
+
+    The role is read from the database on every change, not taken from the
+    token, so an account that is changed to "user" (or deleted) loses write
+    access at once instead of when its token expires.
+    """
     if caller.kind == "guest":
         raise HTTPException(401, "Log in to change data.", headers={"WWW-Authenticate": "Bearer"})
     if caller.kind == "partner":
         raise HTTPException(403, "This API key is read-only.")
+    role = db.get_user_role(caller.user_id)
+    if role is None:
+        raise db.UnknownUserError()
+    if role != "admin":
+        raise HTTPException(403, "Only an admin can change data. Your account has the user role.")
+    caller.role = role
     return caller
 
 

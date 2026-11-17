@@ -1,0 +1,133 @@
+AEGISNEO DEMO SNIPPETS (copy-paste, in demo order)
+Site: https://aegisneo-api.vercel.app
+No passwords or keys are in this file. Type your password yourself.
+
+==== 0. WAKE THE DATABASE (about 4:20, just before the demo) ====
+Open in the browser:
+https://aegisneo-api.vercel.app/health
+Expect: "database": "ok"
+
+Swagger:
+https://aegisneo-api.vercel.app/docs
+(Authorize padlock, enter your ADMIN username + password, Authorize, Close)
+Create, update and delete need an account with the admin role.
+
+Neon: console.neon.tech > project AegisNEO > SQL Editor (branch production, database neondb)
+
+==== NEON: STARTING STATE ====
+select count(*) from asteroids;
+select * from asteroids where neo_reference_id = '9000001';
+(expect 33511, and no row for 9000001)
+
+==== 1. CREATE: POST /api/v1/asteroids (expect 201) ====
+{
+  "neo_reference_id": "9000001",
+  "name": "Demo Rock (2026 XY)",
+  "estimated_diameter_km": 0.25,
+  "is_potentially_hazardous": true,
+  "close_approach_date": "2026-05-17",
+  "relative_velocity_km_h": 54000.5,
+  "miss_distance_km": 4200000,
+  "absolute_magnitude": 21.3
+}
+
+Then in Neon:
+select * from asteroids where neo_reference_id = '9000001';
+
+==== 2. READ: GET /api/v1/asteroids/9000001 (expect 200) ====
+(enter 9000001 as neo_reference_id)
+
+==== 3. UPDATE: PATCH /api/v1/asteroids/9000001 (expect 200) ====
+{ "estimated_diameter_km": 0.31 }
+Then re-run the Neon select from step 1.
+
+==== 4. SEARCH: GET /api/v1/asteroids ====
+In Swagger, search parameter:
+Demo Rock
+
+Other searches (browser or Swagger parameters):
+search = apophis
+hazardous = true, min_diameter = 1, sort = diameter, order = desc, limit = 3
+(expect 219 matches, 3122 Florence first)
+
+==== 5. DELETE: DELETE /api/v1/asteroids/9000001 (expect 200) ====
+Then GET it again: expect 404.
+Neon: select * from asteroids where neo_reference_id = '9000001';   (no rows)
+
+==== 6. INVALID REQUESTS ====
+422: resend the create body with this line changed:
+"estimated_diameter_km": "big"
+
+400: send this as the whole body:
+{oops
+
+==== 7. UNAUTHORIZED ====
+401: Swagger > Authorize > Logout, then try POST /api/v1/asteroids.
+Guest list: GET /api/v1/asteroids with limit = 2, no login
+(expect "access": "guest" and "total": 10)
+403 (partner key can't write): show your screenshot from home.
+
+==== 7b. ROLES: a user account cannot change data (expect 403) ====
+Swagger > Authorize > Logout, then log in as demo (role user).
+GET /api/v1/auth/me            -> "role": "user"
+GET /api/v1/asteroids          -> 200, "access": "full" (users can read everything)
+POST /api/v1/asteroids         -> 403 "Only an admin can change data..."
+Log out and log in again as your admin account before step 8.
+
+==== 7c. SIGN-UP: anyone can make a read-only account ====
+Website: https://aegisneo-api.vercel.app/frontend/  > Log in > "Create one"
+Make e.g. prof_demo, then the top bar shows "Signed in as prof_demo (user)".
+Neon: select id, username, role from users order by id;   (new row, role user)
+Swagger: POST /api/v1/auth/signup with
+{ "username": "sneaky", "password": "longpassword1", "role": "admin" }
+-> 422 (you cannot ask for admin). Remove the "role" line -> 201, role user.
+Neon proof that the API cannot make an admin (aegis_app may INSERT only these two columns):
+select privilege_type, column_name from information_schema.column_privileges
+where table_name = 'users' and grantee = 'aegis_app' order by 1, 2;
+
+==== 8. DUPLICATE (expect 409) ====
+Create id 9000001 twice (use the step 1 body). The second one gives 409.
+Delete it afterwards.
+
+==== 9. PERSISTENCE ====
+Show your screenshot of "5 of 5 passed" after redeploy, or:
+Vercel > Deployments > latest > menu > Redeploy, then in Neon:
+select count(*) from asteroids;     (still 33511)
+
+==== NEON QUESTIONS THE PROF MAY ASK ====
+-- Who created this row? (foreign key)
+select a.neo_reference_id, a.name, u.username
+from asteroids a join users u on u.id = a.created_by;
+
+-- Can the database reject bad data without the API?
+insert into asteroids (neo_reference_id, name, estimated_diameter_km,
+  close_approach_date, relative_velocity_km_h, miss_distance_km, absolute_magnitude)
+values ('9000002', 'Bad Rock', 0, '2026-01-01', 1000, 1000, 20);
+(fails with a check-constraint error, nothing stored)
+
+-- Why is search fast? Run one line at a time:
+explain select neo_reference_id from asteroids where name ilike '%apophis%';
+explain select neo_reference_id from asteroids where neo_reference_id = '2099942';
+explain select neo_reference_id from asteroids where estimated_diameter_km >= 1 order by estimated_diameter_km desc limit 3;
+
+-- Where are the roles? (two tables, linked by a foreign key)
+select * from roles;
+select id, username, role from users order by id;
+
+-- Can the database reject a role that does not exist?
+update users set role = 'boss' where username = 'demo';
+(fails with a foreign key error, nothing changed)
+
+-- Are passwords stored?
+select username, length(password_hash), left(password_hash, 4) from users;
+
+-- Count and group
+select is_potentially_hazardous, count(*) from asteroids group by 1;
+select count(*) from asteroids where is_featured;
+
+-- SQL injection test (Swagger search parameter):
+' OR 1=1 --
+%25
+
+==== AT THE END ====
+Sign out of Neon and Swagger, close the private window.

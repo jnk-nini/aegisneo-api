@@ -22,10 +22,17 @@ not drafted. Part I must not be repeated: this report is about what was designed
 
 ## Facts for section 4 (update to what was built)
 
-- Modules: `api/index.py` (routes, error handlers), `api/auth.py` (callers, tokens, partner keys),
+- Change from the Phase 2 design, asked for by the instructor: roles are now stored in the database. A `roles`
+  table holds `admin` and `user`, and `users.role` references it. Admins may create, update and delete; users may
+  only read. (The Phases 1 to 3 report said a roles table was not needed; explain this change in the report.)
+  Existing Neon databases get it from `db/migrations/001_add_roles.sql`.
+- Second change: a public sign-up (`POST /api/v1/auth/signup` and "Create one" on the website). The Phases 1 to 3
+  report said there was no sign-up because a logged-in user could change the catalog. With roles that is no longer
+  true: sign-up accounts are always `user` (read only), enforced by a column-level `INSERT` grant in the database.
+- Modules: `api/index.py` (routes, error handlers), `api/auth.py` (callers, roles, tokens, partner keys),
   `api/db.py` (all SQL), `api/models.py` (request validation), `api/config.py` (environment variables, local `.env`).
 - Scripts (run on your computer, not on Vercel): `scripts/import_asteroids.py`, `scripts/create_user.py`,
-  `scripts/check_connection.py`, `scripts/verify_deployment.py`.
+  `scripts/set_role.py`, `scripts/check_connection.py`, `scripts/verify_deployment.py`.
 - One change from the design: the API version is now 2.0, and responses include `is_featured`, `created_by`,
   `created_at`, `updated_at` besides the original fields, plus `access` on lists.
 
@@ -89,7 +96,7 @@ the verification steps instead if there were none).
 - Free plan (limits from your Part I, re-check them on the day you write): 1 GB storage, 100 CU-hours per month,
   compute suspends after 5 minutes idle. Measure the real size of the database in the Neon console (33,511 rows).
 - Behavior of idle compute: first request after more than 5 minutes is slower (step 21).
-- Limits of the implementation: token cannot be revoked, no login rate limit in code, featured limit checked by the
+- Limits of the implementation: token cannot be revoked, no login or sign-up rate limit in code, featured limit checked by the
   API, CORS open, no pagination cursor (offset paging), default sort by ID, dates in the data are generated.
 - If there were more users or records: a rate limit, token revocation or refresh tokens, keyset paging for large
   offsets, read replicas or caching of `/stats`, a migration tool instead of a single schema file, backups beyond
