@@ -38,23 +38,35 @@ function entity(x, y, w, name, rows) {
 }
 function erd() {
   const W = 960;
-  const u = entity(20, 60, 340, 'users', [['PK', 'id', 'integer (identity)'], ['UK', 'username', 'text'], ['', 'password_hash', 'text'], ['', 'created_at', 'timestamptz']]);
+  const r = entity(20, 20, 340, 'roles', [['PK', 'name', 'text'], ['', 'description', 'text']]);
+  const uy = 20 + r.h + 74;
+  const u = entity(20, uy, 340, 'users', [['PK', 'id', 'integer (identity)'], ['UK', 'username', 'text'], ['', 'password_hash', 'text'], ['FK', 'role', 'text (default user)'], ['', 'created_at', 'timestamptz']]);
   const a = entity(520, 20, 420, 'asteroids', [['PK', 'neo_reference_id', 'text'], ['UK', 'name', 'text'], ['', 'estimated_diameter_km', 'double precision'], ['', 'is_potentially_hazardous', 'boolean'], ['', 'close_approach_date', 'date'], ['', 'relative_velocity_km_h', 'double precision'], ['', 'miss_distance_km', 'double precision'], ['', 'absolute_magnitude', 'double precision'], ['', 'is_featured', 'boolean'], ['FK', 'created_by', 'integer (nullable)'], ['', 'created_at', 'timestamptz'], ['', 'updated_at', 'timestamptz']]);
+  let s = '';
+  // roles 1 to users 0..n (users.role references roles.name, NOT NULL)
+  const vx = 110, top = 20 + r.h, bot = uy;
+  s += `<line x1='${vx}' y1='${top}' x2='${vx}' y2='${bot}' stroke='${C.line}' stroke-width='1.7'/>`;
+  s += `<line x1='${vx - 10}' y1='${top + 10}' x2='${vx + 10}' y2='${top + 10}' stroke='${C.line}' stroke-width='1.7'/><line x1='${vx - 10}' y1='${top + 17}' x2='${vx + 10}' y2='${top + 17}' stroke='${C.line}' stroke-width='1.7'/>`;
+  s += `<path d='M${vx},${bot - 17} L${vx - 10},${bot} M${vx},${bot - 17} L${vx + 10},${bot}' stroke='${C.line}' stroke-width='1.7'/><circle cx='${vx}' cy='${bot - 28}' r='6.5' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
+  s += T(vx + 24, (top + bot) / 2 - 3, 'has', { italic: true, fill: C.muted, size: 16 });
+  s += T(vx + 24, (top + bot) / 2 + 18, '1 to 0..n', { fill: C.muted, size: 15.5 });
+  // users 0..1 to asteroids 0..n (asteroids.created_by references users.id)
   const y1 = u.pos.id, y2 = a.pos.created_by, x1 = 360, x2 = 520, mx = 440;
-  let s = `<path d='M${x1},${y1} H${mx} V${y2} H${x2}' fill='none' stroke='${C.line}' stroke-width='1.7'/>`;
+  s += `<path d='M${x1},${y1} H${mx} V${y2} H${x2}' fill='none' stroke='${C.line}' stroke-width='1.7'/>`;
   s += `<line x1='${x1 + 14}' y1='${y1 - 10}' x2='${x1 + 14}' y2='${y1 + 10}' stroke='${C.line}' stroke-width='1.7'/><circle cx='${x1 + 29}' cy='${y1}' r='6.5' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
   s += `<path d='M${x2 - 17},${y2} L${x2},${y2 - 10} M${x2 - 17},${y2} L${x2},${y2 + 10}' stroke='${C.line}' stroke-width='1.7'/><circle cx='${x2 - 28}' cy='${y2}' r='6.5' fill='#fff' stroke='${C.line}' stroke-width='1.7'/>`;
   s += `<rect x='${mx - 62}' y='${(y1 + y2) / 2 - 30}' width='124' height='52' fill='#fff'/>`;
   s += T(mx, (y1 + y2) / 2 - 10, 'creates', { anchor: 'middle', italic: true, fill: C.muted, size: 16 });
   s += T(mx, (y1 + y2) / 2 + 12, '0..1 to 0..n', { anchor: 'middle', fill: C.muted, size: 15.5 });
-  const ly = 60 + u.h + 50;
+  const ly = uy + u.h + 42;
+  const legend = ['PK = primary key, UK = unique, FK = foreign key',
+    'users.role references roles.name (NOT NULL);',
+    'roles holds two rows: admin and user',
+    'asteroids.created_by references users.id',
+    '(ON DELETE SET NULL); empty for the 33,511 imported records'];
   s += T(20, ly, 'Legend', { bold: true, fill: C.navy, size: 17 });
-  s += T(20, ly + 26, 'PK = primary key, UK = unique, FK = foreign key', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 50, 'asteroids.created_by references users.id', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 74, '(ON DELETE SET NULL)', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 98, 'created_by is empty for the 33,511', { size: 15.5, fill: C.muted });
-  s += T(20, ly + 122, 'imported records', { size: 15.5, fill: C.muted });
-  return { W, H: 20 + a.h + 20, body: u.s + a.s + s };
+  legend.forEach((l, i) => s += T(20, ly + 26 + i * 23, l, { size: 15.5, fill: C.muted }));
+  return { W, H: Math.max(20 + a.h + 20, ly + 26 + (legend.length - 1) * 23 + 16), body: r.s + u.s + a.s + s };
 }
 
 // ---------- Architecture ----------
