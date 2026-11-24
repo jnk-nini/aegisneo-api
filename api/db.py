@@ -343,12 +343,13 @@ def get_user_by_username(username):
         ).fetchone()
 
 
-def create_user(username, password_hash):
+def create_user(username, password_hash, recovery_hash=None):
     """Add an account. The role is not sent: the database gives it 'user'."""
     with connection() as conn:
         user = conn.execute(
-            "insert into users (username, password_hash) values (%s, %s) returning id, username, role",
-            [username, password_hash],
+            "insert into users (username, password_hash, recovery_hash) values (%s, %s, %s) "
+            "returning id, username, role",
+            [username, password_hash, recovery_hash],
         ).fetchone()
         _award_badges(conn, user["id"])  # First Contact
         return user
@@ -357,8 +358,35 @@ def create_user(username, password_hash):
 def get_user(user_id):
     with connection() as conn:
         return conn.execute(
-            "select id, username, role from users where id = %s", [user_id]
+            "select id, username, role, recovery_hash is not null as has_recovery_code "
+            "from users where id = %s", [user_id]
         ).fetchone()
+
+
+def get_user_secrets(username):
+    """id, password hash and recovery hash of an account, for the reset flow only."""
+    with connection() as conn:
+        return conn.execute(
+            "select id, password_hash, recovery_hash from users where username = %s", [username]
+        ).fetchone()
+
+
+def get_password_hash(user_id):
+    with connection() as conn:
+        row = conn.execute("select password_hash from users where id = %s", [user_id]).fetchone()
+    return row["password_hash"] if row else None
+
+
+def set_credentials(user_id, password_hash=None, recovery_hash=None):
+    """Change the password hash and/or the recovery hash. Returns False if the account is gone."""
+    sets, params = [], []
+    if password_hash is not None:
+        sets.append("password_hash = %s"); params.append(password_hash)
+    if recovery_hash is not None:
+        sets.append("recovery_hash = %s"); params.append(recovery_hash)
+    with connection() as conn:
+        row = conn.execute(f"update users set {', '.join(sets)} where id = %s returning id", params + [user_id]).fetchone()
+    return row is not None
 
 
 def get_user_role(user_id):

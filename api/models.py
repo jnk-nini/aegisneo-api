@@ -84,3 +84,30 @@ class SignUp(BaseModel):
             raise ValueError("The password must be at most 72 bytes.")
         return value
 
+
+class ResetPassword(BaseModel):
+    """Choose a new password with the account's recovery code."""
+    model_config = ConfigDict(extra="forbid")
+
+    username: Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]
+    recovery_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=40)]
+    new_password: str = Field(min_length=8, description="At least 8 characters, at most 72 bytes.")
+
+    @field_validator("username")
+    @classmethod
+    def lowercase(cls, value):
+        return value.lower()
+
+    @field_validator("new_password")
+    @classmethod
+    def password_fits_bcrypt(cls, value):
+        if len(value.encode()) > 72:
+            raise ValueError("The password must be at most 72 bytes.")
+        return value
+
+
+class NewRecoveryCode(BaseModel):
+    """Make a new recovery code: needs the current password."""
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1, max_length=72)

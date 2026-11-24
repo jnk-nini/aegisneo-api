@@ -63,6 +63,7 @@
                     <input id="confirm" type="password" autocomplete="new-password" maxlength="72">
                 </div>
 
+                <p class="forgot" id="forgotRow"><button type="button" class="link-btn" id="forgotBtn">Forgot your password?</button></p>
                 <p class="form-error" id="authError" role="alert"></p>
                 <button class="btn btn-primary btn-block" id="authSubmit" type="submit">Sign in</button>
 
@@ -71,6 +72,36 @@
                 <p class="fineprint" style="text-align:center">Guests see 10 featured asteroids on every site.</p>
                 <a class="back-link" href="./">← Back to the home page</a>
             </form>
+
+            <form class="auth-card" id="resetForm" novalidate hidden>
+                <h2>Reset your password</h2>
+                <p class="sub">Enter the recovery code you saved when you created your account.</p>
+                <div class="field"><label for="resetUser">Username</label>
+                    <input id="resetUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30" required></div>
+                <div class="field"><label for="resetCode">Recovery code</label>
+                    <input id="resetCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX" required class="mono"></div>
+                <div class="field"><label for="resetPass">New password</label>
+                    <input id="resetPass" type="password" autocomplete="new-password" maxlength="72" required>
+                    <span class="hint">At least 8 characters</span></div>
+                <div class="field"><label for="resetConfirm">Confirm new password</label>
+                    <input id="resetConfirm" type="password" autocomplete="new-password" maxlength="72" required></div>
+                <p class="form-error" id="resetError" role="alert"></p>
+                <button class="btn btn-primary btn-block" id="resetSubmit" type="submit">Set new password</button>
+                <button type="button" class="back-link link-btn" id="resetBack">← Back to sign in</button>
+                <p class="fineprint">No recovery code? Ask the project owner to reset your password.</p>
+            </form>
+
+            <section class="auth-card" id="codePanel" aria-labelledby="codeTitle" hidden>
+                <h2 id="codeTitle">Save your recovery code</h2>
+                <p class="sub" id="codeSub">If you ever forget your password, this code is the only way to get back in. We cannot show it again.</p>
+                <output class="code-box" id="codeValue" aria-live="polite"></output>
+                <div class="code-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="codeCopy">Copy</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="codeDownload">Download as a file</button>
+                </div>
+                <label class="check"><input type="checkbox" id="codeSaved"> I saved it somewhere safe</label>
+                <button class="btn btn-primary btn-block" id="codeContinue" type="button" disabled>Continue</button>
+            </section>
         </main>
     </div>
 

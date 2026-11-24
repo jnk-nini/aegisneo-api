@@ -12,12 +12,12 @@ def test_signup_creates_a_user_and_logs_in(client, owner_db):
     assert r.status_code == 201
     body = r.json()
     assert body["username"] == "carol" and body["role"] == "user" and body["access_token"]
-    assert "password" not in r.text and "hash" not in r.text
+    assert "password" not in r.text and "hash" not in r.text.replace("recovery_code", "")
     row = owner_db.execute("select role, password_hash from users where username = 'carol'").fetchone()
     assert row[0] == "user" and row[1].startswith("$2b$12$") and NEW["password"] not in row[1]
     # The token works, and the same password logs in.
     me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
-    assert me.json() == {"id": body["id"], "username": "carol", "role": "user"}
+    assert me.json() == {"id": body["id"], "username": "carol", "role": "user", "has_recovery_code": True}
     assert client.post("/api/v1/auth/login", data=NEW).status_code == 200
 
 

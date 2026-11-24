@@ -58,7 +58,7 @@ body.explorer main { padding-bottom: 40px; }
 @media (max-width: 560px) { .game-arena { grid-template-columns: 1fr 1fr; } .game-vs { display: none; } }
 
 /* ---------- search and filters ---------- */
-.controls { margin-top: 30px; padding: 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); backdrop-filter: blur(10px); display: grid; gap: 16px; }
+.controls { margin-top: 30px; padding: 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); backdrop-filter: blur(10px); display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .search { display: flex; gap: 10px; }
 .search input { flex: 1; min-width: 0; min-height: 46px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255, 255, 255, .04); color: var(--text); font: 16px var(--body); transition: border-color .2s, box-shadow .2s; }
 .search input:focus-visible { outline: 0; border-color: var(--cyan); box-shadow: 0 0 0 4px var(--cyan-dim); }
@@ -125,7 +125,7 @@ html[data-motion="on"] .asteroid-card.pre-reveal.in-view { opacity: 1; transform
 @media (max-width: 460px) { .asteroid-grid { grid-template-columns: 1fr; } }
 
 /* ---------- the telemetry dialog ---------- */
-.detail-overlay, .editor-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: rgba(2, 4, 10, .72); backdrop-filter: blur(8px); animation: fade-in .25s ease both; }
+.detail-overlay, .editor-overlay { position: fixed; inset: 0; z-index: 80; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 18px; background: rgba(2, 4, 10, .72); backdrop-filter: blur(8px); animation: fade-in .25s ease both; }
 @keyframes fade-in { from { opacity: 0; } }
 .detail-panel, .editor-card { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 36px); overflow: auto; padding: clamp(20px, 4vw, 30px); border-radius: 24px; background: var(--surface-solid); border: 1px solid var(--border-hi); box-shadow: 0 40px 100px rgba(0, 0, 0, .6); animation: rise .45s var(--ease) both; }
 .detail-panel.status-hazard { border-color: rgba(245, 165, 36, .45); }
@@ -144,12 +144,14 @@ html[data-motion="on"] .asteroid-card.pre-reveal.in-view { opacity: 1; transform
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0; padding: 18px 0; border-block: 1px solid var(--border); }
 .detail-grid dd { font-size: 14.5px; }
 .capitalize { text-transform: capitalize; }
-.copy-btn { margin-top: 18px; min-height: 42px; width: 100%; border-radius: 999px; border: 1px solid var(--border); background: rgba(255, 255, 255, .04); color: var(--text); font: 600 14px var(--body); cursor: pointer; }
-.copy-btn:hover { border-color: var(--border-hi); }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.detail-actions .btn { flex: 1 1 auto; }
 .info-dot { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 4px; border-radius: 50%; color: var(--text-3); font-size: 12px; cursor: help; vertical-align: middle; }
 .info-dot:hover, .info-dot:focus-visible { color: var(--cyan); }
-.info-dot::after { content: attr(data-tip); position: absolute; z-index: 5; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(250px, 70vw); padding: 10px 12px; border-radius: 12px; background: #131b2e; border: 1px solid var(--border-hi); color: var(--text-2); font: 400 12.5px/1.45 var(--body); letter-spacing: 0; text-transform: none; opacity: 0; pointer-events: none; transition: opacity .15s; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
-.info-dot:hover::after, .info-dot:focus-visible::after { opacity: 1; }
+.info-dot::after { content: attr(data-tip); position: absolute; z-index: 5; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: min(250px, 70vw); padding: 10px 12px; border-radius: 12px; background: #131b2e; border: 1px solid var(--border-hi); color: var(--text-2); font: 400 12.5px/1.45 var(--body); letter-spacing: 0; text-transform: none; display: none; pointer-events: none; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
+/* display:none (not opacity) so a hidden tip never stretches the page sideways */
+.info-dot:hover::after, .info-dot:focus-visible::after { display: block; animation: fade-in .15s ease both; }
+@media (max-width: 560px) { .info-dot::after { position: fixed; left: 16px; right: 16px; bottom: 16px; top: auto; transform: none; width: auto; z-index: 120; } }
 @media (max-width: 560px) {
     .detail-overlay, .editor-overlay { align-items: end; padding: 0; }
     .detail-panel, .editor-card { width: 100%; border-radius: 24px 24px 0 0; max-height: 92dvh; }

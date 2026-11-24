@@ -2,3 +2,5 @@
 data/raw/
 # Part II documentation; not needed by the deployed API.
 docs/
+# Browser tests; the API never needs them.
+e2e/

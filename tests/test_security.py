@@ -38,7 +38,7 @@ def test_validation_errors_never_echo_the_password(client):
 
 def test_me_returns_the_logged_in_user_without_secrets(client, auth):
     r = client.get("/api/v1/auth/me", headers=auth)
-    assert r.json() == {"id": 1, "username": "alice", "role": "admin"}
+    assert r.json() == {"id": 1, "username": "alice", "role": "admin", "has_recovery_code": False}
 
 
 def test_me_needs_a_user_token(client, partner):
@@ -140,7 +140,6 @@ def test_the_api_role_cannot_change_the_structure_or_accounts(urls):
     with psycopg.connect(urls["app"], autocommit=True) as conn:
         for statement in ("drop table asteroids", "create table x (a int)",
                           "insert into users (username, password_hash, role) values ('eve', repeat('x', 60), 'admin')",
-                          "update users set password_hash = repeat('y', 60)",
                           "update users set username = 'eve'", "delete from users",
                           "alter table asteroids add column y int",
                           "update users set role = 'admin'",
@@ -149,3 +148,5 @@ def test_the_api_role_cannot_change_the_structure_or_accounts(urls):
                 conn.execute(statement)
         # what it is allowed to do
         assert conn.execute("select count(*) from users").fetchone()[0] == 2
+        # a password reset and a new recovery code are the only changes it may make to an account
+        conn.execute("update users set password_hash = repeat('y', 60), recovery_hash = repeat('z', 60) where username = 'bob'")

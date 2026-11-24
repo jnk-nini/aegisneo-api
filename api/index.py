@@ -11,7 +11,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from api import auth, db, ratelimit
 from api.config import API_VERSION
-from api.models import AsteroidCreate, AsteroidUpdate, SignUp
+from api.models import AsteroidCreate, AsteroidUpdate, NewRecoveryCode, ResetPassword, SignUp
 
 log = logging.getLogger("aegisneo")
 
@@ -159,6 +159,8 @@ def home(response: Response):
         "endpoints": [
             "POST /api/v1/auth/signup",
             "POST /api/v1/auth/login",
+            "POST /api/v1/auth/reset-password",
+            "POST /api/v1/auth/recovery-code",
             "GET /api/v1/auth/me",
             "GET /api/v1/asteroids",
             "GET /api/v1/asteroids?search=&hazardous=&min_diameter=&max_diameter=&from_date=&to_date=&sort=&order=&limit=&offset=",
@@ -211,11 +213,14 @@ def signup(request: Request, data: SignUp):
     Admins are made only by the owner, with scripts/set_role.py."""
     ratelimit.enforce(request, "signup")
     auth.check_login_configured()  # 503 before anything is stored if tokens cannot be signed
-    user = db.create_user(data.username, auth.hash_password(data.password))
+    recovery_code = auth.new_recovery_code()
+    user = db.create_user(data.username, auth.hash_password(data.password), auth.hash_recovery_code(recovery_code))
     return {
         "id": user["id"],
         "username": user["username"],
         "role": user["role"],
+        # Shown once: only its hash is stored. It lets the owner choose a new password.
+        "recovery_code": recovery_code,
         "access_token": auth.create_token(user["id"], user["username"], user["role"]),
         "token_type": "bearer",
         "expires_in": auth.config.jwt_expire_minutes() * 60,
@@ -227,7 +232,34 @@ def me(caller: auth.Caller = Depends(auth.require_logged_in)):
     user = db.get_user(caller.user_id)
     if user is None:
         raise db.UnknownUserError()
-    return {"id": user["id"], "username": user["username"], "role": user["role"]}
+    return {"id": user["id"], "username": user["username"], "role": user["role"],
+            "has_recovery_code": user["has_recovery_code"]}
+
+
+@app.post("/api/v1/auth/reset-password")
+def reset_password(request: Request, data: ResetPassword):
+    """Choose a new password with the recovery code. The code is used up: a new one is returned."""
+    ratelimit.enforce(request, "reset", username=data.username)
+    secrets_row = db.get_user_secrets(data.username)
+    ok = auth.recovery_code_matches(data.recovery_code, secrets_row["recovery_hash"] if secrets_row else None)
+    if not secrets_row or not ok:
+        # The same answer whether the name, the code or the account's missing code was wrong.
+        raise HTTPException(401, "The username or recovery code is not correct.")
+    new_code = auth.new_recovery_code()
+    db.set_credentials(secrets_row["id"], auth.hash_password(data.new_password), auth.hash_recovery_code(new_code))
+    return {"message": "Password changed. Sign in with it.", "recovery_code": new_code}
+
+
+@app.post("/api/v1/auth/recovery-code")
+def make_recovery_code(data: NewRecoveryCode, request: Request, caller: auth.Caller = Depends(auth.require_logged_in)):
+    """A new recovery code for the signed-in account (replaces the old one). Needs the password."""
+    ratelimit.enforce(request, "reset")
+    if not auth.password_matches(data.password, db.get_password_hash(caller.user_id)):
+        raise HTTPException(403, "That password is not correct.")
+    code = auth.new_recovery_code()
+    if not db.set_credentials(caller.user_id, recovery_hash=auth.hash_recovery_code(code)):
+        raise db.UnknownUserError()
+    return {"recovery_code": code}
 
 
 # ============================================================
