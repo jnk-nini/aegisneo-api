@@ -21,6 +21,9 @@ create table public.users (
   username      text not null unique
                 check (username ~ '^[a-z0-9_]{3,30}$'),
   password_hash text not null check (length(password_hash) = 60),
+  -- bcrypt hash of the account's recovery code (shown once to its owner); lets the owner
+  -- choose a new password without an email address. Empty until a code is made.
+  recovery_hash text check (recovery_hash is null or length(recovery_hash) = 60),
   role          text not null default 'user'
                 references public.roles (name) on update cascade
                 check (role <> 'guest'),
@@ -172,13 +175,15 @@ create index asteroid_audit_asteroid_idx on public.asteroid_audit (neo_reference
 -- The API connects as aegis_app: it can read and write asteroids, read
 -- the access rules, and add an account for the sign-up page, and the rows that
 -- record what visitors do (launches, watchlist, badges, audit), and nothing else.
--- It may fill in only username and password_hash, so every account it adds
--- gets the default role 'user'. It cannot make an admin, change a role or a
--- password, or delete an account. The role must exist before this script runs.
+-- It may fill in only username, password_hash and recovery_hash, so every account it adds
+-- gets the default role 'user'. It can change a password or recovery code (the reset flow), but it
+-- cannot make an admin, change a role or a name, or delete an account. The role must exist before this script runs.
 grant usage on schema public to aegis_app;
 grant select, insert, update, delete on public.asteroids to aegis_app;
 grant select on public.roles, public.users to aegis_app;
-grant insert (username, password_hash) on public.users to aegis_app;
+grant insert (username, password_hash, recovery_hash) on public.users to aegis_app;
+-- Only these two columns may be changed (a password reset, a new recovery code), never the role or the name.
+grant update (password_hash, recovery_hash) on public.users to aegis_app;
 grant select on public.sites, public.site_access, public.badges to aegis_app;
 grant select, insert on public.launches, public.user_badges, public.asteroid_audit to aegis_app;
 grant select, insert, delete on public.watchlist to aegis_app;

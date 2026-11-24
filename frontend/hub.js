@@ -140,12 +140,86 @@ function renderAdmin(data) {
         : `<li class="empty">No one is watching anything yet.</li>`;
 }
 
+// ---- recovery code ----
+const recDialog = document.getElementById("recoveryDialog");
+const recForm = document.getElementById("recoveryForm");
+const recError = document.getElementById("recError");
+let hasRecovery = false;
+
+function showRecoveryState(has) {
+    hasRecovery = has;
+    document.getElementById("recoveryNote").hidden = has;
+    document.getElementById("securityPanel").hidden = false;
+    document.getElementById("securityText").textContent = has
+        ? "A recovery code is set. You can make a new one at any time; it replaces the old one."
+        : "You have no recovery code yet. Make one so a forgotten password can be reset.";
+    document.getElementById("securityBtn").textContent = has ? "Make a new recovery code" : "Make a recovery code";
+}
+
+function openRecovery() {
+    recForm.reset();
+    recError.textContent = "";
+    document.getElementById("recPassField").hidden = false;
+    document.getElementById("recCode").hidden = true;
+    document.getElementById("recCopy").hidden = true;
+    document.getElementById("recSubmit").hidden = false;
+    document.getElementById("recClose").textContent = "Cancel";
+    document.getElementById("recSub").textContent = "Enter your password to make a new code. It replaces any code you had before.";
+    recDialog.showModal();
+    document.getElementById("recPassword").focus();
+}
+
+document.addEventListener("click", (event) => { if (event.target.closest("[data-recovery-open]")) openRecovery(); });
+document.getElementById("recClose").addEventListener("click", () => recDialog.close());
+document.getElementById("recCopy").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try { await navigator.clipboard.writeText(document.getElementById("recCode").textContent); button.textContent = "Copied"; }
+    catch { button.textContent = "Copy it by hand"; }
+    setTimeout(() => { button.textContent = "Copy"; }, 2000);
+});
+recForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.getElementById("recPassword").value;
+    if (!password) { recError.textContent = "Enter your password."; return; }
+    const submit = document.getElementById("recSubmit");
+    submit.disabled = true;
+    recError.textContent = "";
+    try {
+        const response = await apiFetch("/api/v1/auth/recovery-code", { method: "POST", json: { password } });
+        if (response.status === 403) throw new Error("That password is not correct.");
+        if (response.status === 429) throw new Error("Too many attempts. Please wait a while and try again.");
+        if (!response.ok) throw new Error("Could not make a code right now. Please try again later.");
+        const { recovery_code: code } = await response.json();
+        document.getElementById("recPassField").hidden = true;
+        const out = document.getElementById("recCode");
+        out.textContent = code;
+        out.hidden = false;
+        document.getElementById("recCopy").hidden = false;
+        submit.hidden = true;
+        document.getElementById("recClose").textContent = "I saved it";
+        document.getElementById("recSub").textContent = "Save this code somewhere safe. It is shown only once.";
+        showRecoveryState(true);
+    } catch (error) {
+        recError.textContent = error instanceof TypeError ? "Could not reach the server." : error.message;
+    } finally {
+        submit.disabled = false;
+    }
+});
+
+async function loadSecurity() {
+    try {
+        const response = await apiFetch("/api/v1/auth/me");
+        if (response.ok) showRecoveryState(Boolean((await response.json()).has_recovery_code));
+    } catch { /* the panel stays hidden */ }
+}
+
 async function load() {
     try {
         const sitesResponse = await apiFetch("/api/v1/sites");
         if (!sitesResponse.ok) throw new Error("Could not load the sites.");
         renderSites((await sitesResponse.json()).sites);
         if (Session.loggedIn) {
+            loadSecurity();
             const overview = await apiFetch("/api/v1/me/overview");
             if (overview.ok) renderOverview(await overview.json());
             if (Session.isAdmin) {

@@ -45,6 +45,7 @@ function setMode(on) {
     strengthEl.hidden = !on;
     document.getElementById("tabs").dataset.mode = on ? "signup" : "login";
     confirmInput.required = on;
+    document.getElementById("forgotRow").hidden = on;
     errorEl.textContent = "";
 }
 
@@ -112,12 +113,101 @@ form.addEventListener("submit", async (event) => {
         if (!response.ok) throw new Error(`${signingUp ? "Sign-up" : "Sign-in"} is not available right now. Please try again later.`);
         const data = await response.json();
         Session.save({ token: data.access_token, username: name, role: data.role });
-        location.assign("hub");
+        // A new account must save its recovery code before going on: it is shown only once.
+        if (signingUp && data.recovery_code) showCode(data.recovery_code, "hub", "Continue to the hub");
+        else location.assign("hub");
     } catch (error) {
         errorEl.textContent = error instanceof TypeError
             ? "Could not reach the server. Check your connection and try again."
             : error.message;
         submit.disabled = false;
+    }
+});
+
+// ---- recovery code: shown once, after sign-up and after a reset ----
+const resetForm = document.getElementById("resetForm");
+const codePanel = document.getElementById("codePanel");
+const codeSaved = document.getElementById("codeSaved");
+const codeContinue = document.getElementById("codeContinue");
+let codeNext = "hub";
+
+function show(view) {
+    form.hidden = view !== form;
+    resetForm.hidden = view !== resetForm;
+    codePanel.hidden = view !== codePanel;
+    const first = view.querySelector("input, button");
+    if (first) first.focus({ preventScroll: true });
+}
+
+function showCode(code, next, label) {
+    document.getElementById("codeValue").textContent = code;
+    codeNext = next;
+    codeSaved.checked = false;
+    codeContinue.disabled = true;
+    codeContinue.textContent = label;
+    show(codePanel);
+    document.getElementById("codeTitle").setAttribute("tabindex", "-1");
+    document.getElementById("codeTitle").focus();
+}
+
+codeSaved.addEventListener("change", () => { codeContinue.disabled = !codeSaved.checked; });
+codeContinue.addEventListener("click", () => {
+    if (codeNext === "hub") location.assign("hub");
+    else { show(form); setMode(false); }
+});
+document.getElementById("codeCopy").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    try { await navigator.clipboard.writeText(document.getElementById("codeValue").textContent); button.textContent = "Copied"; }
+    catch { button.textContent = "Select and copy it by hand"; }
+    setTimeout(() => { button.textContent = "Copy"; }, 2000);
+});
+document.getElementById("codeDownload").addEventListener("click", () => {
+    const code = document.getElementById("codeValue").textContent;
+    const blob = new Blob([`AegisNEO recovery code\n${code}\nKeep this somewhere safe. It resets your password if you forget it.\n`], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "aegisneo-recovery-code.txt";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+});
+
+// ---- forgot password ----
+document.getElementById("forgotBtn").addEventListener("click", () => {
+    document.getElementById("resetUser").value = username.value.trim().toLowerCase();
+    show(resetForm);
+});
+document.getElementById("resetBack").addEventListener("click", () => show(form));
+resetForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const err = document.getElementById("resetError");
+    const pass = document.getElementById("resetPass").value;
+    if (pass.length < 8) { err.textContent = "The new password must be at least 8 characters."; return; }
+    if (pass !== document.getElementById("resetConfirm").value) { err.textContent = "The two passwords do not match."; return; }
+    const button = document.getElementById("resetSubmit");
+    button.disabled = true;
+    err.textContent = "";
+    try {
+        const response = await fetch(`${API_URL}/api/v1/auth/reset-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: document.getElementById("resetUser").value.trim().toLowerCase(),
+                recovery_code: document.getElementById("resetCode").value.trim(),
+                new_password: pass,
+            }),
+        });
+        if (response.status === 401) throw new Error("The username or recovery code is not correct.");
+        if (response.status === 429) throw new Error("Too many attempts. Please wait a while and try again.");
+        if (response.status === 422) throw new Error("Please check the recovery code and the new password.");
+        if (!response.ok) throw new Error("Could not reset the password right now. Please try again later.");
+        const data = await response.json();
+        resetForm.reset();
+        document.getElementById("codeSub").textContent = "Your password was changed. This is your new recovery code: the old one no longer works. We cannot show it again.";
+        showCode(data.recovery_code, "signin", "Continue to sign in");
+    } catch (error) {
+        err.textContent = error instanceof TypeError ? "Could not reach the server. Check your connection and try again." : error.message;
+    } finally {
+        button.disabled = false;
     }
 });
 

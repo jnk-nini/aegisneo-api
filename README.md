@@ -18,7 +18,7 @@ api/models.py       request validation models
 api/config.py       settings from environment variables
 db/schema.sql       the ten tables, constraints, indexes and privileges
 db/migrations/      changes for a database made with an older schema.sql (001 roles, 002 sites and activity, 003 rate limits)
-scripts/            import_asteroids.py, create_user.py, set_role.py, check_connection.py, verify_deployment.py (run on your own computer)
+scripts/            dev_server.py (API + website together), import_asteroids.py, create_user.py, set_role.py, check_connection.py, verify_deployment.py (run on your own computer)
 docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
 requirements.txt    Python packages for Vercel
@@ -84,7 +84,9 @@ and `asteroid_audit` (an append-only trail of admin changes). `db/schema.sql` ha
 | GET | `/health` | Status check; 503 if the database cannot be reached | public |
 | POST | `/api/v1/auth/signup` | Create an account (JSON `username`, `password`); it always gets the user role (201) | public |
 | POST | `/api/v1/auth/login` | Username and password (form fields) -> access token | public |
-| GET | `/api/v1/auth/me` | The logged-in account and its role | admin or user |
+| POST | `/api/v1/auth/reset-password` | JSON `username`, `recovery_code`, `new_password`: choose a new password; the code is used up and a new one is returned | public (throttled) |
+| POST | `/api/v1/auth/recovery-code` | JSON `password`: make a new recovery code for the signed-in account | admin or user |
+| GET | `/api/v1/auth/me` | The logged-in account, its role and whether it has a recovery code | admin or user |
 | GET | `/api/v1/asteroids` | List with `search`, `hazardous`, `min_diameter`, `max_diameter`, `from_date`, `to_date`, `sort`, `order`, `limit`, `offset` | limited roles: featured only |
 | GET | `/api/v1/asteroids/random?count=` | Random asteroids | limited roles: featured only |
 | GET | `/api/v1/asteroids/{neo_reference_id}` | One asteroid | limited roles: featured only |
@@ -109,6 +111,12 @@ unavailable), 500 (generic message; details only in the server log).
   10 per address per hour (`api/ratelimit.py`). The counters are in the `rate_limits` table and hold hashes, never raw
   addresses. If the table is missing the API lets requests through and logs a warning, so run
   `db/migrations/003_add_rate_limits.sql` on an existing database. `RATE_LIMIT_DISABLED=1` switches it off.
+- **Password recovery without email.** An account gets a recovery code at sign-up (16 characters, shown once, stored
+  only as a bcrypt hash). With the username and the code, `POST /auth/reset-password` sets a new password, uses the code
+  up and returns a fresh one. Accounts made earlier create a code on the hub (Account security) with their password.
+  No email address is collected. The API's database role may change only the `password_hash` and `recovery_hash`
+  columns of `users`, never a role or a name. Run `db/migrations/005_add_account_recovery.sql` on an existing database.
+  A reset does not end sessions that are already open; their tokens expire within `JWT_EXPIRE_MINUTES`.
 - **Roles are read live.** An account's role is looked up in the database on every request, so a deleted or demoted
   account loses access at once, not when its token expires.
 - **Headers.** The website is served with a Content-Security-Policy and the usual hardening headers (`vercel.json`);
@@ -151,6 +159,21 @@ python -m uvicorn api.index:app --reload --port 8000
 Then open http://127.0.0.1:8000/docs and use the **Authorize** button to log in.
 
 ## Tests
+
+There are two kinds. `pytest` tests the API against a real PostgreSQL (below). The browser tests in `e2e/` drive the
+website in Chromium against the real API and a freshly seeded database: sign-in and recovery, the hub and its ticket
+handoff to the partner sites, the Explorer (paging, filters, share links, Open in Impactor, the admin editor), automatic
+accessibility checks (axe) and phone-sized screens. They run in CI on every pull request.
+
+```bash
+cd e2e && npm install && npx playwright install chromium
+TEST_DATABASE_URL=postgresql://postgres@localhost:5432/postgres npm test
+```
+
+`python scripts/dev_server.py` runs the API and the website together on one address (http://127.0.0.1:8000/frontend/)
+for local work.
+
+### API tests
 
 The tests need a local PostgreSQL server (they create their own database, `aegisneo_test`, and refuse to
 run against anything that is not localhost):

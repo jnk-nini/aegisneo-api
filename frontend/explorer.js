@@ -496,7 +496,11 @@ function showDetailPanel(asteroid) {
                 <div><dt>Size classification ${infoDot("size")}</dt><dd class="capitalize">${tier}</dd></div>
             </div>
 
-            <button class="copy-btn" type="button">📋 Copy telemetry</button>
+            <div class="detail-actions">
+                <button class="btn btn-primary btn-sm impactor-btn" type="button">☄️ Open in Impactor</button>
+                <button class="btn btn-ghost btn-sm share-btn" type="button">🔗 Share link</button>
+                <button class="btn btn-ghost btn-sm copy-btn" type="button">📋 Copy telemetry</button>
+            </div>
         </div>
     `;
     overlay.addEventListener("click", (e) => {
@@ -516,8 +520,11 @@ function showDetailPanel(asteroid) {
         if (e.target.closest(".copy-btn")) {
             copyTelemetry(asteroid, e.target.closest(".copy-btn"));
         }
+        if (e.target.closest(".share-btn")) shareAsteroid(asteroid);
+        if (e.target.closest(".impactor-btn")) openInImpactor(asteroid, e.target.closest(".impactor-btn"));
     });
     document.body.appendChild(overlay);
+    setAsteroidParam(asteroid.neo_reference_id);
     document.addEventListener("keydown", handleDetailKeys);
     overlay.querySelector(".detail-close").focus();
 
@@ -545,10 +552,61 @@ function copyTelemetry(asteroid, btn) {
 
 let detailOpener = null;
 
+// ?asteroid=ID in the address bar: set while the dialog is open, so the link can be shared.
+function setAsteroidParam(id) {
+    try {
+        const url = new URL(location.href);
+        if (id) url.searchParams.set("asteroid", id); else url.searchParams.delete("asteroid");
+        history.replaceState(null, "", url);
+    } catch { /* some embedded browsers block this */ }
+}
+
+function asteroidLink(asteroid) {
+    const url = new URL(location.href);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("asteroid", asteroid.neo_reference_id);
+    return url.href;
+}
+
+// Share: the phone's share sheet when there is one, otherwise copy the link.
+async function shareAsteroid(asteroid) {
+    const link = asteroidLink(asteroid);
+    if (navigator.share) {
+        try { await navigator.share({ title: `${asteroid.name} · AegisNEO`, text: `Meet ${asteroid.name}, a real near-Earth asteroid.`, url: link }); return; }
+        catch (error) { if (error.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(link); showToast("🔗", "Link copied", "Anyone with an account can open it; guests see it if it is a featured asteroid."); }
+    catch { showToast("🔗", "Copy this link", link); }
+}
+
+// Open in Impactor: ask the hub API for a launch (it records it, and gives a signed-in visitor
+// a read-only ticket), then go to Impactor with this asteroid already chosen.
+async function openInImpactor(asteroid, button) {
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Opening…";
+    try {
+        const response = await apiFetch("/api/v1/sites/impactor/launch", { method: "POST" });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Could not open Impactor.");
+        const launch = await response.json();
+        const target = safeLaunchUrl(launch.url);
+        if (!target) throw new Error("Impactor has an unusable address.");
+        const url = new URL(target);
+        url.searchParams.set("asteroid", asteroid.neo_reference_id);
+        location.assign(launch.ticket ? `${url.href}#aegis_ticket=${encodeURIComponent(launch.ticket)}` : url.href);
+    } catch (error) {
+        showToast("⚠️", "Impactor did not open", error instanceof TypeError ? "Could not reach the server." : error.message);
+        button.disabled = false;
+        button.textContent = label;
+    }
+}
+
 function closeDetailPanel({ restoreFocus = true } = {}) {
     const existing = document.querySelector(".detail-overlay");
     if (existing) existing.remove();
     document.removeEventListener("keydown", handleDetailKeys);
+    if (restoreFocus || existing) setAsteroidParam(null);
     if (restoreFocus && detailOpener && document.contains(detailOpener)) detailOpener.focus({ preventScroll: true });
     detailOpener = null;
 }
@@ -1322,5 +1380,8 @@ newBtn.addEventListener("click", () => openEditor(null));
     updateAccountBar();
     await syncFavorites();
     await loadAsteroids();
-    if (new URLSearchParams(location.search).get("list")) watchlistToggle.click();
+    const params = new URLSearchParams(location.search);
+    if (params.get("list")) watchlistToggle.click();
+    const shared = params.get("asteroid");
+    if (shared && /^[0-9]{1,10}$/.test(shared)) viewAsteroid(shared);
 })();

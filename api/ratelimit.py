@@ -27,6 +27,7 @@ log = logging.getLogger("aegisneo.ratelimit")
 IP_LIMITS = {
     "login": (30, 15 * 60),
     "signup": (10, 60 * 60),
+    "reset": (10, 60 * 60),
 }
 # Failed guesses against one account are throttled whatever the address.
 USERNAME_LIMIT = (10, 15 * 60)

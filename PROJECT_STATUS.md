@@ -59,6 +59,11 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
   self-hosted fonts, and dependency updates. Impactor and NEO Atlas need a redeploy.
 - New Vercel project `aegisneo-hub` serves the website at https://aegisneo-hub.vercel.app (no more `/frontend`). Old `/frontend/...` links redirect. After both deploy, run `db/migrations/004_hub_site_address.sql` on Neon (the Explorer's launch address becomes `explorer`).
 - Redesigned landing page (3D globe hero), sign-in page and hub, with a Motion on/off switch that also follows the system's reduced-motion setting.
+- **To do on Neon, BEFORE merging:** run `db/migrations/005_add_account_recovery.sql` (owner role). The new API code reads
+  the new `recovery_hash` column, so deploying it first would break sign-up and the hub until the migration runs. The
+  migration only adds a column and two permissions, so the currently deployed API keeps working with it.
+- New: password recovery by recovery code (no email), "Share link" and "Open in Impactor" in the Explorer, and browser tests
+  (`e2e/`, plus small suites in the Impactor and NEO Atlas repositories) that run in CI.
 - Open recommendation: add a rate-limit rule in the Vercel Firewall for `/api/neo/*` on both partner sites.
 
 ### Hub, roles and entities (added 17 Nov 2026)

@@ -34,8 +34,8 @@ def test_no_account_can_hold_the_guest_role(owner_db):
 def test_login_and_me_report_the_role(client, auth, reader):
     login = client.post("/api/v1/auth/login", data={"username": "bob", "password": "correct horse battery"})
     assert login.json()["role"] == "user"
-    assert client.get("/api/v1/auth/me", headers=auth).json() == {"id": 1, "username": "alice", "role": "admin"}
-    assert client.get("/api/v1/auth/me", headers=reader).json() == {"id": 2, "username": "bob", "role": "user"}
+    assert client.get("/api/v1/auth/me", headers=auth).json() == {"id": 1, "username": "alice", "role": "admin", "has_recovery_code": False}
+    assert client.get("/api/v1/auth/me", headers=reader).json() == {"id": 2, "username": "bob", "role": "user", "has_recovery_code": False}
 
 
 def test_a_user_can_read_everything(client, reader):

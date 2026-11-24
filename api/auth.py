@@ -15,6 +15,8 @@ row per (role, site) says whether the role can write and how many asteroids
 it may see. The site is the main site, or the partner whose key was sent.
 """
 import logging
+import re
+import secrets
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -99,6 +101,31 @@ def password_matches(password, password_hash):
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+
+# Recovery codes: 16 characters in groups of four, from an alphabet without look-alikes (no 0/O, 1/I).
+# That is 80 bits, far too many to guess, and the code is stored only as a bcrypt hash.
+_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def new_recovery_code():
+    raw = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(16))
+    return "-".join(raw[i:i + 4] for i in range(0, 16, 4))
+
+
+def _normalise_code(code):
+    return re.sub(r"[^A-Z0-9]", "", str(code).upper()).encode()
+
+
+def hash_recovery_code(code):
+    return bcrypt.hashpw(_normalise_code(code), bcrypt.gensalt(rounds=12)).decode()
+
+
+def recovery_code_matches(code, code_hash):
+    """Compared against a dummy hash when the account has no code, so timing does not tell."""
+    hashed = code_hash.encode() if code_hash else _DUMMY_HASH
+    ok = bcrypt.checkpw(_normalise_code(code)[:72], hashed)
+    return ok and code_hash is not None
 
 
 def create_token(user_id, username, role):

@@ -47,6 +47,11 @@
             <a class="btn btn-primary btn-sm" href="auth?mode=signup">Create a free account</a>
         </div>
 
+        <div class="notice" id="recoveryNote" hidden>
+            <span><strong>Add a recovery code.</strong> Without one, a forgotten password cannot be reset by you.</span>
+            <button class="btn btn-ghost btn-sm" type="button" data-recovery-open>Create it now</button>
+        </div>
+
         <div class="section-title"><h2>Your sites</h2></div>
         <p class="form-error" id="hubError" role="alert" style="margin-top:16px"></p>
         <div class="site-grid" id="siteGrid" aria-live="polite" aria-busy="true">
@@ -73,6 +78,14 @@
             </section>
         </div>
 
+        <section class="panel" id="securityPanel" style="margin-top:22px" hidden>
+            <h2>Account security</h2>
+            <div class="security-row" style="border-top:0;margin-top:0;padding-top:0">
+                <p id="securityText">Your recovery code lets you choose a new password if you forget it.</p>
+                <button class="btn btn-ghost btn-sm" type="button" data-recovery-open id="securityBtn">Make a recovery code</button>
+            </div>
+        </section>
+
         <section class="panel" id="adminPanel" style="margin-top:22px" hidden>
             <h2>Mission control</h2>
             <p class="sub">Only admins see this: who uses the sites, and who changed the catalog.</p>
@@ -90,6 +103,21 @@
         </section>
     </main>
 
+    <dialog class="sheet" id="recoveryDialog" aria-labelledby="recTitle">
+        <form id="recoveryForm" method="dialog" novalidate>
+            <h2 id="recTitle">Make a recovery code</h2>
+            <p class="sub" id="recSub">Enter your password to make a new code. It replaces any code you had before.</p>
+            <div class="field" id="recPassField"><label for="recPassword">Your password</label>
+                <input id="recPassword" type="password" autocomplete="current-password" maxlength="72" required></div>
+            <output class="code-box" id="recCode" hidden></output>
+            <p class="form-error" id="recError" role="alert"></p>
+            <div class="row">
+                <button class="btn btn-ghost btn-sm" type="button" id="recCopy" hidden>Copy</button>
+                <button class="btn btn-ghost btn-sm" type="button" id="recClose">Cancel</button>
+                <button class="btn btn-primary btn-sm" type="submit" id="recSubmit">Make code</button>
+            </div>
+        </form>
+    </dialog>
     <div class="warp" id="warp" role="status" aria-live="polite"><p id="warpText"></p></div>
     <div class="toasts" id="toasts" aria-live="polite"></div>
     <script src="shared.js"></script>
