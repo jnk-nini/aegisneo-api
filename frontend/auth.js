@@ -24,6 +24,8 @@ function setMode(on) {
     signingUp = on;
     tabLogin.setAttribute("aria-selected", String(!on));
     tabSignup.setAttribute("aria-selected", String(on));
+    tabLogin.tabIndex = on ? -1 : 0;
+    tabSignup.tabIndex = on ? 0 : -1;
     title.textContent = on ? "Create your account" : "Welcome back";
     sub.textContent = on ? "Free, and it takes a few seconds. You will be an Explorer." : "Sign in to open the hub.";
     submit.textContent = on ? "Create account" : "Sign in";
@@ -32,6 +34,15 @@ function setMode(on) {
     userHint.hidden = passHint.hidden = !on;
     errorEl.textContent = "";
 }
+
+// Arrow keys move between the two tabs, as the tabs pattern expects.
+[tabLogin, tabSignup].forEach(tab => tab.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next = tab === tabLogin ? tabSignup : tabLogin;
+    next.focus();
+    setMode(next === tabSignup);
+}));
 
 tabLogin.addEventListener("click", () => setMode(false));
 tabSignup.addEventListener("click", () => setMode(true));
@@ -80,6 +91,10 @@ form.addEventListener("submit", async (event) => {
             });
         if (signingUp && response.status === 409) throw new Error("This username is already taken.");
         if (signingUp && response.status === 422) throw new Error(signUpProblem((await response.json()).detail));
+        if (response.status === 429) {
+            const wait = Math.max(1, Math.ceil(Number(response.headers.get("Retry-After")) / 60)) || 5;
+            throw new Error(`Too many attempts. Please wait about ${wait} minute${wait === 1 ? "" : "s"} and try again.`);
+        }
         if (!signingUp && response.status === 401) throw new Error("Incorrect username or password.");
         if (!response.ok) throw new Error(`${signingUp ? "Sign-up" : "Sign-in"} is not available right now. Please try again later.`);
         const data = await response.json();

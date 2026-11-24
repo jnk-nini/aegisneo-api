@@ -182,3 +182,15 @@ grant insert (username, password_hash) on public.users to aegis_app;
 grant select on public.sites, public.site_access, public.badges to aegis_app;
 grant select, insert on public.launches, public.user_badges, public.asteroid_audit to aegis_app;
 grant select, insert, delete on public.watchlist to aegis_app;
+
+-- Attempt counters for api/ratelimit.py (sign-in and sign-up throttling). One
+-- row per caller bucket and time window; buckets hold a hash, never an address.
+create table public.rate_limits (
+  bucket       text        not null,
+  window_start timestamptz not null,
+  hits         integer     not null default 0,
+  primary key (bucket, window_start)
+);
+
+create index rate_limits_window_idx on public.rate_limits (window_start);
+grant select, insert, update, delete on public.rate_limits to aegis_app;

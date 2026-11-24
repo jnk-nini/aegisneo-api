@@ -391,6 +391,18 @@ def list_sites(role):
         ).fetchall()
 
 
+def get_user_access(user_id, site):
+    """The account's CURRENT role and what that role may do on a site, in one
+    query. None if the account no longer exists. can_write is None if the
+    role has no rule for this site."""
+    with connection() as conn:
+        return conn.execute(
+            "select u.role, a.can_write, a.item_limit from users u "
+            "left join site_access a on a.role = u.role and a.site = %s where u.id = %s",
+            [site, user_id],
+        ).fetchone()
+
+
 def get_site(slug):
     with connection() as conn:
         return conn.execute(
@@ -406,6 +418,28 @@ def record_launch(user_id, site, role):
             "insert into launches (user_id, site, role) values (%s, %s, %s)", [user_id, site, role]
         )
         return _award_badges(conn, user_id) if user_id else []
+
+
+# ============================================================
+# RATE LIMITING (see api/ratelimit.py)
+# ============================================================
+def hit_rate_limit(bucket, window_seconds):
+    """Count one attempt in the current window of a bucket.
+    Returns (attempts so far in this window, seconds until the window ends)."""
+    with connection() as conn:
+        row = conn.execute(
+            "with w as (select to_timestamp(floor(extract(epoch from now()) / %(w)s) * %(w)s) as start) "
+            "insert into rate_limits (bucket, window_start, hits) select %(b)s, w.start, 1 from w "
+            "on conflict (bucket, window_start) do update set hits = rate_limits.hits + 1 "
+            "returning hits, greatest(1, ceil(extract(epoch from window_start + make_interval(secs => %(w)s) - now())))::int as left_s",
+            {"b": bucket, "w": window_seconds},
+        ).fetchone()
+    return row["hits"], row["left_s"]
+
+
+def purge_rate_limits():
+    with connection() as conn:
+        conn.execute("delete from rate_limits where window_start < now() - interval '1 day'")
 
 
 # ============================================================

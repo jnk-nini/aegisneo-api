@@ -12,6 +12,20 @@ const ROLE_KEY = "aegisneo_role";
 const GUEST_KEY = "aegisneo_guest";
 const NEW_BADGES_KEY = "aegisneo_new_badges";
 
+// localStorage can throw (blocked, private mode, quota) or hold garbage: every read and
+// write goes through these, so a storage problem never takes a whole page down.
+function readLocal(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function writeLocal(key, value) {
+    try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+        return true;
+    } catch { return false; }
+}
+
 function readSession(key) {
     try { return sessionStorage.getItem(key); } catch { return null; }
 }
@@ -91,6 +105,17 @@ async function apiFetch(path, { method = "GET", json, form, signal } = {}) {
         location.replace("auth.html?expired=1");
     }
     return response;
+}
+
+// Where the hub may send a visitor: an address on this site, or an https address.
+// The address comes from the database, so anything else (javascript:, data:, http:) is refused.
+function safeLaunchUrl(raw) {
+    try {
+        const url = new URL(raw, location.href);
+        return url.protocol === "https:" || url.origin === location.origin ? url.href : null;
+    } catch {
+        return null;
+    }
 }
 
 const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };

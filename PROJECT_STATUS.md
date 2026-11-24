@@ -50,6 +50,14 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 
 ## Status
 
+### Audit fixes (24 Nov 2026)
+- **To do on Neon:** run `db/migrations/003_add_rate_limits.sql` (owner role), then redeploy. Until then sign-in and
+  sign-up are not throttled (the API logs a warning and carries on).
+- Explorer now filters, sorts, searches and pages through the whole catalog with the API (it used to work on the first
+  100 asteroids only). Hub, Impactor and NEO Atlas UI fixes, a Content-Security-Policy on the website and Impactor,
+  self-hosted fonts, and dependency updates. Impactor and NEO Atlas need a redeploy.
+- Open recommendation: add a rate-limit rule in the Vercel Firewall for `/api/neo/*` on both partner sites.
+
 ### Hub, roles and entities (added 17 Nov 2026)
 - The main site is now landing page -> sign-in screen -> hub -> explorer. The hub opens Impactor and NEO Atlas with a
   read-only ticket, so the API serves the visitor by role on every site (guest: 10 featured, user: whole catalog,

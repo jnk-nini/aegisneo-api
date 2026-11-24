@@ -68,10 +68,12 @@ grid.addEventListener("click", async (event) => {
         const response = await apiFetch(`/api/v1/sites/${encodeURIComponent(button.dataset.launch)}/launch`, { method: "POST" });
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Could not open this site.");
         const launch = await response.json();
+        const target = safeLaunchUrl(launch.url);
+        if (!target) throw new Error("This site has an unusable address. Please tell the project owner.");
         // Badges earned by this launch are shown when the visitor comes back to the hub.
         if (launch.new_badges?.length) writeSession(NEW_BADGES_KEY, JSON.stringify(launch.new_badges));
         // The ticket travels in the URL fragment, which is never sent to a server.
-        location.assign(launch.ticket ? `${launch.url}#aegis_ticket=${launch.ticket}` : launch.url);
+        location.assign(launch.ticket ? `${target}#aegis_ticket=${encodeURIComponent(launch.ticket)}` : target);
     } catch (error) {
         errorEl.textContent = error instanceof TypeError ? "Could not reach the server." : error.message;
         button.disabled = false;

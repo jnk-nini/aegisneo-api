@@ -162,7 +162,18 @@ def get_caller(
 
 
 def get_access(caller: Caller = Depends(get_caller)):
-    """The rule for this caller's role on this site, from the site_access table."""
+    """The rule for this caller's role on this site, from the site_access table.
+
+    For an account the role is read from the database on every request, not
+    taken from the token: a deleted account, or one that was demoted, loses
+    access at once instead of when its token expires."""
+    if caller.kind == "user":
+        row = db.get_user_access(caller.user_id, caller.site)
+        if row is None:
+            raise db.UnknownUserError()
+        if row["can_write"] is None:
+            raise HTTPException(403, "This role has no access to this site.")
+        return Access(row["role"], caller.site, row["can_write"], row["item_limit"])
     row = db.get_site_access(caller.effective_role, caller.site)
     if row is None:
         raise HTTPException(403, "This role has no access to this site.")

@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500&display=swap');
+/* Fonts are served from this site (OFL-licensed variable fonts), not from Google:
+   no request leaves for a third party, and nothing blocks the first paint. */
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 300 700; font-display: swap; src: url("assets/fonts/space-grotesk-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("assets/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); }
 
 :root {
     --bg-void: #05070d;
@@ -1462,3 +1466,16 @@ footer {
 .editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
 .editor-actions button { width: auto; min-width: 100px; }
 @media (max-width: 520px) { .editor-grid { grid-template-columns: 1fr; } }
+
+[hidden] { display: none !important; }
+
+/* Skip link: first thing a keyboard user can reach */
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 1000; padding: 10px 16px; border-radius: 8px;
+    background: #f5a524; color: #05070d; font-weight: 600; text-decoration: none; transition: top .15s; }
+.skip-link:focus { top: 12px; }
+
+/* Load more */
+.load-more { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 0 8px; }
+.load-more-count { margin: 0; color: var(--text-secondary); font-size: 14px; }
+.load-more .cta[disabled] { opacity: .6; cursor: progress; }
+.empty-state .retry-btn { margin-top: 16px; }

@@ -5,18 +5,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AegisNEO: Meet the asteroids passing Earth</title>
+    <meta property="og:title" content="AegisNEO: Meet the asteroids passing Earth">
+    <meta property="og:description" content="One free account opens three experiences built on real near-Earth asteroid data: an explorer, a 3D impact simulator and a birthday star atlas.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://aegisneo-api.vercel.app/frontend/assets/shot-impactor.jpg">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="description" content="One free account opens three experiences built on real near-Earth asteroid data: an explorer, a 3D impact simulator and a birthday star atlas.">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <meta name="theme-color" content="#05070d">
     <link rel="stylesheet" href="site.css">
 </head>
 
 <body>
+    <a class="skip-link" href="#experiences">Skip to the three experiences</a>
     <header class="topbar">
         <div class="wrap topbar-inner">
             <a class="brand" href="index.html" aria-label="AegisNEO home">
                 <span class="brand-mark" aria-hidden="true"></span>
                 <span>
                     <span class="brand-name">AegisNEO</span>
-                    <span class="brand-sub" style="display:block">Near-Earth Object Watch</span>
+                    <span class="brand-sub">Near-Earth Object Watch</span>
                 </span>
             </a>
             <nav class="topnav" aria-label="Sections">
@@ -210,29 +218,9 @@
         </div>
     </footer>
 
+    <noscript><p style="text-align:center;padding:12px">AegisNEO works best with JavaScript turned on.</p></noscript>
     <script src="shared.js"></script>
-    <script>
-        // Signed-in visitors get a way straight back to the hub.
-        if (Session.loggedIn || Session.isGuest) {
-            document.getElementById("topActions").innerHTML =
-                `<a class="btn btn-primary btn-sm" href="hub.html">Open the hub</a>`;
-            document.getElementById("heroActions").innerHTML =
-                `<a class="btn btn-primary" href="hub.html">Open the hub</a>`;
-        }
-        // "Continue as guest" links start a guest session before opening the hub.
-        document.querySelectorAll("[data-guest]").forEach(link => link.addEventListener("click", (event) => {
-            event.preventDefault();
-            Session.startGuest();
-            location.assign("hub.html");
-        }));
-        // The real size of the catalog (the home endpoint is public).
-        fetch(`${API_URL}/`).then(r => r.ok ? r.json() : null).then(data => {
-            if (!data || !data.total_tracked) return;
-            const text = formatNumber(data.total_tracked);
-            document.getElementById("heroCount").textContent = text;
-            document.getElementById("tileCount").textContent = text;
-        }).catch(() => { /* keep the printed number */ });
-    </script>
+    <script src="landing.js"></script>
 </body>
 
 </html>

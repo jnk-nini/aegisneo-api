@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+/* Fonts are served from this site (OFL-licensed variable fonts), not from Google:
+   no request leaves for a third party, and nothing blocks the first paint. */
+@font-face { font-family: "Space Grotesk"; font-style: normal; font-weight: 300 700; font-display: swap; src: url("assets/fonts/space-grotesk-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("assets/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); }
 
 /* Landing page, sign-in page and hub. The explorer has its own style.css. */
 :root {
@@ -70,6 +74,7 @@ img { max-width: 100%; display: block; }
 .btn-primary:hover { box-shadow: 0 8px 34px rgba(62, 224, 232, .4); }
 .btn-ghost { background: rgba(255, 255, 255, .04); border-color: var(--border); color: var(--text); }
 .btn-ghost:hover { border-color: var(--cyan); background: var(--cyan-dim); }
+.btn { white-space: nowrap; }
 .btn-sm { min-height: 38px; padding: 0 16px; font-size: 14px; }
 .btn-block { width: 100%; }
 
@@ -81,12 +86,13 @@ img { max-width: 100%; display: block; }
 .brand-mark { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--cyan); position: relative; flex: none; box-shadow: 0 0 18px var(--cyan-dim); }
 .brand-mark::after { content: ""; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); top: -3px; right: 2px; box-shadow: 0 0 10px var(--amber); }
 .brand-name { font: 700 19px var(--display); letter-spacing: .02em; }
-.brand-sub { font-size: 11px; color: var(--text-3); letter-spacing: .12em; text-transform: uppercase; }
+.brand-sub { display: block; font-size: 11px; color: var(--text-3); letter-spacing: .12em; text-transform: uppercase; }
 .topnav { display: flex; gap: 24px; margin-left: 24px; }
 .topnav a { color: var(--text-2); font-size: 14px; font-weight: 500; }
 .topnav a:hover { color: var(--text); text-decoration: none; }
 .topbar-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
 @media (max-width: 760px) { .topnav { display: none; } .brand-sub { display: none; } }
+@media (max-width: 420px) { .topbar-inner { gap: 10px; } .topbar-actions { gap: 6px; } .topbar .btn-sm { padding: 0 12px; font-size: 13px; } }
 
 /* ============ LANDING ============ */
 .hero { padding: clamp(48px, 9vw, 120px) 0 clamp(40px, 6vw, 80px); }
@@ -262,3 +268,10 @@ table.data td { padding: 9px 10px 9px 0; border-top: 1px solid var(--border); co
 @keyframes pop { from { transform: translateY(14px) scale(.96); opacity: 0; } }
 .user-chip { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-2); }
 @media (max-width: 560px) { .user-chip .name { display: none; } }
+
+[hidden] { display: none !important; }
+
+/* Skip link: first thing a keyboard user can reach */
+.skip-link { position: absolute; left: 12px; top: -48px; z-index: 1000; padding: 10px 16px; border-radius: 8px;
+    background: #f5a524; color: #05070d; font-weight: 600; text-decoration: none; transition: top .15s; }
+.skip-link:focus { top: 12px; }

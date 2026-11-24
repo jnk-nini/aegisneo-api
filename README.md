@@ -17,7 +17,7 @@ api/db.py           every SQL query (psycopg 3)
 api/models.py       request validation models
 api/config.py       settings from environment variables
 db/schema.sql       the ten tables, constraints, indexes and privileges
-db/migrations/      changes for a database made with an older schema.sql
+db/migrations/      changes for a database made with an older schema.sql (001 roles, 002 sites and activity, 003 rate limits)
 scripts/            import_asteroids.py, create_user.py, set_role.py, check_connection.py, verify_deployment.py (run on your own computer)
 docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
@@ -98,9 +98,21 @@ and `asteroid_audit` (an append-only trail of admin changes). `db/schema.sql` ha
 | PUT / DELETE | `/api/v1/me/watchlist/{neo_reference_id}` | Add or remove an asteroid | admin or user |
 | GET | `/api/v1/admin/overview` | Users per role, launches per site, most watched, recent changes | admin |
 
-Status codes: 200, 201, 400 (body is not JSON), 401 (login needed or invalid credentials), 403 (read-only
+Status codes: 200, 201, 400 (body is not JSON), 401 (login needed or invalid credentials), 429 (too many sign-in or sign-up attempts; see `Retry-After`), 403 (read-only
 key, or an account with the user role trying to change data), 404, 409 (duplicate ID or name, or more than 10 featured), 422 (invalid data), 503 (database
 unavailable), 500 (generic message; details only in the server log).
+
+## Security notes
+
+- **Throttling.** Sign-in is limited to 30 attempts per address and 10 per username every 15 minutes, and sign-up to
+  10 per address per hour (`api/ratelimit.py`). The counters are in the `rate_limits` table and hold hashes, never raw
+  addresses. If the table is missing the API lets requests through and logs a warning, so run
+  `db/migrations/003_add_rate_limits.sql` on an existing database. `RATE_LIMIT_DISABLED=1` switches it off.
+- **Roles are read live.** An account's role is looked up in the database on every request, so a deleted or demoted
+  account loses access at once, not when its token expires.
+- **Headers.** The website is served with a Content-Security-Policy and the usual hardening headers (`vercel.json`);
+  fonts are served from this site, not from Google. Responses about an account are `Cache-Control: no-store`.
+- Sessions live in `sessionStorage`, so each browser tab signs in separately and closing the tab signs out.
 
 ## Environment variables
 

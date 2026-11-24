@@ -5,10 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Explorer · AegisNEO</title>
+    <meta name="description" content="Search, filter and sort real near-Earth asteroids, keep a watchlist and play Cosmic Guesser.">
+    <meta name="robots" content="noindex">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <meta name="theme-color" content="#05070d">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <a class="skip-link" href="#asteroidList">Skip to the asteroids</a>
+    <noscript><p class="guest-banner">The Explorer needs JavaScript to load the catalog.</p></noscript>
     <div class="stars" aria-hidden="true"></div>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
 
@@ -32,7 +38,7 @@
                     <dd id="statTotal">—</dd>
                 </div>
                 <div>
-                    <dt>Showing</dt>
+                    <dt>Matching</dt>
                     <dd id="statShown">—</dd>
                 </div>
                 <div>
@@ -135,9 +141,14 @@
             </div>
         </section>
 
-        <section class="console" aria-live="polite">
-            <div id="asteroidList" class="asteroid-grid">
+        <section class="console">
+            <p class="visually-hidden" id="listStatus" role="status" aria-live="polite"></p>
+            <div id="asteroidList" class="asteroid-grid" tabindex="-1">
                 <p class="status-line">Establishing telemetry link…</p>
+            </div>
+            <div class="load-more" id="loadMoreWrap" hidden>
+                <p id="loadMoreCount" class="load-more-count"></p>
+                <button id="loadMoreBtn" type="button" class="cta">Load more</button>
             </div>
         </section>
     </main>
