@@ -16,7 +16,8 @@ function sessionEnded(response) {
 }
 
 const LUNAR_DISTANCE_KM = 384400;
-const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// One switch for all motion: the system setting or the Motion toggle (fx.js).
+const motionOff = () => (window.AegisMotion ? !window.AegisMotion.enabled() : matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 const listEl = document.getElementById("asteroidList");
 const statTotalEl = document.getElementById("statTotal");
@@ -758,7 +759,7 @@ function refreshFacts() {
 }
 
 function renderFact() {
-    if (prefersReducedMotion) {
+    if (motionOff()) {
         factTextEl.textContent = facts[factIndex];
         return;
     }
@@ -946,7 +947,7 @@ function formatDate(isoDate) {
 
 // SCROLL REVEAL — cards fade/rise into place as they enter the viewport
 function initScrollReveal() {
-    if (prefersReducedMotion || !("IntersectionObserver" in window)) return;
+    if (motionOff() || !("IntersectionObserver" in window)) return;
 
     const cards = listEl.querySelectorAll(".asteroid-card");
     const obs = new IntersectionObserver((entries) => {
@@ -963,6 +964,10 @@ function initScrollReveal() {
         obs.observe(card);
     });
 }
+
+
+// The hero globe (shared with the landing page and the hub)
+if (document.getElementById("heroGlobe")) AegisGlobe.mount(document.getElementById("heroGlobe"), { orbits: 3, interactive: true, speed: 0.12 });
 
 
 // STATE HELPERS
@@ -987,7 +992,7 @@ function showError() {
 
 function animateNumber(el, target) {
     if (target === null || target === undefined) return;
-    if (prefersReducedMotion) { el.textContent = target.toLocaleString(); return; }
+    if (motionOff()) { el.textContent = target.toLocaleString(); return; }
 
     const start = Number(el.textContent.replace(/[^\d.-]/g, "")) || 0;
     const startTime = performance.now();
@@ -1088,99 +1093,12 @@ surpriseBtn.addEventListener("click", async (e) => {
 });
 
 
-// CARD TILT + SPOTLIGHT (micro-interaction)
-listEl.addEventListener("mousemove", (e) => {
-    if (prefersReducedMotion) return;
-    const card = e.target.closest(".asteroid-card");
-    if (!card) return;
-    const rect = card.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    card.style.setProperty("--tiltX", ((py - 0.5) * -8).toFixed(2) + "deg");
-    card.style.setProperty("--tiltY", ((px - 0.5) * 8).toFixed(2) + "deg");
-    card.style.setProperty("--glowX", (px * 100).toFixed(1) + "%");
-    card.style.setProperty("--glowY", (py * 100).toFixed(1) + "%");
-});
-
-listEl.addEventListener("mouseout", (e) => {
-    const card = e.target.closest(".asteroid-card");
-    if (!card || card.contains(e.relatedTarget)) return;
-    card.style.removeProperty("--tiltX");
-    card.style.removeProperty("--tiltY");
-});
-
-
-// BUTTON RIPPLE (micro-interaction, all buttons)
-document.addEventListener("click", (e) => {
-    if (prefersReducedMotion) return;
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const ripple = document.createElement("span");
-    ripple.className = "ripple";
-    const size = Math.max(rect.width, rect.height);
-    ripple.style.width = ripple.style.height = size + "px";
-    ripple.style.left = (e.clientX - rect.left - size / 2) + "px";
-    ripple.style.top = (e.clientY - rect.top - size / 2) + "px";
-    btn.appendChild(ripple);
-    ripple.addEventListener("animationend", () => ripple.remove());
-});
-
-
-// SHOOTING STARS — occasional diagonal streaks, varied in size/color/speed; the rare
-// big "meteor" leaves a little particle flare where it burns out.
-const METEOR_COLORS = ["238,242,249", "238,242,249", "238,242,249", "62,224,232", "245,165,36"];
-
-function spawnShootingStar() {
-    if (prefersReducedMotion) return;
-    const isMeteor = Math.random() < 0.18;
-    const color = METEOR_COLORS[Math.floor(Math.random() * METEOR_COLORS.length)];
-    const top = Math.random() * 50;
-    const left = Math.random() * 70;
-    const dur = (isMeteor ? 1.5 : 0.9) + Math.random() * 0.9;
-    const dist = isMeteor ? 620 : 300 + Math.random() * 160;
-
-    const el = document.createElement("div");
-    el.className = "shooting-star" + (isMeteor ? " meteor" : "");
-    el.style.top = top + "%";
-    el.style.left = left + "%";
-    el.style.setProperty("--dur", dur.toFixed(2) + "s");
-    el.style.setProperty("--dist", dist + "px");
-    el.style.setProperty("--star-color", `rgba(${color}, 0.95)`);
-    document.body.appendChild(el);
-
-    el.addEventListener("animationend", () => {
-        if (isMeteor) {
-            const rect = el.getBoundingClientRect();
-            spawnBurst(rect.left, rect.top);
-        }
-        el.remove();
-    });
-}
-
-if (!prefersReducedMotion) {
-    setInterval(() => { if (!document.hidden && Math.random() < 0.75) spawnShootingStar(); }, 2600);
-
-    // subtle parallax on the starfield — depth without anything moving far
-    const starsLayer = document.querySelector(".stars");
-    let parallaxTicking = false;
-    window.addEventListener("mousemove", (e) => {
-        if (parallaxTicking) return;
-        parallaxTicking = true;
-        requestAnimationFrame(() => {
-            const dx = (e.clientX / innerWidth - 0.5) * 12;
-            const dy = (e.clientY / innerHeight - 0.5) * 12;
-            if (starsLayer) starsLayer.style.transform = `translate(${dx}px, ${dy}px)`;
-            parallaxTicking = false;
-        });
-    });
-}
-
-
-// CURSOR PARTICLE TRAIL + SURPRISE-ME BURST
+// PARTICLE BURST: a small flourish for "Surprise me" and a correct answer. Nothing else moves
+// on its own (no cursor trail, ripples or shooting stars), so the page stays calm.
 const fxCanvas = document.getElementById("fxCanvas");
 const fxCtx = fxCanvas.getContext("2d");
 let particles = [];
+let fxRunning = false;
 
 function resizeFx() {
     fxCanvas.width = innerWidth;
@@ -1190,7 +1108,7 @@ resizeFx();
 window.addEventListener("resize", resizeFx);
 
 function spawnBurst(x, y) {
-    if (prefersReducedMotion) return;
+    if (motionOff()) return;
     for (let i = 0; i < 24; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 1.5 + Math.random() * 3.5;
@@ -1202,43 +1120,21 @@ function spawnBurst(x, y) {
             color: Math.random() < 0.5 ? "245,165,36" : "62,224,232",
         });
     }
+    if (!fxRunning) { fxRunning = true; requestAnimationFrame(renderParticles); }
 }
 
-if (!prefersReducedMotion) {
-    if (matchMedia("(pointer: fine)").matches) {
-        let lastMove = 0;
-        window.addEventListener("mousemove", (e) => {
-            const now = performance.now();
-            if (now - lastMove < 16) return;
-            lastMove = now;
-            particles.push({
-                x: e.clientX, y: e.clientY, vx: 0, vy: 0,
-                life: 1, decay: 0.045, r: 2.4, color: "62,224,232",
-            });
-            if (particles.length > 220) particles.splice(0, particles.length - 220);
-        });
-    }
-
-    let fxDirty = false;
-    (function renderParticles() {
-        if (!particles.length) {
-            // Nothing to draw: clear once, then just wait for the next particle.
-            if (fxDirty) { fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); fxDirty = false; }
-            requestAnimationFrame(renderParticles);
-            return;
-        }
-        fxDirty = true;
-        fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= p.decay; });
-        particles = particles.filter(p => p.life > 0);
-        particles.forEach(p => {
-            fxCtx.beginPath();
-            fxCtx.arc(p.x, p.y, Math.max(p.r * p.life, 0), 0, Math.PI * 2);
-            fxCtx.fillStyle = `rgba(${p.color},${Math.max(p.life, 0) * 0.7})`;
-            fxCtx.fill();
-        });
-        requestAnimationFrame(renderParticles);
-    })();
+function renderParticles() {
+    fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= p.decay; });
+    particles = particles.filter(p => p.life > 0);
+    particles.forEach(p => {
+        fxCtx.beginPath();
+        fxCtx.arc(p.x, p.y, Math.max(p.r * p.life, 0), 0, Math.PI * 2);
+        fxCtx.fillStyle = `rgba(${p.color},${Math.max(p.life, 0) * 0.7})`;
+        fxCtx.fill();
+    });
+    if (particles.length) requestAnimationFrame(renderParticles);
+    else fxRunning = false; // the loop stops when there is nothing left to draw
 }
 
 
