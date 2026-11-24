@@ -4,4 +4,4 @@ pydantic==2.13.4
 psycopg[binary]==3.3.8
 PyJWT==2.15.1
 bcrypt==5.0.0
-python-multipart==0.0.33
+python-multipart==0.0.34
