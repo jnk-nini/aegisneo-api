@@ -3,31 +3,40 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Hub · AegisNEO</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <meta name="theme-color" content="#04060c">
+    <meta name="robots" content="noindex">
     <link rel="stylesheet" href="site.css">
+    <script src="fx.js"></script>
 </head>
 
 <body>
+    <div class="stars" aria-hidden="true"></div>
     <header class="topbar">
         <div class="wrap topbar-inner">
-            <a class="brand" href="index.html" aria-label="AegisNEO home">
+            <a class="brand" href="./" aria-label="AegisNEO home">
                 <span class="brand-mark" aria-hidden="true"></span>
                 <span class="brand-name">AegisNEO</span>
             </a>
             <div class="topbar-actions">
+                <button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false"><span class="pip" aria-hidden="true"></span><span data-motion-label>Motion on</span></button>
                 <span class="user-chip"><span class="name" id="who"></span><span class="role-pill" id="rolePill"></span></span>
                 <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Log out</button>
             </div>
         </div>
     </header>
 
-    <main class="wrap" style="padding-bottom:64px">
-        <div class="hub-head">
+    <noscript><p style="text-align:center;padding:12px">The hub needs JavaScript to open the sites.</p></noscript>
+    <main class="wrap" style="padding-bottom:72px" id="main">
+        <div class="hub-hero">
             <div>
+                <div class="hub-meta"><span class="kicker">Mission hub</span></div>
                 <h1 id="greeting">Welcome</h1>
                 <p class="hub-sub" id="roleText"></p>
             </div>
+            <div class="hub-globe" aria-hidden="true"><canvas id="hubGlobe"></canvas></div>
         </div>
 
         <div class="upsell" id="upsell" hidden>
@@ -35,16 +44,24 @@
                 <strong>Unlock the whole catalog</strong>
                 <p>Create a free account to see every asteroid on all three sites, keep a watchlist and earn badges.</p>
             </div>
-            <a class="btn btn-primary btn-sm" href="auth.html?mode=signup">Create a free account</a>
+            <a class="btn btn-primary btn-sm" href="auth?mode=signup">Create a free account</a>
         </div>
 
+        <div class="section-title"><h2>Your sites</h2></div>
         <p class="form-error" id="hubError" role="alert" style="margin-top:16px"></p>
-        <div class="site-grid" id="siteGrid" aria-live="polite"></div>
+        <div class="site-grid" id="siteGrid" aria-live="polite" aria-busy="true">
+            <div class="skeleton" aria-hidden="true"></div>
+            <div class="skeleton" aria-hidden="true"></div>
+            <div class="skeleton" aria-hidden="true"></div>
+        </div>
 
         <div class="two-col" id="accountPanels" hidden>
             <section class="panel">
                 <h2>Your badges</h2>
-                <p class="sub" id="badgeSub"></p>
+                <div class="progress">
+                    <div class="ring" id="badgeRing" role="img" aria-label="Badge progress"><b id="badgeRingText">0</b></div>
+                    <p class="sub" id="badgeSub" style="margin:0"></p>
+                </div>
                 <div class="badge-grid" id="badgeGrid"></div>
             </section>
             <section class="panel">
@@ -52,11 +69,11 @@
                 <p class="sub">The last sites you opened from here.</p>
                 <ul class="feed" id="launchFeed"></ul>
                 <p class="sub" style="margin:18px 0 0">Watchlist: <strong id="watchCount">0</strong> asteroid(s) ·
-                    <a href="explorer.html?list=1">open it in the Explorer</a></p>
+                    <a href="explorer?list=1">open it in the Explorer</a></p>
             </section>
         </div>
 
-        <section class="panel" id="adminPanel" style="margin-top:20px" hidden>
+        <section class="panel" id="adminPanel" style="margin-top:22px" hidden>
             <h2>Mission control</h2>
             <p class="sub">Only admins see this: who uses the sites, and who changed the catalog.</p>
             <div class="stat-row" id="adminStats"></div>
@@ -73,8 +90,10 @@
         </section>
     </main>
 
+    <div class="warp" id="warp" role="status" aria-live="polite"><p id="warpText"></p></div>
     <div class="toasts" id="toasts" aria-live="polite"></div>
     <script src="shared.js"></script>
+    <script src="globe.js"></script>
     <script src="hub.js"></script>
 </body>
 

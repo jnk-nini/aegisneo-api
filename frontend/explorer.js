@@ -9,7 +9,7 @@ function authHeaders() {
 // A 401 for a signed-in visitor means the token ran out: back to the sign-in page.
 function sessionEnded(response) {
     if (response.status === 401 && Session.username && !Session.token) {
-        location.replace("auth.html?expired=1");
+        location.replace("auth?expired=1");
         return true;
     }
     return false;
@@ -33,21 +33,68 @@ const gameBestEl = document.getElementById("gameBest");
 const gamePromptEl = document.getElementById("gamePrompt");
 const gameArenaEl = document.getElementById("gameArena");
 const gameFeedbackEl = document.getElementById("gameFeedback");
+const loadMoreWrap = document.getElementById("loadMoreWrap");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const loadMoreCount = document.getElementById("loadMoreCount");
+const listStatusEl = document.getElementById("listStatus");
 
 // APP STATE — all filtering/sorting happens here, client-side, on already-fetched data
+// The API filters, sorts and pages the catalog; the page only keeps what has been loaded so far.
+// (Only "My List" is filtered and sorted here, because it is a set of ids, not a query.)
+const PAGE_SIZE = 100;
 const state = {
-    raw: [],
-    lastList: [],
+    raw: [],            // the asteroids loaded so far for the current search, filters and sort
+    lastList: [],       // what is on screen
+    matched: 0,         // how many asteroids match, in the whole catalog this visitor may see
+    hazardMatched: null,
+    query: "",
     hazardFilter: "all",
     sizeFilter: "all",
     sort: "default",
     watchlistOnly: false,
+    dirty: false,       // filters changed while "My List" was open: reload when it closes
+    generation: 0,      // bumped on every new search, so a slow "Load more" cannot add to a newer list
+    loadingMore: false,
 };
+
+const SORTS = {
+    name: { sort: "name", order: "asc" },
+    "diameter-desc": { sort: "diameter", order: "desc" },
+    "diameter-asc": { sort: "diameter", order: "asc" },
+    "velocity-desc": { sort: "velocity", order: "desc" },
+    "distance-asc": { sort: "miss_distance", order: "asc" },
+    "date-desc": { sort: "date", order: "desc" },
+};
+// Size tiers as diameter ranges in km: small is under 0.14, medium under 1, large from 1.
+const SIZE_RANGES = {
+    small: { max_diameter: 0.13999999 },
+    medium: { min_diameter: 0.14, max_diameter: 0.99999999 },
+    large: { min_diameter: 1 },
+};
+
+function listQuery({ offset = 0, limit = PAGE_SIZE, hazard = state.hazardFilter } = {}) {
+    const params = new URLSearchParams({ limit, offset });
+    if (state.query) params.set("search", state.query);
+    if (hazard === "safe") params.set("hazardous", "false");
+    if (hazard === "hazard") params.set("hazardous", "true");
+    Object.entries(SIZE_RANGES[state.sizeFilter] || {}).forEach(([key, value]) => params.set(key, value));
+    const sort = SORTS[state.sort];
+    if (sort) { params.set("sort", sort.sort); params.set("order", sort.order); }
+    return params.toString();
+}
 
 // WATCHLIST ("My List"): kept in the account for a signed-in visitor, so it follows them
 // to any device; a guest has no account, so theirs stays in this browser.
 const LOCAL_FAVORITES_KEY = "aegisneo_favorites";
-const favorites = new Set(Session.loggedIn ? [] : JSON.parse(localStorage.getItem(LOCAL_FAVORITES_KEY) || "[]"));
+function readLocalFavorites() {
+    try {
+        const saved = JSON.parse(readLocal(LOCAL_FAVORITES_KEY) || "[]");
+        return Array.isArray(saved) ? saved.filter(id => typeof id === "string" && /^[0-9]{1,10}$/.test(id)) : [];
+    } catch {
+        return [];
+    }
+}
+const favorites = new Set(Session.loggedIn ? [] : readLocalFavorites());
 
 // starred objects already seen or fetched, so My List works outside the current 100-object batch
 const favoriteCache = new Map();
@@ -67,7 +114,7 @@ function toggleFavorite(id) {
             .then(data => (data?.new_badges || []).forEach(b => showToast(b.icon, `Badge unlocked: ${b.name}`, b.description)))
             .catch(() => {});
     } else {
-        localStorage.setItem(LOCAL_FAVORITES_KEY, JSON.stringify([...favorites]));
+        writeLocal(LOCAL_FAVORITES_KEY, JSON.stringify([...favorites]));
     }
     updateWatchlistButton();
 }
@@ -80,13 +127,12 @@ async function syncFavorites() {
         const response = await apiFetch("/api/v1/me/watchlist");
         if (!response.ok) return;
         (await response.json()).asteroids.forEach(a => { favorites.add(a.neo_reference_id); favoriteCache.set(a.neo_reference_id, a); });
-        const local = JSON.parse(localStorage.getItem(LOCAL_FAVORITES_KEY) || "[]");
-        for (const id of local) {
+        for (const id of readLocalFavorites()) {
             if (favorites.has(id)) continue;
             const put = await apiFetch(`/api/v1/me/watchlist/${encodeURIComponent(id)}`, { method: "PUT" });
             if (put.ok) favorites.add(id);
         }
-        localStorage.removeItem(LOCAL_FAVORITES_KEY);
+        writeLocal(LOCAL_FAVORITES_KEY, null);
         updateWatchlistButton();
     } catch { /* the list stays empty until the next visit */ }
 }
@@ -141,24 +187,45 @@ function startListRequest() {
 }
 
 
-// LOAD ALL ASTEROIDS
+// LOAD: the first page for the current search, filters and sort
+async function fetchHazardCount(signal) {
+    if (state.hazardFilter === "safe") return 0;
+    if (state.hazardFilter === "hazard") return null; // the matches themselves are all hazardous
+    try {
+        const response = await fetch(`${API_URL}/api/v1/asteroids?${listQuery({ limit: 1, hazard: "hazard" })}`, { headers: authHeaders(), signal });
+        return response.ok ? (await response.json()).matched : null;
+    } catch (error) {
+        if (error.name === "AbortError") throw error;
+        return null;
+    }
+}
+
 async function loadAsteroids() {
     const signal = startListRequest();
+    const generation = ++state.generation;
+    state.dirty = false;
+    state.loadingMore = false;
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/api/v1/asteroids`, { headers: authHeaders(), signal });
+        const [response, hazardCount] = await Promise.all([
+            fetch(`${API_URL}/api/v1/asteroids?${listQuery()}`, { headers: authHeaders(), signal }),
+            fetchHazardCount(signal),
+        ]);
         if (sessionEnded(response)) return;
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+        if (generation !== state.generation) return;
         state.raw = data.asteroids || [];
+        state.matched = data.matched ?? state.raw.length;
+        state.hazardMatched = state.hazardFilter === "hazard" ? state.matched : hazardCount;
         if (data.total !== undefined) statTotalEl.textContent = data.total.toLocaleString();
         guestTotal = data.total;
         updateAccountBar();
         applyFiltersAndSort();
         refreshFacts();
         renderOrbitHighlights();
-        newRound();
+        if (!gameState.round) newRound();
     }
 
     catch (error) {
@@ -169,35 +236,49 @@ async function loadAsteroids() {
 }
 
 
-// SEARCH ASTEROIDS
-async function searchAsteroids() {
-    const query = searchInput.value.trim();
-    if (!query) {
-        loadAsteroids();
-        return;
-    }
-
-    const signal = startListRequest();
-    showLoading();
-
+// LOAD MORE: the next page, added below the cards already on screen
+async function loadMore() {
+    if (state.loadingMore || state.watchlistOnly || state.raw.length >= state.matched) return;
+    const generation = state.generation;
+    state.loadingMore = true;
+    updateLoadMore();
     try {
-        const response =
-            await fetch(`${API_URL}/api/v1/asteroids?search=${encodeURIComponent(query)}`, { headers: authHeaders(), signal });
+        const response = await fetch(`${API_URL}/api/v1/asteroids?${listQuery({ offset: state.raw.length })}`, { headers: authHeaders() });
         if (sessionEnded(response)) return;
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        state.raw = data.asteroids || [];
-        applyFiltersAndSort();
-        refreshFacts();
-        renderOrbitHighlights();
-        newRound();
-    }
-
-    catch (error) {
-        if (error.name === "AbortError") return;
+        if (generation !== state.generation) return; // a newer search replaced this list
+        const have = new Set(state.raw.map(a => a.neo_reference_id));
+        const fresh = (data.asteroids || []).filter(a => !have.has(a.neo_reference_id));
+        state.raw = state.raw.concat(fresh);
+        state.matched = data.matched ?? state.matched;
+        state.lastList = state.raw.slice();
+        appendAsteroids(fresh);
+    } catch (error) {
         console.error(error);
-        showError();
+        showToast("⚠️", "Could not load more", "Check your connection and try again.");
+    } finally {
+        if (generation === state.generation) {
+            state.loadingMore = false;
+            updateLoadMore();
+        }
     }
+}
+
+function updateLoadMore() {
+    const left = state.matched - state.raw.length;
+    const show = !state.watchlistOnly && left > 0;
+    loadMoreWrap.hidden = !show;
+    if (!show) return;
+    loadMoreBtn.disabled = state.loadingMore;
+    loadMoreBtn.textContent = state.loadingMore ? "Loading…" : `Load ${Math.min(PAGE_SIZE, left).toLocaleString()} more`;
+    loadMoreCount.textContent = `Showing ${state.raw.length.toLocaleString()} of ${state.matched.toLocaleString()} matching asteroids`;
+}
+
+function announceList(count, total) {
+    listStatusEl.textContent = state.watchlistOnly
+        ? `${count} asteroid${count === 1 ? "" : "s"} on your list.`
+        : `Showing ${count.toLocaleString()} of ${total.toLocaleString()} matching asteroids.`;
 }
 
 
@@ -209,31 +290,49 @@ function getSizeTier(diameterKm) {
 }
 
 function applyFiltersAndSort() {
-    let list = state.watchlistOnly ? watchlistItems() : state.raw.slice();
-
-    if (state.hazardFilter === "safe") list = list.filter(a => !a.is_potentially_hazardous);
-    if (state.hazardFilter === "hazard") list = list.filter(a => a.is_potentially_hazardous);
-    if (state.sizeFilter !== "all") list = list.filter(a => getSizeTier(a.estimated_diameter_km) === state.sizeFilter);
-
-    switch (state.sort) {
-        case "name":
-            list.sort((a, b) => a.name.localeCompare(b.name)); break;
-        case "diameter-desc":
-            list.sort((a, b) => b.estimated_diameter_km - a.estimated_diameter_km); break;
-        case "diameter-asc":
-            list.sort((a, b) => a.estimated_diameter_km - b.estimated_diameter_km); break;
-        case "velocity-desc":
-            list.sort((a, b) => b.relative_velocity_km_h - a.relative_velocity_km_h); break;
-        case "distance-asc":
-            list.sort((a, b) => a.miss_distance_km - b.miss_distance_km); break;
-        case "date-desc":
-            list.sort((a, b) => new Date(b.close_approach_date) - new Date(a.close_approach_date)); break;
-        default: break;
+    let list;
+    if (state.watchlistOnly) {
+        // "My List" is a set of ids, so it is filtered and sorted here.
+        list = watchlistItems();
+        if (state.hazardFilter === "safe") list = list.filter(a => !a.is_potentially_hazardous);
+        if (state.hazardFilter === "hazard") list = list.filter(a => a.is_potentially_hazardous);
+        if (state.sizeFilter !== "all") list = list.filter(a => getSizeTier(a.estimated_diameter_km) === state.sizeFilter);
+        switch (state.sort) {
+            case "name":
+                list.sort((a, b) => a.name.localeCompare(b.name)); break;
+            case "diameter-desc":
+                list.sort((a, b) => b.estimated_diameter_km - a.estimated_diameter_km); break;
+            case "diameter-asc":
+                list.sort((a, b) => a.estimated_diameter_km - b.estimated_diameter_km); break;
+            case "velocity-desc":
+                list.sort((a, b) => b.relative_velocity_km_h - a.relative_velocity_km_h); break;
+            case "distance-asc":
+                list.sort((a, b) => a.miss_distance_km - b.miss_distance_km); break;
+            case "date-desc":
+                list.sort((a, b) => new Date(b.close_approach_date) - new Date(a.close_approach_date)); break;
+            default: break;
+        }
+        updateStats(list.length, list.filter(a => a.is_potentially_hazardous).length);
+        announceList(list.length, list.length);
+    } else {
+        list = state.raw.slice(); // already filtered and sorted by the API
+        updateStats(state.matched, state.hazardMatched ?? list.filter(a => a.is_potentially_hazardous).length);
+        announceList(list.length, state.matched);
     }
 
     state.lastList = list;
     displayAsteroids(list);
-    updateStats(list.length, list.filter(a => a.is_potentially_hazardous).length);
+    updateLoadMore();
+}
+
+// The filters or the sort changed: ask the API again, or re-filter "My List" in place.
+function refreshList() {
+    if (state.watchlistOnly) {
+        state.dirty = true;
+        applyFiltersAndSort();
+    } else {
+        loadAsteroids();
+    }
 }
 
 
@@ -253,13 +352,27 @@ function displayAsteroids(asteroids) {
     }
 
     listEl.innerHTML = asteroids.map(asteroidCardHTML).join("");
+    paintPortraits(asteroids, listEl.querySelectorAll("canvas.portrait"));
+    initScrollReveal();
+}
 
-    const canvases = listEl.querySelectorAll("canvas.portrait");
+// Add cards below the ones on screen (Load more) without redrawing the rest.
+function appendAsteroids(asteroids) {
+    if (!asteroids.length) { updateLoadMore(); return; }
+    const before = listEl.querySelectorAll(".asteroid-card").length;
+    listEl.insertAdjacentHTML("beforeend", asteroids.map(asteroidCardHTML).join(""));
+    const added = [...listEl.querySelectorAll(".asteroid-card")].slice(before);
+    paintPortraits(asteroids, added.map(card => card.querySelector("canvas.portrait")));
+    initScrollReveal();
+    announceList(state.raw.length, state.matched);
+    // Move keyboard focus to the first new card so a screen-reader user lands on the new results.
+    added[0]?.querySelector(".detail-btn")?.focus({ preventScroll: true });
+}
+
+function paintPortraits(asteroids, canvases) {
     asteroids.forEach((asteroid, i) => {
         if (canvases[i]) drawAsteroidPortrait(canvases[i], asteroid, 96);
     });
-
-    initScrollReveal();
 }
 
 
@@ -322,15 +435,17 @@ function asteroidCardHTML(asteroid) {
 // VIEW ONE ASTEROID (detail panel, replaces the starter's alert() popup)
 async function viewAsteroid(id) {
     try {
-        const response = await fetch(`${API_URL}/api/v1/asteroids/${encodeURIComponent(id)}`, { headers: authHeaders() });
-        if (!response.ok) throw new Error("not found");
-        const asteroid = await response.json();
-        showDetailPanel(asteroid);
+        const response = await apiFetch(`/api/v1/asteroids/${encodeURIComponent(id)}`);
+        if (!response.ok) {
+            const detail = (await response.json().catch(() => ({}))).detail;
+            throw new Error(response.status === 401 && typeof detail === "string" ? detail : "This object's telemetry could not be loaded.");
+        }
+        showDetailPanel(await response.json());
     }
 
     catch (error) {
         console.error(error);
-        alert("Unable to retrieve telemetry for this object.");
+        showToast("⚠️", "Telemetry unavailable", error instanceof TypeError ? "Could not reach the server." : error.message);
     }
 }
 
@@ -339,19 +454,21 @@ function showDetailPanel(asteroid) {
     const hazardous = asteroid.is_potentially_hazardous;
     const tier = getSizeTier(asteroid.estimated_diameter_km);
     const isFav = favorites.has(asteroid.neo_reference_id);
-    closeDetailPanel();
+    const opener = document.activeElement;
+    closeDetailPanel({ restoreFocus: false });
+    detailOpener = opener;
 
     const overlay = document.createElement("div");
     overlay.className = "detail-overlay";
     overlay.innerHTML = `
-        <div class="detail-panel ${hazardous ? "status-hazard" : "status-safe"}">
+        <div class="detail-panel ${hazardous ? "status-hazard" : "status-safe"}" role="dialog" aria-modal="true" aria-labelledby="detailName">
             <button class="detail-close" type="button" aria-label="Close">&times;</button>
             <button class="fav-btn detail-fav ${isFav ? "active" : ""}" type="button" data-neo="${escapeHtml(asteroid.neo_reference_id)}" aria-label="${isFav ? "Remove from" : "Add to"} My List" aria-pressed="${isFav}">★</button>
             <div class="detail-top">
                 <canvas class="portrait portrait-lg" width="140" height="140" aria-hidden="true"></canvas>
                 <div>
                     <p class="detail-eyebrow">${escapeHtml(asteroid.neo_reference_id)}</p>
-                    <h2 class="detail-name">${escapeHtml(asteroid.name)}</h2>
+                    <h2 class="detail-name" id="detailName">${escapeHtml(asteroid.name)}</h2>
                     <span class="status-chip detail-status-chip">
                         <img class="status-icon" src="${hazardous ? "assets/icon-warning.svg" : "assets/icon-safe.svg"}" alt="" width="14" height="14">
                         <span class="status-label">${hazardous ? "Potentially hazardous" : "Nominal / non-hazardous"}</span>
@@ -400,7 +517,8 @@ function showDetailPanel(asteroid) {
         }
     });
     document.body.appendChild(overlay);
-    document.addEventListener("keydown", handleDetailEscape);
+    document.addEventListener("keydown", handleDetailKeys);
+    overlay.querySelector(".detail-close").focus();
 
     const portrait = overlay.querySelector("canvas.portrait-lg");
     if (portrait) drawAsteroidPortrait(portrait, asteroid, 140);
@@ -424,14 +542,32 @@ function copyTelemetry(asteroid, btn) {
     }).catch(() => {});
 }
 
-function closeDetailPanel() {
+let detailOpener = null;
+
+function closeDetailPanel({ restoreFocus = true } = {}) {
     const existing = document.querySelector(".detail-overlay");
     if (existing) existing.remove();
-    document.removeEventListener("keydown", handleDetailEscape);
+    document.removeEventListener("keydown", handleDetailKeys);
+    if (restoreFocus && detailOpener && document.contains(detailOpener)) detailOpener.focus({ preventScroll: true });
+    detailOpener = null;
 }
 
-function handleDetailEscape(e) {
-    if (e.key === "Escape") closeDetailPanel();
+// Keep Tab inside an open dialog (the detail panel or the editor).
+function trapTab(event, container) {
+    if (event.key !== "Tab") return;
+    const items = [...container.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
+        .filter(el => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (!container.contains(document.activeElement)) { event.preventDefault(); first.focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+
+function handleDetailKeys(e) {
+    if (e.key === "Escape") { closeDetailPanel(); return; }
+    const panel = document.querySelector(".detail-panel");
+    if (panel) trapTab(e, panel);
 }
 
 
@@ -615,6 +751,7 @@ function refreshFacts() {
     renderFact();
     if (factTimer) clearInterval(factTimer);
     factTimer = setInterval(() => {
+        if (document.hidden) return;
         factIndex = (factIndex + 1) % facts.length;
         renderFact();
     }, 5200);
@@ -679,22 +816,38 @@ const GAME_DIMENSIONS = [
 
 const gameState = {
     streak: 0,
-    best: Number(localStorage.getItem("aegisneo_best_streak") || 0),
+    best: Number(readLocal("aegisneo_best_streak")) || 0,
     round: null,
 };
 
-function newRound() {
+// The game draws from its own random pool, so a search or filter that matches few
+// asteroids (or none) does not stop it.
+let gamePool = [];
+let roundsSincePool = 0;
+
+async function refillGamePool() {
+    roundsSincePool = 0;
+    try {
+        const response = await apiFetch("/api/v1/asteroids/random?count=20");
+        if (response.ok) gamePool = (await response.json()).asteroids || [];
+    } catch { /* the list on screen is used instead */ }
+}
+
+async function newRound() {
     if (!gameArenaEl) return;
-    if (state.raw.length < 2) {
-        gameArenaEl.innerHTML = `<p class="game-empty">Load more objects to play.</p>`;
+    if (!gamePool.length || roundsSincePool >= 8) await refillGamePool();
+    roundsSincePool++;
+    const pool = gamePool.length >= 2 ? gamePool : state.raw;
+    if (pool.length < 2) {
+        gameArenaEl.innerHTML = `<p class="game-empty">Not enough asteroids to play right now.</p>`;
         return;
     }
 
     const dim = GAME_DIMENSIONS[Math.floor(Math.random() * GAME_DIMENSIONS.length)];
     let a, b, tries = 0;
     do {
-        a = state.raw[Math.floor(Math.random() * state.raw.length)];
-        b = state.raw[Math.floor(Math.random() * state.raw.length)];
+        a = pool[Math.floor(Math.random() * pool.length)];
+        b = pool[Math.floor(Math.random() * pool.length)];
         tries++;
     } while (tries < 30 && (a.neo_reference_id === b.neo_reference_id || a[dim.key] === b[dim.key]));
 
@@ -752,7 +905,7 @@ function onGamePick(e) {
     if (correct) {
         gameState.streak++;
         gameState.best = Math.max(gameState.best, gameState.streak);
-        localStorage.setItem("aegisneo_best_streak", gameState.best);
+        writeLocal("aegisneo_best_streak", String(gameState.best));
         gameFeedbackEl.textContent = "Correct! Nice instinct.";
         gameFeedbackEl.className = "game-feedback game-feedback-good";
         const rect = e.currentTarget.getBoundingClientRect();
@@ -826,7 +979,8 @@ function showError() {
     listEl.innerHTML = `
         <div class="empty-state">
             <p class="empty-title">Telemetry link lost</p>
-            <p class="empty-sub">Unable to reach the AegisNEO API. Confirm the backend is running.</p>
+            <p class="empty-sub">We could not reach the AegisNEO API. Check your connection, then try again.</p>
+            <button class="retry-btn cta" type="button">Try again</button>
         </div>
     `;
 }
@@ -862,13 +1016,13 @@ document.querySelectorAll(".chip").forEach(btn => {
         btn.classList.add("active");
         if (group === "hazard") state.hazardFilter = btn.dataset.value;
         if (group === "size") state.sizeFilter = btn.dataset.value;
-        applyFiltersAndSort();
+        refreshList();
     });
 });
 
 sortSelect.addEventListener("change", () => {
     state.sort = sortSelect.value;
-    applyFiltersAndSort();
+    refreshList();
 });
 
 watchlistToggle.addEventListener("click", async () => {
@@ -878,11 +1032,18 @@ watchlistToggle.addEventListener("click", async () => {
     if (state.watchlistOnly) {
         showLoading();
         await loadMissingFavorites();
+        applyFiltersAndSort();
+    } else if (state.dirty) {
+        loadAsteroids(); // the filters changed while the list was open
+    } else {
+        applyFiltersAndSort();
     }
-    applyFiltersAndSort();
 });
 
+loadMoreBtn.addEventListener("click", loadMore);
+
 listEl.addEventListener("click", (e) => {
+    if (e.target.closest(".retry-btn")) { loadAsteroids(); return; }
     const detailBtn = e.target.closest(".detail-btn");
     if (detailBtn) {
         viewAsteroid(detailBtn.dataset.neo);
@@ -911,13 +1072,19 @@ listEl.addEventListener("click", (e) => {
 updateWatchlistButton();
 
 
-// SURPRISE ME — jump straight to a random object's full telemetry
-surpriseBtn.addEventListener("click", (e) => {
-    const pool = state.lastList.length ? state.lastList : state.raw;
-    if (!pool.length) return;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+// SURPRISE ME — jump straight to a random object's full telemetry, from the whole visible catalog
+surpriseBtn.addEventListener("click", async (e) => {
     spawnBurst(e.clientX, e.clientY);
-    viewAsteroid(pick.neo_reference_id);
+    let pick = null;
+    try {
+        const response = await apiFetch("/api/v1/asteroids/random?count=1");
+        if (response.ok) pick = (await response.json()).asteroids?.[0] || null;
+    } catch { /* fall back to what is loaded */ }
+    if (!pick) {
+        const pool = state.lastList.length ? state.lastList : state.raw;
+        pick = pool[Math.floor(Math.random() * pool.length)];
+    }
+    if (pick) viewAsteroid(pick.neo_reference_id);
 });
 
 
@@ -992,7 +1159,7 @@ function spawnShootingStar() {
 }
 
 if (!prefersReducedMotion) {
-    setInterval(() => { if (Math.random() < 0.75) spawnShootingStar(); }, 2600);
+    setInterval(() => { if (!document.hidden && Math.random() < 0.75) spawnShootingStar(); }, 2600);
 
     // subtle parallax on the starfield — depth without anything moving far
     const starsLayer = document.querySelector(".stars");
@@ -1052,7 +1219,15 @@ if (!prefersReducedMotion) {
         });
     }
 
+    let fxDirty = false;
     (function renderParticles() {
+        if (!particles.length) {
+            // Nothing to draw: clear once, then just wait for the next particle.
+            if (fxDirty) { fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); fxDirty = false; }
+            requestAnimationFrame(renderParticles);
+            return;
+        }
+        fxDirty = true;
         fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
         particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= p.decay; });
         particles = particles.filter(p => p.life > 0);
@@ -1070,21 +1245,26 @@ if (!prefersReducedMotion) {
 // WIRE UP SEARCH (button/enter click immediately, typing debounces)
 let searchDebounce = null;
 
+function runSearch() {
+    state.query = searchInput.value.trim();
+    loadAsteroids();
+}
+
 document.getElementById("searchBtn").addEventListener("click", () => {
     clearTimeout(searchDebounce);
-    searchAsteroids();
+    runSearch();
 });
 
 document.getElementById("resetBtn").addEventListener("click", () => {
     clearTimeout(searchDebounce);
     searchInput.value = "";
-    loadAsteroids();
+    runSearch();
 });
 
 searchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
         clearTimeout(searchDebounce);
-        searchAsteroids();
+        runSearch();
     }
 });
 
@@ -1092,8 +1272,7 @@ searchInput.addEventListener("input", () => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => {
         const q = searchInput.value.trim();
-        if (q.length === 0) loadAsteroids();
-        else if (q.length >= 2) searchAsteroids();
+        if (q.length === 0 || q.length >= 2) runSearch();
     }, 350);
 });
 
@@ -1138,7 +1317,7 @@ function updateAccountBar() {
 
 accountBtn.addEventListener("click", () => {
     if (Session.loggedIn) Session.logOut();
-    else location.assign("auth.html");
+    else location.assign("auth");
 });
 
 
@@ -1153,7 +1332,10 @@ const EDITOR_FIELDS = [
     "relative_velocity_km_h", "miss_distance_km", "absolute_magnitude",
 ];
 
+let editorOpener = null;
+
 function openEditor(asteroid) {
+    editorOpener = document.activeElement;
     editingId = asteroid ? asteroid.neo_reference_id : null;
     document.getElementById("editorTitle").textContent = asteroid ? `Edit ${asteroid.name}` : "New asteroid";
     EDITOR_FIELDS.forEach(field => { editorForm.elements[field].value = asteroid ? asteroid[field] : ""; });
@@ -1167,6 +1349,8 @@ function openEditor(asteroid) {
 
 function closeEditor() {
     editor.hidden = true;
+    if (editorOpener && document.contains(editorOpener)) editorOpener.focus({ preventScroll: true });
+    editorOpener = null;
 }
 
 function editorProblem(detail) {
@@ -1210,7 +1394,11 @@ editorForm.addEventListener("submit", async (event) => {
 
 document.getElementById("editorCancel").addEventListener("click", closeEditor);
 editor.addEventListener("click", (event) => { if (event.target === editor) closeEditor(); });
-document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !editor.hidden) closeEditor(); });
+document.addEventListener("keydown", (event) => {
+    if (editor.hidden) return;
+    if (event.key === "Escape") closeEditor();
+    else trapTab(event, editorForm);
+});
 
 async function deleteAsteroid(id) {
     const asteroid = state.raw.find(a => a.neo_reference_id === id);

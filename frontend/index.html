@@ -3,30 +3,41 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>AegisNEO: Meet the asteroids passing Earth</title>
     <meta name="description" content="One free account opens three experiences built on real near-Earth asteroid data: an explorer, a 3D impact simulator and a birthday star atlas.">
+    <meta property="og:title" content="AegisNEO: Meet the asteroids passing Earth">
+    <meta property="og:description" content="One free account opens three experiences built on real near-Earth asteroid data: an explorer, a 3D impact simulator and a birthday star atlas.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://aegisneo-hub.vercel.app/assets/shot-impactor.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <meta name="theme-color" content="#04060c">
     <link rel="stylesheet" href="site.css">
+    <script src="fx.js"></script>
 </head>
 
 <body>
+    <a class="skip-link" href="#experiences">Skip to the three experiences</a>
+    <div class="stars" aria-hidden="true"></div>
     <header class="topbar">
         <div class="wrap topbar-inner">
-            <a class="brand" href="index.html" aria-label="AegisNEO home">
+            <a class="brand" href="./" aria-label="AegisNEO home">
                 <span class="brand-mark" aria-hidden="true"></span>
                 <span>
                     <span class="brand-name">AegisNEO</span>
-                    <span class="brand-sub" style="display:block">Near-Earth Object Watch</span>
+                    <span class="brand-sub">Near-Earth Object Watch</span>
                 </span>
             </a>
             <nav class="topnav" aria-label="Sections">
                 <a href="#experiences">Experiences</a>
-                <a href="#access">Access</a>
                 <a href="#how">How it works</a>
+                <a href="#access">Access</a>
             </nav>
             <div class="topbar-actions" id="topActions">
-                <a class="btn btn-ghost btn-sm" href="auth.html">Sign in</a>
-                <a class="btn btn-primary btn-sm" href="auth.html?mode=signup">Get started</a>
+                <button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false"><span class="pip" aria-hidden="true"></span><span data-motion-label>Motion on</span></button>
+                <a class="btn btn-ghost btn-sm" href="auth">Sign in</a>
+                <a class="btn btn-primary btn-sm" href="auth?mode=signup">Get started</a>
             </div>
         </div>
     </header>
@@ -35,41 +46,41 @@
         <section class="hero">
             <div class="wrap hero-grid">
                 <div>
-                    <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Real NASA-derived data</span>
-                    <h1>The sky is full of rocks.<br><em>Meet them.</em></h1>
-                    <p class="lede">AegisNEO tracks <strong id="heroCount">33,511</strong> near-Earth asteroids. One free
+                    <span class="eyebrow" data-reveal><span class="dot" aria-hidden="true"></span>Real NASA-derived data</span>
+                    <h1 data-reveal style="--d:80ms">The sky is full of rocks.<br><em>Meet them.</em></h1>
+                    <p class="lede" data-reveal style="--d:160ms">AegisNEO tracks <strong id="heroCount">33,511</strong> near-Earth asteroids. One free
                         account opens three experiences: explore the catalog, crash an asteroid into a city in 3D,
                         and find the ones that flew past on your birthday.</p>
-                    <div class="cta-row" id="heroActions">
-                        <a class="btn btn-primary" href="auth.html?mode=signup">Create a free account</a>
-                        <a class="btn btn-ghost" href="auth.html" data-guest>Look around as a guest</a>
+                    <div class="cta-row" id="heroActions" data-reveal style="--d:240ms">
+                        <a class="btn btn-primary btn-lg" href="auth?mode=signup" data-magnetic>Create a free account <span class="arrow" aria-hidden="true">→</span></a>
+                        <a class="btn btn-ghost btn-lg" href="auth" data-guest>Look around as a guest</a>
                     </div>
-                    <p class="fineprint">No payment, no email needed. Guests see 10 featured asteroids on every site.</p>
-                    <dl class="stat-tiles">
-                        <div class="tile"><dt>Objects</dt><dd id="tileCount">33,511</dd></div>
+                    <p class="fineprint" data-reveal style="--d:300ms">No payment, no email needed. Guests see 10 featured asteroids on every site.</p>
+                    <dl class="stat-tiles" data-reveal style="--d:360ms">
+                        <div class="tile"><dt>Objects</dt><dd id="tileCount" data-count="33511">33,511</dd></div>
                         <div class="tile"><dt>Years</dt><dd>1910–2024</dd></div>
-                        <div class="tile"><dt>Sites</dt><dd>3</dd></div>
+                        <div class="tile"><dt>Sites</dt><dd data-count="3">3</dd></div>
                     </dl>
                 </div>
-                <div class="orbit-stage" aria-hidden="true">
-                    <span class="ring" style="--i:0%;--t:46s;--c:#f5a524"></span>
-                    <span class="ring" style="--i:12%;--t:30s;--c:#3ee0e8"></span>
-                    <span class="ring" style="--i:24%;--t:18s;--c:#ff6b6b"></span>
-                    <span class="earth"></span>
+                <div class="globe-stage" data-reveal style="--d:200ms">
+                    <canvas id="heroGlobe" role="img" aria-label="A slowly turning globe with asteroids orbiting it. Drag sideways to spin it."></canvas>
+                    <div class="hud one" aria-hidden="true"><span>Tracking</span><b id="hudNameA">99942 Apophis</b><i id="hudInfoA">654 m · 4.1 km/s</i></div>
+                    <div class="hud two" aria-hidden="true"><span>Passing</span><b id="hudNameB">101955 Bennu</b><i id="hudInfoB">490 m · 28 km/s</i></div>
                 </div>
             </div>
+            <a class="scroll-cue" href="#experiences" aria-label="Scroll to the three experiences">Scroll</a>
         </section>
 
         <section class="block" id="experiences">
             <div class="wrap">
-                <div class="section-head">
+                <div class="section-head" data-reveal>
                     <span class="kicker">Three experiences, one account</span>
                     <h2>Pick how you want to look at the sky</h2>
                     <p>Each site is its own app. Sign in once and the hub opens any of them with your access.</p>
                 </div>
                 <div class="exp-grid">
-                    <article class="exp-card">
-                        <div class="exp-media" style="background-image:linear-gradient(180deg,rgba(5,7,13,.1),rgba(5,7,13,.6)),url('assets/nebula.jpg')"><span class="tag main">Main site</span></div>
+                    <article class="exp-card tilt" data-tilt data-reveal>
+                        <div class="exp-media-wrap"><div class="exp-media" style="background-image:linear-gradient(180deg,rgba(5,7,13,.1),rgba(5,7,13,.6)),url('assets/nebula.jpg')"><span class="tag main">Main site</span></div></div>
                         <div class="exp-body">
                             <h3>AegisNEO Explorer</h3>
                             <p>The full catalog, with real numbers and plain-language comparisons.</p>
@@ -81,8 +92,8 @@
                             </ul>
                         </div>
                     </article>
-                    <article class="exp-card">
-                        <div class="exp-media" style="background-image:url('assets/shot-impactor.jpg')"><span class="tag partner">Partner site</span></div>
+                    <article class="exp-card tilt" data-tilt data-reveal style="--d:120ms">
+                        <div class="exp-media-wrap"><div class="exp-media" style="background-image:url('assets/shot-impactor.jpg')"><span class="tag partner">Partner site</span></div></div>
                         <div class="exp-body">
                             <h3>Impactor</h3>
                             <p>A 3D impact simulator built on a published scientific model.</p>
@@ -93,8 +104,8 @@
                             </ul>
                         </div>
                     </article>
-                    <article class="exp-card">
-                        <div class="exp-media" style="background-image:url('assets/shot-atlas.jpg')"><span class="tag partner">Partner site</span></div>
+                    <article class="exp-card tilt" data-tilt data-reveal style="--d:240ms">
+                        <div class="exp-media-wrap"><div class="exp-media" style="background-image:url('assets/shot-atlas.jpg')"><span class="tag partner">Partner site</span></div></div>
                         <div class="exp-body">
                             <h3>NEO Atlas</h3>
                             <p>Your birthday sky, drawn as a constellation of real asteroids.</p>
@@ -109,15 +120,29 @@
             </div>
         </section>
 
+        <section class="block" id="how">
+            <div class="wrap">
+                <div class="section-head" data-reveal>
+                    <span class="kicker">How it works</span>
+                    <h2>One sign-in, three doors</h2>
+                </div>
+                <div class="steps">
+                    <div class="step" data-reveal><h3>Sign in</h3><p>Create an account in seconds, or continue as a guest.</p></div>
+                    <div class="step" data-reveal style="--d:120ms"><h3>Open the hub</h3><p>It shows the three sites and what your role can do on each.</p></div>
+                    <div class="step" data-reveal style="--d:240ms"><h3>Launch a site</h3><p>The partner site receives a short-lived, read-only pass for you, so it serves you the right amount of data.</p></div>
+                </div>
+            </div>
+        </section>
+
         <section class="block" id="access">
             <div class="wrap">
-                <div class="section-head">
+                <div class="section-head" data-reveal>
                     <span class="kicker">Access</span>
                     <h2>Look for free. Sign up for everything.</h2>
                     <p>What you can do depends on your role. The same rules apply on all three sites.</p>
                 </div>
                 <div class="tiers">
-                    <article class="tier">
+                    <article class="tier tilt" data-tilt data-reveal>
                         <h3>Guest</h3>
                         <p class="who">No account</p>
                         <ul>
@@ -126,9 +151,9 @@
                             <li class="no">No watchlist or badges</li>
                             <li class="no">Cannot change data</li>
                         </ul>
-                        <a class="btn btn-ghost btn-block" href="auth.html" data-guest>Continue as guest</a>
+                        <a class="btn btn-ghost btn-block" href="auth" data-guest>Continue as guest</a>
                     </article>
-                    <article class="tier featured">
+                    <article class="tier featured tilt" data-tilt data-reveal style="--d:120ms">
                         <span class="ribbon">Free</span>
                         <h3>Explorer</h3>
                         <p class="who">Anyone with an account</p>
@@ -139,9 +164,9 @@
                             <li>Your launch history</li>
                             <li class="no">Read only: cannot change data</li>
                         </ul>
-                        <a class="btn btn-primary btn-block" href="auth.html?mode=signup">Create a free account</a>
+                        <a class="btn btn-primary btn-block" href="auth?mode=signup" data-magnetic>Create a free account</a>
                     </article>
-                    <article class="tier">
+                    <article class="tier tilt" data-tilt data-reveal style="--d:240ms">
                         <h3>Admin</h3>
                         <p class="who">Made by the project owner</p>
                         <ul>
@@ -150,53 +175,39 @@
                             <li>Mission control: who uses what</li>
                             <li>A full trail of every change</li>
                         </ul>
-                        <a class="btn btn-ghost btn-block" href="auth.html">Admin sign in</a>
+                        <a class="btn btn-ghost btn-block" href="auth">Admin sign in</a>
                     </article>
                 </div>
             </div>
         </section>
 
-        <section class="block" id="how">
-            <div class="wrap">
-                <div class="section-head">
-                    <span class="kicker">How it works</span>
-                    <h2>One sign-in, three doors</h2>
-                </div>
-                <div class="steps">
-                    <div class="step"><h3>Sign in</h3><p>Create an account in seconds, or continue as a guest.</p></div>
-                    <div class="step"><h3>Open the hub</h3><p>It shows the three sites and what your role can do on each.</p></div>
-                    <div class="step"><h3>Launch a site</h3><p>The partner site receives a short-lived, read-only pass for you, so it serves you the right amount of data.</p></div>
-                </div>
-            </div>
-        </section>
-
         <section class="block">
             <div class="wrap">
-                <div class="section-head">
+                <div class="section-head" data-reveal>
                     <span class="kicker">Make it a game</span>
                     <h2>Collect badges as you explore</h2>
                     <p>Open every site for the Grand Tour. Watch five asteroids to become a Watcher.</p>
                 </div>
-                <div class="badge-row" aria-label="Badges">
-                    <span class="badge-chip"><span>👋</span>First Contact</span>
-                    <span class="badge-chip"><span>🔭</span>Explorer</span>
-                    <span class="badge-chip"><span>☄️</span>Planet Defender</span>
-                    <span class="badge-chip"><span>✨</span>Stargazer</span>
-                    <span class="badge-chip"><span>🛰️</span>Grand Tour</span>
-                    <span class="badge-chip"><span>👁️</span>Watcher</span>
-                    <span class="badge-chip"><span>⚠️</span>Hazard Hunter</span>
+                <div class="badge-row" aria-label="Badges" data-reveal>
+                    <span class="badge-chip"><span aria-hidden="true">👋</span>First Contact</span>
+                    <span class="badge-chip"><span aria-hidden="true">🔭</span>Explorer</span>
+                    <span class="badge-chip"><span aria-hidden="true">☄️</span>Planet Defender</span>
+                    <span class="badge-chip"><span aria-hidden="true">✨</span>Stargazer</span>
+                    <span class="badge-chip"><span aria-hidden="true">🛰️</span>Grand Tour</span>
+                    <span class="badge-chip"><span aria-hidden="true">👁️</span>Watcher</span>
+                    <span class="badge-chip"><span aria-hidden="true">⚠️</span>Hazard Hunter</span>
                 </div>
             </div>
         </section>
 
         <section class="block">
             <div class="wrap">
-                <div class="final-cta">
+                <div class="final-cta" data-reveal>
                     <h2>Ready to see what's flying past?</h2>
                     <p>It takes less than a minute, and it is free.</p>
                     <div class="cta-row">
-                        <a class="btn btn-primary" href="auth.html?mode=signup">Get started</a>
-                        <a class="btn btn-ghost" href="auth.html">I already have an account</a>
+                        <a class="btn btn-primary btn-lg" href="auth?mode=signup" data-magnetic>Get started <span class="arrow" aria-hidden="true">→</span></a>
+                        <a class="btn btn-ghost btn-lg" href="auth">I already have an account</a>
                     </div>
                 </div>
             </div>
@@ -206,33 +217,14 @@
     <footer class="site-foot">
         <div class="wrap">
             <span>AegisNEO · Data: NASA near-Earth object records via Kaggle</span>
-            <span><a href="/docs">API docs</a></span>
+            <span><a href="https://aegisneo-api.vercel.app/docs">API docs</a></span>
         </div>
     </footer>
 
+    <noscript><p style="text-align:center;padding:12px">AegisNEO works best with JavaScript turned on.</p></noscript>
     <script src="shared.js"></script>
-    <script>
-        // Signed-in visitors get a way straight back to the hub.
-        if (Session.loggedIn || Session.isGuest) {
-            document.getElementById("topActions").innerHTML =
-                `<a class="btn btn-primary btn-sm" href="hub.html">Open the hub</a>`;
-            document.getElementById("heroActions").innerHTML =
-                `<a class="btn btn-primary" href="hub.html">Open the hub</a>`;
-        }
-        // "Continue as guest" links start a guest session before opening the hub.
-        document.querySelectorAll("[data-guest]").forEach(link => link.addEventListener("click", (event) => {
-            event.preventDefault();
-            Session.startGuest();
-            location.assign("hub.html");
-        }));
-        // The real size of the catalog (the home endpoint is public).
-        fetch(`${API_URL}/`).then(r => r.ok ? r.json() : null).then(data => {
-            if (!data || !data.total_tracked) return;
-            const text = formatNumber(data.total_tracked);
-            document.getElementById("heroCount").textContent = text;
-            document.getElementById("tileCount").textContent = text;
-        }).catch(() => { /* keep the printed number */ });
-    </script>
+    <script src="globe.js"></script>
+    <script src="landing.js"></script>
 </body>
 
 </html>

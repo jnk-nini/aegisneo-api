@@ -3,15 +3,20 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Sign in · AegisNEO</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <meta name="theme-color" content="#05070d">
+    <meta name="robots" content="noindex">
     <link rel="stylesheet" href="site.css">
+    <script src="fx.js"></script>
 </head>
 
 <body>
     <div class="auth-page">
         <aside class="auth-aside">
-            <a class="brand" href="index.html" aria-label="Back to the AegisNEO home page">
+            <div class="auth-globe" aria-hidden="true"><canvas id="authGlobe"></canvas></div>
+            <a class="brand" href="./" aria-label="Back to the AegisNEO home page">
                 <span class="brand-mark" aria-hidden="true"></span>
                 <span class="brand-name">AegisNEO</span>
             </a>
@@ -33,7 +38,8 @@
                 <p class="sub" id="authSub">Sign in to open the hub.</p>
                 <p class="form-note" id="expiredNote" hidden>Your session ended. Please sign in again.</p>
 
-                <div class="tabs" role="tablist" aria-label="Sign in or create an account">
+                <div class="tabs" id="tabs" data-mode="login" role="tablist" aria-label="Sign in or create an account">
+                    <span class="thumb" aria-hidden="true"></span>
                     <button type="button" role="tab" id="tabLogin" aria-selected="true" aria-controls="authForm">Sign in</button>
                     <button type="button" role="tab" id="tabSignup" aria-selected="false" aria-controls="authForm">Create account</button>
                 </div>
@@ -49,6 +55,7 @@
                         <input id="password" type="password" autocomplete="current-password" maxlength="72" required>
                         <button type="button" class="pw-toggle" id="pwToggle" aria-pressed="false">Show</button>
                     </div>
+                    <div class="strength" id="strength" data-level="0" hidden aria-hidden="true"><i></i><i></i><i></i><i></i></div>
                     <span class="hint" id="passHint" hidden>At least 8 characters</span>
                 </div>
                 <div class="field" id="confirmField" hidden>
@@ -62,12 +69,13 @@
                 <div class="divider">or</div>
                 <button class="btn btn-ghost btn-block" id="guestBtn" type="button">Continue as a guest</button>
                 <p class="fineprint" style="text-align:center">Guests see 10 featured asteroids on every site.</p>
-                <a class="back-link" href="index.html">← Back to the home page</a>
+                <a class="back-link" href="./">← Back to the home page</a>
             </form>
         </main>
     </div>
 
     <script src="shared.js"></script>
+    <script src="globe.js"></script>
     <script src="auth.js"></script>
 </body>
 

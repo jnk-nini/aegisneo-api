@@ -6,7 +6,7 @@ HTML/CSS/JS website loads its data with `fetch()`.
 
 - **Live API:** https://aegisneo-api.vercel.app (returns a welcome message)
 - **Interactive docs:** https://aegisneo-api.vercel.app/docs
-- **Website:** open `frontend/index.html` on your computer, or online at https://aegisneo-api.vercel.app/frontend/
+- **Website (hub):** https://aegisneo-hub.vercel.app (its own Vercel project, root directory `frontend`). Locally, serve the `frontend` folder with any static server that supports clean URLs, for example `npx serve frontend`.
 
 ## Project structure
 
@@ -17,21 +17,22 @@ api/db.py           every SQL query (psycopg 3)
 api/models.py       request validation models
 api/config.py       settings from environment variables
 db/schema.sql       the ten tables, constraints, indexes and privileges
-db/migrations/      changes for a database made with an older schema.sql
+db/migrations/      changes for a database made with an older schema.sql (001 roles, 002 sites and activity, 003 rate limits)
 scripts/            import_asteroids.py, create_user.py, set_role.py, check_connection.py, verify_deployment.py (run on your own computer)
 docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
 requirements.txt    Python packages for Vercel
-vercel.json         sends /frontend/... to the website and everything else to the API
+vercel.json         sends everything to the API (old /frontend/... links redirect to the hub)
+frontend/vercel.json  settings of the hub project: clean URLs, security headers, caching
 data/asteroids.json the catalog, only used once by scripts/import_asteroids.py
 frontend/           the website: landing (index.html), auth.html, hub.html, explorer.html, shared.js, assets/
 ```
 
 ## The website: landing, sign-in, hub
 
-`/frontend/` is the official AegisNEO website. A visitor goes through it in this order:
+https://aegisneo-hub.vercel.app is the official AegisNEO website. A visitor goes through it in this order:
 
-1. `index.html`: a landing page that explains the three sites and what each role gets.
+1. `index.html` (`/`): a landing page with a 3D globe hero, that explains the three sites and what each role gets.
 2. `auth.html`: a full sign-in / create-account screen (or "continue as a guest").
 3. `hub.html`: the hub. It lists the three sites with what the visitor's role may do on each, opens them, shows
    badges and recent launches, and (for admins) "Mission control": usage per site and the audit trail.
@@ -98,9 +99,21 @@ and `asteroid_audit` (an append-only trail of admin changes). `db/schema.sql` ha
 | PUT / DELETE | `/api/v1/me/watchlist/{neo_reference_id}` | Add or remove an asteroid | admin or user |
 | GET | `/api/v1/admin/overview` | Users per role, launches per site, most watched, recent changes | admin |
 
-Status codes: 200, 201, 400 (body is not JSON), 401 (login needed or invalid credentials), 403 (read-only
+Status codes: 200, 201, 400 (body is not JSON), 401 (login needed or invalid credentials), 429 (too many sign-in or sign-up attempts; see `Retry-After`), 403 (read-only
 key, or an account with the user role trying to change data), 404, 409 (duplicate ID or name, or more than 10 featured), 422 (invalid data), 503 (database
 unavailable), 500 (generic message; details only in the server log).
+
+## Security notes
+
+- **Throttling.** Sign-in is limited to 30 attempts per address and 10 per username every 15 minutes, and sign-up to
+  10 per address per hour (`api/ratelimit.py`). The counters are in the `rate_limits` table and hold hashes, never raw
+  addresses. If the table is missing the API lets requests through and logs a warning, so run
+  `db/migrations/003_add_rate_limits.sql` on an existing database. `RATE_LIMIT_DISABLED=1` switches it off.
+- **Roles are read live.** An account's role is looked up in the database on every request, so a deleted or demoted
+  account loses access at once, not when its token expires.
+- **Headers.** The website is served with a Content-Security-Policy and the usual hardening headers (`vercel.json`);
+  fonts are served from this site, not from Google. Responses about an account are `Cache-Control: no-store`.
+- Sessions live in `sessionStorage`, so each browser tab signs in separately and closing the tab signs out.
 
 ## Environment variables
 

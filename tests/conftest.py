@@ -85,7 +85,7 @@ def database(urls, catalog, monkeypatch):
     """Empty tables with a known set of rows before every test."""
     hashed = bcrypt.hashpw(USER_PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
     with psycopg.connect(urls["owner"]) as conn:
-        conn.execute("truncate asteroids, users restart identity cascade")
+        conn.execute("truncate asteroids, users, rate_limits restart identity cascade")
         # Tests may edit the access rules; put the ones from schema.sql back.
         conn.execute("delete from site_access")
         conn.execute(

@@ -3,13 +3,13 @@ import re
 from datetime import date, datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
-from api import auth, db
+from api import auth, db, ratelimit
 from api.config import API_VERSION
 from api.models import AsteroidCreate, AsteroidUpdate, SignUp
 
@@ -34,6 +34,20 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "x-api-key"],
 )
+
+@app.middleware("http")
+async def response_headers(request: Request, call_next):
+    """Headers every response should carry. Anything about an account, or
+    answered for a signed-in caller, must never be kept by a shared cache."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    path = request.url.path
+    if path.startswith(("/api/v1/auth", "/api/v1/me", "/api/v1/admin", "/api/v1/sites")) \
+            or request.headers.get("authorization"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 MAX_RESULTS = 100
 MAX_RANDOM = 20
@@ -76,6 +90,14 @@ def watchlist_full(request, exc):
 @app.exception_handler(db.UnknownUserError)
 def unknown_user(request, exc):
     return JSONResponse({"detail": "This account no longer exists. Log in again."}, status_code=401)
+
+
+@app.exception_handler(ratelimit.RateLimited)
+def rate_limited(request, exc):
+    return JSONResponse(
+        {"detail": "Too many attempts. Please wait a few minutes and try again."},
+        status_code=429, headers={"Retry-After": str(exc.retry_after)},
+    )
 
 
 @app.exception_handler(auth.AuthConfigError)
@@ -127,7 +149,10 @@ def access_label(access):
 # PUBLIC: home, health, login
 # ============================================================
 @app.get("/")
-def home():
+def home(response: Response):
+    # The landing page reads the catalog size from here: a few minutes of
+    # caching keeps a busy front page from querying the database every time.
+    response.headers["Cache-Control"] = "public, s-maxage=300, stale-while-revalidate=600"
     return {
         "message": "Welcome to the AegisNEO API!",
         "total_tracked": db.count_asteroids(),
@@ -165,7 +190,8 @@ def health_check():
 
 
 @app.post("/api/v1/auth/login")
-def login(form: OAuth2PasswordRequestForm = Depends()):
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
+    ratelimit.enforce(request, "login", username=form.username)  # before any password work
     user = db.get_user_by_username(form.username.strip().lower())
     ok = auth.password_matches(form.password, user["password_hash"] if user else None)
     if not user or not ok:
@@ -180,9 +206,10 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
 
 
 @app.post("/api/v1/auth/signup", status_code=201)
-def signup(data: SignUp):
+def signup(request: Request, data: SignUp):
     """Create an account with the user role (read only) and log it in.
     Admins are made only by the owner, with scripts/set_role.py."""
+    ratelimit.enforce(request, "signup")
     auth.check_login_configured()  # 503 before anything is stored if tokens cannot be signed
     user = db.create_user(data.username, auth.hash_password(data.password))
     return {
