@@ -3,102 +3,93 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Explorer · AegisNEO</title>
     <meta name="description" content="Search, filter and sort real near-Earth asteroids, keep a watchlist and play Cosmic Guesser.">
     <meta name="robots" content="noindex">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <meta name="theme-color" content="#05070d">
-    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#04060c">
+    <link rel="stylesheet" href="site.css">
+    <link rel="stylesheet" href="explorer.css">
+    <script src="fx.js"></script>
 </head>
 
-<body>
+<body class="explorer">
     <a class="skip-link" href="#asteroidList">Skip to the asteroids</a>
-    <noscript><p class="guest-banner">The Explorer needs JavaScript to load the catalog.</p></noscript>
     <div class="stars" aria-hidden="true"></div>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
 
-    <header class="masthead">
-        <div class="masthead-inner">
-            <div class="brand">
+    <header class="topbar">
+        <div class="wrap topbar-inner">
+            <a class="brand" href="hub" aria-label="Back to the AegisNEO hub">
                 <span class="brand-mark" aria-hidden="true"></span>
-                <div>
-                    <p class="brand-name">AegisNEO</p>
-                    <p class="brand-sub">Near-Earth Object Watch</p>
-                </div>
-            </div>
-            <div class="account">
+                <span>
+                    <span class="brand-name">AegisNEO</span>
+                    <span class="brand-sub">Explorer</span>
+                </span>
+            </a>
+            <div class="topbar-actions account">
+                <button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false"><span class="pip" aria-hidden="true"></span><span data-motion-label>Motion on</span></button>
                 <span id="accountLabel" class="account-label"></span>
-                <a class="account-btn hub-link" href="hub">← Hub</a>
-                <button id="accountBtn" type="button" class="account-btn">Log out</button>
+                <a class="btn btn-ghost btn-sm hub-link" href="hub">← Hub</a>
+                <button id="accountBtn" type="button" class="btn btn-ghost btn-sm">Log out</button>
             </div>
-            <dl class="masthead-stats">
-                <div>
-                    <dt>Tracked objects</dt>
-                    <dd id="statTotal">—</dd>
-                </div>
-                <div>
-                    <dt>Matching</dt>
-                    <dd id="statShown">—</dd>
-                </div>
-                <div>
-                    <dt>Flagged hazardous</dt>
-                    <dd id="statHazard">—</dd>
-                </div>
-            </dl>
         </div>
     </header>
 
+    <noscript><p class="guest-banner">The Explorer needs JavaScript to load the catalog.</p></noscript>
     <p id="guestBanner" class="guest-banner" hidden><span></span> <a href="auth?mode=signup">Create an account</a></p>
 
-    <section class="hero">
-        <div class="hero-orbit">
-            <span class="orbit-ring ring-1" aria-hidden="true"></span>
-            <span class="orbit-ring ring-2" aria-hidden="true"></span>
-            <span class="orbit-ring ring-3" aria-hidden="true"></span>
-            <span class="orbit-core" aria-hidden="true" title="Earth"></span>
-            <div class="orbit-highlights" id="orbitHighlights" aria-label="Notable objects in the current batch">
-                <p class="orbit-loading">Locating notable objects…</p>
+    <main class="wrap" id="main">
+        <section class="x-hero">
+            <div class="x-hero-copy">
+                <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Live near-Earth telemetry</span>
+                <h1>Space rocks are closer <em>than you think.</em></h1>
+                <p class="lede">Every card below is a real tracked asteroid. Explore what's flying past Earth, how big it really is, and how close it came.</p>
+                <div class="cta-row">
+                    <button id="surpriseBtn" type="button" class="btn btn-primary btn-lg" data-magnetic>🎲 Surprise me <span class="arrow" aria-hidden="true">→</span></button>
+                </div>
+                <dl class="stat-tiles">
+                    <div class="tile"><dt>Tracked objects</dt><dd id="statTotal">—</dd></div>
+                    <div class="tile"><dt>Matching</dt><dd id="statShown">—</dd></div>
+                    <div class="tile"><dt>Flagged hazardous</dt><dd id="statHazard">—</dd></div>
+                </dl>
             </div>
-        </div>
-        <div class="hero-copy">
-            <p class="hero-eyebrow">Live near-earth telemetry</p>
-            <h1 class="hero-title">Space rocks are closer<br>than you think.</h1>
-            <p class="hero-sub">Every card below is a real tracked asteroid — no filler, no stock photos.
-                Explore what's flying past Earth, how big it really is, and how close it came.</p>
-            <div class="hero-actions">
-                <button id="surpriseBtn" type="button" class="cta">🎲 Surprise me with a random rock</button>
+            <div class="hero-orbit">
+                <canvas id="heroGlobe" aria-hidden="true"></canvas>
+                <div class="orbit-highlights" id="orbitHighlights" aria-label="Notable objects in the current batch">
+                    <p class="orbit-loading">Locating notable objects…</p>
+                </div>
             </div>
-        </div>
-        <div class="fact-ticker" role="status" aria-live="polite">
+        </section>
+
+        <div class="fact-ticker" role="status" aria-live="off">
             <span class="fact-icon" aria-hidden="true">✦</span>
             <span id="factText">Loading a fun fact…</span>
         </div>
-    </section>
 
-    <section class="game" aria-labelledby="gameTitle">
-        <div class="game-head">
-            <div>
-                <h2 id="gameTitle">🛰️ Cosmic Guesser</h2>
-                <p class="game-sub">Real asteroids, real numbers. No spoilers until you pick.</p>
+        <section class="game" aria-labelledby="gameTitle">
+            <div class="game-head">
+                <div>
+                    <h2 id="gameTitle">🛰️ Cosmic Guesser</h2>
+                    <p class="game-sub">Real asteroids, real numbers. No spoilers until you pick.</p>
+                </div>
+                <div class="game-score">
+                    <div><span>Streak</span><strong id="gameStreak">0</strong></div>
+                    <div><span>Best</span><strong id="gameBest">0</strong></div>
+                </div>
             </div>
-            <div class="game-score">
-                <div><span>Streak</span><strong id="gameStreak">0</strong></div>
-                <div><span>Best</span><strong id="gameBest">0</strong></div>
-            </div>
-        </div>
-        <p class="game-prompt" id="gamePrompt">Loading a round…</p>
-        <div class="game-arena" id="gameArena"></div>
-        <p class="game-feedback" id="gameFeedback" aria-live="polite"></p>
-    </section>
+            <p class="game-prompt" id="gamePrompt">Loading a round…</p>
+            <div class="game-arena" id="gameArena"></div>
+            <p class="game-feedback" id="gameFeedback" aria-live="polite"></p>
+        </section>
 
-    <main>
-        <section class="controls">
+        <section class="controls" aria-label="Search and filters">
             <div class="search" role="search">
                 <label class="visually-hidden" for="searchInput">Search by name or reference ID</label>
                 <input type="text" id="searchInput" placeholder="Search by designation or reference ID…" autocomplete="off">
-                <button id="searchBtn" type="button">Search</button>
-                <button id="resetBtn" type="button" class="secondary">Show All</button>
+                <button id="searchBtn" type="button" class="btn btn-primary btn-sm">Search</button>
+                <button id="resetBtn" type="button" class="btn btn-ghost btn-sm">Show all</button>
             </div>
 
             <div class="filter-bar">
@@ -120,9 +111,6 @@
                 <div class="filter-group">
                     <span class="filter-label">List</span>
                     <button id="watchlistToggle" class="chip chip-fav" type="button" aria-pressed="false">★ My List (0)</button>
-                </div>
-
-                <div class="filter-group">
                     <button id="newBtn" class="chip chip-new" type="button" hidden>＋ New asteroid</button>
                 </div>
 
@@ -148,13 +136,16 @@
             </div>
             <div class="load-more" id="loadMoreWrap" hidden>
                 <p id="loadMoreCount" class="load-more-count"></p>
-                <button id="loadMoreBtn" type="button" class="cta">Load more</button>
+                <button id="loadMoreBtn" type="button" class="btn btn-ghost">Load more</button>
             </div>
         </section>
     </main>
 
-    <footer>
-        <p>Data: NASA-derived Near-Earth Object catalog · AegisNEO telemetry console</p>
+    <footer class="site-foot">
+        <div class="wrap">
+            <span>Data: NASA-derived Near-Earth Object catalog · AegisNEO Explorer</span>
+            <span><a href="hub">Back to the hub</a></span>
+        </div>
     </footer>
 
     <div id="editorOverlay" class="editor-overlay" hidden>
@@ -171,15 +162,16 @@
             </div>
             <label class="editor-check"><input name="is_potentially_hazardous" type="checkbox"> Potentially hazardous</label>
             <label class="editor-check"><input name="is_featured" type="checkbox"> Featured (visible to guests; at most 10)</label>
-            <p class="login-error" id="editorError" role="alert"></p>
+            <p class="form-error" id="editorError" role="alert"></p>
             <div class="editor-actions">
-                <button type="button" id="editorCancel" class="secondary">Cancel</button>
-                <button type="submit" class="login-submit">Save</button>
+                <button type="button" id="editorCancel" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
             </div>
         </form>
     </div>
 
     <script src="shared.js"></script>
+    <script src="globe.js"></script>
     <script src="explorer.js"></script>
 </body>
 

@@ -36,7 +36,7 @@ https://aegisneo-hub.vercel.app is the official AegisNEO website. A visitor goes
 2. `auth.html`: a full sign-in / create-account screen (or "continue as a guest").
 3. `hub.html`: the hub. It lists the three sites with what the visitor's role may do on each, opens them, shows
    badges and recent launches, and (for admins) "Mission control": usage per site and the audit trail.
-4. `explorer.html`: the main catalog app. Admins also get create, edit and delete here.
+4. `explorer.html` (with `explorer.css`): the main catalog app, in the same style as the hub. Admins also get create, edit and delete here.
 
 Impactor and NEO Atlas are separate websites. The hub opens them with a read-only **ticket** (a short-lived token
 for that one site, in the URL fragment). The partner forwards it to this API with its own key, so the API serves the
