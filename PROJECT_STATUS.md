@@ -1,6 +1,6 @@
 # AegisNEO — project status and hand-off notes
 
-Last updated: 2026-11-17
+Last updated: 2026-11-24
 
 ## Live sites
 
@@ -51,15 +51,30 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 
 ## Status
 
+### Where things stand (24 Nov 2026)
+- **Neon migrations:** `003_add_rate_limits.sql` is applied (the `rate_limits` table exists and `aegis_app` has select,
+  insert, update and delete on it). `005_add_account_recovery.sql` is applied (`recovery_hash` column and grants).
+  `004_hub_site_address.sql` is **not confirmed**. Check that `select slug, url from public.sites where slug = 'aegisneo';`
+  returns `explorer`; if the url still starts with `/frontend/`, run the migration once the hub is deployed.
+- **Partner sites:** Impactor and NEO Atlas production are deployed from the latest `master` (Impactor `3ec70de`, NEO Atlas
+  `873579c`, both on Vercel). The API and hub deployments were not checked.
+- **CI:** the browser-test (`e2e`) job in both partner repositories failed because `vite preview` listened on `localhost`
+  (IPv6 on the runner) while Playwright probed `127.0.0.1`. Fixed by starting the preview with `--host 127.0.0.1`
+  (Impactor #9, NEO Atlas #10, both merged).
+- **Open Dependabot pull requests:** API #9, #10, #14, #15; Impactor #4 and #8; NEO Atlas #3, #4 and #8. The Impactor and
+  NEO Atlas ones were red only because of the e2e failure above. Comment `@dependabot rebase` on them so CI reruns, and
+  merge the ones that pass.
+- **Still to do:** confirm migration 004, check the API and hub deployments, and keep an offline backup of the main
+  laptop's `.env` (it holds the only copy of the private keys and the Neon owner connection string).
+
 ### Audit fixes (24 Nov 2026)
-- **To do on Neon:** run `db/migrations/003_add_rate_limits.sql` (owner role), then redeploy. Until then sign-in and
-  sign-up are not throttled (the API logs a warning and carries on).
+- ~~To do on Neon: run `003_add_rate_limits.sql`~~ Done (see above).
 - Explorer now filters, sorts, searches and pages through the whole catalog with the API (it used to work on the first
   100 asteroids only). Hub, Impactor and NEO Atlas UI fixes, a Content-Security-Policy on the website and Impactor,
   self-hosted fonts, and dependency updates. Impactor and NEO Atlas need a redeploy.
 - New Vercel project `aegisneo-hub` serves the website at https://aegisneo-hub.vercel.app (no more `/frontend`). Old `/frontend/...` links redirect. After both deploy, run `db/migrations/004_hub_site_address.sql` on Neon (the Explorer's launch address becomes `explorer`).
 - Redesigned landing page (3D globe hero), sign-in page and hub, with a Motion on/off switch that also follows the system's reduced-motion setting.
-- **To do on Neon, BEFORE merging:** run `db/migrations/005_add_account_recovery.sql` (owner role). The new API code reads
+- **Done on Neon (was: before merging):** `db/migrations/005_add_account_recovery.sql` (owner role). The new API code reads
   the new `recovery_hash` column, so deploying it first would break sign-up and the hub until the migration runs. The
   migration only adds a column and two permissions, so the currently deployed API keeps working with it.
 - New: password recovery by recovery code (no email), "Share link" and "Open in Impactor" in the Explorer, and browser tests
