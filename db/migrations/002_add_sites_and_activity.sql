@@ -35,7 +35,7 @@ create table if not exists public.sites (
 insert into public.sites (slug, name, kind, description, url, sort_order) values
   ('aegisneo',  'AegisNEO Explorer', 'main',
    'Search and sort the asteroid catalog, keep a watchlist, and play Cosmic Guesser.',
-   '/frontend/explorer.html', 1),
+   'explorer', 1),
   ('impactor',  'Impactor', 'partner',
    'A 3D simulator: pick a real asteroid, aim it at Earth and watch the impact.',
    'https://aegisneo-impactor.vercel.app', 2),

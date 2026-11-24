@@ -6,7 +6,7 @@ HTML/CSS/JS website loads its data with `fetch()`.
 
 - **Live API:** https://aegisneo-api.vercel.app (returns a welcome message)
 - **Interactive docs:** https://aegisneo-api.vercel.app/docs
-- **Website:** open `frontend/index.html` on your computer, or online at https://aegisneo-api.vercel.app/frontend/
+- **Website (hub):** https://aegisneo-hub.vercel.app (its own Vercel project, root directory `frontend`). Locally, serve the `frontend` folder with any static server that supports clean URLs, for example `npx serve frontend`.
 
 ## Project structure
 
@@ -22,16 +22,17 @@ scripts/            import_asteroids.py, create_user.py, set_role.py, check_conn
 docs/part2/phases-4-8/  step-by-step guide, API guide, security assessment and test report
 tests/              automated tests (pytest, run against a local PostgreSQL)
 requirements.txt    Python packages for Vercel
-vercel.json         sends /frontend/... to the website and everything else to the API
+vercel.json         sends everything to the API (old /frontend/... links redirect to the hub)
+frontend/vercel.json  settings of the hub project: clean URLs, security headers, caching
 data/asteroids.json the catalog, only used once by scripts/import_asteroids.py
 frontend/           the website: landing (index.html), auth.html, hub.html, explorer.html, shared.js, assets/
 ```
 
 ## The website: landing, sign-in, hub
 
-`/frontend/` is the official AegisNEO website. A visitor goes through it in this order:
+https://aegisneo-hub.vercel.app is the official AegisNEO website. A visitor goes through it in this order:
 
-1. `index.html`: a landing page that explains the three sites and what each role gets.
+1. `index.html` (`/`): a landing page with a 3D globe hero, that explains the three sites and what each role gets.
 2. `auth.html`: a full sign-in / create-account screen (or "continue as a guest").
 3. `hub.html`: the hub. It lists the three sites with what the visitor's role may do on each, opens them, shows
    badges and recent launches, and (for admins) "Mission control": usage per site and the audit trail.

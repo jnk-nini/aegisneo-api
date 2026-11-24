@@ -25,6 +25,7 @@ document.getElementById("roleText").textContent = ROLE_TEXT[Session.role] || ROL
 document.getElementById("upsell").hidden = Session.loggedIn;
 document.getElementById("logoutBtn").textContent = Session.loggedIn ? "Log out" : "Leave";
 document.getElementById("logoutBtn").addEventListener("click", () => Session.logOut());
+AegisGlobe.mount(document.getElementById("hubGlobe"), { orbits: 2, interactive: false, speed: 0.22, trails: false, radius: 0.3 });
 
 function toast(icon, title, text) {
     const el = document.createElement("div");
@@ -42,25 +43,31 @@ function accessLabel(site) {
 }
 
 function renderSites(sites) {
-    grid.innerHTML = sites.map(site => `
-        <article class="site-card ${site.access.level === "none" ? "locked" : ""}">
-            <div class="exp-media" style="background-image:${SITE_IMAGES[site.slug] || "none"}">
+    grid.setAttribute("aria-busy", "false");
+    grid.innerHTML = sites.map((site, i) => `
+        <article class="site-card tilt ${site.access.level === "none" ? "locked" : ""}" data-tilt style="animation:rise .7s var(--ease) both;animation-delay:${i * 90}ms">
+            <div class="exp-media-wrap"><div class="exp-media" style="background-image:${SITE_IMAGES[site.slug] || "none"}">
                 <span class="tag ${escapeHtml(site.kind)}">${site.kind === "main" ? "Main site" : "Partner site"}</span>
-            </div>
+            </div></div>
             <div class="site-body">
                 <h3>${escapeHtml(site.name)}</h3>
                 <p>${escapeHtml(site.description)}</p>
                 ${accessLabel(site)}
                 <button class="btn btn-primary btn-block" type="button" data-launch="${escapeHtml(site.slug)}"
-                    ${site.access.level === "none" ? "disabled" : ""}>Open ${escapeHtml(site.name)}</button>
+                    ${site.access.level === "none" ? "disabled" : ""}>Open ${escapeHtml(site.name)} <span class="arrow" aria-hidden="true">→</span></button>
             </div>
         </article>`).join("");
+    grid.querySelectorAll("[data-tilt]").forEach(card => window.AegisFx?.bindTilt?.(card));
 }
+
+const warp = document.getElementById("warp");
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 grid.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-launch]");
     if (!button) return;
-    const label = button.textContent;
+    const label = button.innerHTML;
+    const card = button.closest(".site-card");
     button.disabled = true;
     button.textContent = "Opening…";
     errorEl.textContent = "";
@@ -72,19 +79,36 @@ grid.addEventListener("click", async (event) => {
         if (!target) throw new Error("This site has an unusable address. Please tell the project owner.");
         // Badges earned by this launch are shown when the visitor comes back to the hub.
         if (launch.new_badges?.length) writeSession(NEW_BADGES_KEY, JSON.stringify(launch.new_badges));
+        // A short "warp" from the card, then on to the site (skipped when motion is off).
+        if (window.AegisMotion?.enabled()) {
+            const r = button.getBoundingClientRect();
+            warp.style.setProperty("--wx", `${((r.left + r.width / 2) / innerWidth * 100).toFixed(1)}%`);
+            warp.style.setProperty("--wy", `${((r.top + r.height / 2) / innerHeight * 100).toFixed(1)}%`);
+            document.getElementById("warpText").textContent = `Opening ${launch.name || "site"}`;
+            card?.classList.add("opening");
+            warp.classList.add("on");
+            await pause(420);
+        }
         // The ticket travels in the URL fragment, which is never sent to a server.
         location.assign(launch.ticket ? `${target}#aegis_ticket=${encodeURIComponent(launch.ticket)}` : target);
     } catch (error) {
         errorEl.textContent = error instanceof TypeError ? "Could not reach the server." : error.message;
+        warp.classList.remove("on");
+        card?.classList.remove("opening");
         button.disabled = false;
-        button.textContent = label;
+        button.innerHTML = label;
     }
 });
+
+// The page can come back from the browser's back button with the warp still showing.
+addEventListener("pageshow", (event) => { if (event.persisted) { warp.classList.remove("on"); grid.querySelectorAll(".opening").forEach(c => c.classList.remove("opening")); grid.querySelectorAll("[data-launch]").forEach(b => { b.disabled = false; }); load(); } });
 
 function renderOverview(data) {
     document.getElementById("accountPanels").hidden = false;
     const earned = data.badges.filter(b => b.earned_at).length;
     document.getElementById("badgeSub").textContent = `${earned} of ${data.badges.length} collected.`;
+    document.getElementById("badgeRing").style.setProperty("--p", String(Math.round(earned / data.badges.length * 100)));
+    document.getElementById("badgeRingText").textContent = `${earned}/${data.badges.length}`;
     document.getElementById("badgeGrid").innerHTML = data.badges.map(b => `
         <div class="badge ${b.earned_at ? "" : "locked"}" title="${escapeHtml(b.description)}">
             <span class="ico" aria-hidden="true">${escapeHtml(b.icon)}</span>

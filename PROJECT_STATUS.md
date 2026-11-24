@@ -6,7 +6,8 @@ Last updated: 2026-11-17
 
 | Site | URL | Vercel project | Source folder |
 | --- | --- | --- | --- |
-| AegisNEO API + main site | https://aegisneo-api.vercel.app (docs: `/docs`, site: `/frontend/`) | `aegisneo-api` | `api/index.py`, `frontend/` |
+| AegisNEO API | https://aegisneo-api.vercel.app (docs: `/docs`) | `aegisneo-api` | `api/index.py` |
+| AegisNEO hub (landing, sign-in, hub, Explorer) | https://aegisneo-hub.vercel.app | `aegisneo-hub` (root directory `frontend`, same repository) | `frontend/` |
 | Impactor (impact simulator) | https://aegisneo-impactor.vercel.app | `aegisneo-impactor` | repo `jnk-nini/aegisneo-impactor` |
 | NEO Atlas (constellation site) | https://neo-atlas-pearl.vercel.app | `neo-atlas` | repo `jnk-nini/neo-atlas` |
 
@@ -56,6 +57,8 @@ Each site has its own GitHub repository and Vercel project, deployed from its `m
 - Explorer now filters, sorts, searches and pages through the whole catalog with the API (it used to work on the first
   100 asteroids only). Hub, Impactor and NEO Atlas UI fixes, a Content-Security-Policy on the website and Impactor,
   self-hosted fonts, and dependency updates. Impactor and NEO Atlas need a redeploy.
+- New Vercel project `aegisneo-hub` serves the website at https://aegisneo-hub.vercel.app (no more `/frontend`). Old `/frontend/...` links redirect. After both deploy, run `db/migrations/004_hub_site_address.sql` on Neon (the Explorer's launch address becomes `explorer`).
+- Redesigned landing page (3D globe hero), sign-in page and hub, with a Motion on/off switch that also follows the system's reduced-motion setting.
 - Open recommendation: add a rate-limit rule in the Vercel Firewall for `/api/neo/*` on both partner sites.
 
 ### Hub, roles and entities (added 17 Nov 2026)

@@ -77,10 +77,10 @@ const Session = {
     // Pages behind the sign-in page: a visitor is either signed in or a guest.
     require() {
         if (this.loggedIn || this.isGuest) return true;
-        location.replace("auth.html");
+        location.replace("auth");
         return false;
     },
-    logOut(to = "index.html") {
+    logOut(to = "./") {
         this.clear();
         location.assign(to);
     },
@@ -102,7 +102,7 @@ async function apiFetch(path, { method = "GET", json, form, signal } = {}) {
     const response = await fetch(`${API_URL}${path}`, { method, headers, body, signal });
     if (response.status === 401 && token) {
         Session.clear();
-        location.replace("auth.html?expired=1");
+        location.replace("auth?expired=1");
     }
     return response;
 }

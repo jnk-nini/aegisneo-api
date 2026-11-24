@@ -79,7 +79,7 @@ def test_a_guest_launch_has_no_ticket_and_is_logged_without_a_user(client, owner
 
 def test_the_main_site_launch_needs_no_ticket(client, reader):
     body = client.post("/api/v1/sites/aegisneo/launch", headers=reader).json()
-    assert body["ticket"] is None and body["url"].startswith("/frontend/")
+    assert body["ticket"] is None and body["url"] == "explorer"
 
 
 def test_an_unknown_site_is_404(client):

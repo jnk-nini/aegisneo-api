@@ -9,7 +9,7 @@ function authHeaders() {
 // A 401 for a signed-in visitor means the token ran out: back to the sign-in page.
 function sessionEnded(response) {
     if (response.status === 401 && Session.username && !Session.token) {
-        location.replace("auth.html?expired=1");
+        location.replace("auth?expired=1");
         return true;
     }
     return false;
@@ -1317,7 +1317,7 @@ function updateAccountBar() {
 
 accountBtn.addEventListener("click", () => {
     if (Session.loggedIn) Session.logOut();
-    else location.assign("auth.html");
+    else location.assign("auth");
 });
 
 
